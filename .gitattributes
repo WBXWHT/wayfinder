@@ -1,0 +1,6 @@
+plugins/wayfinder/bin/** linguist-generated=true
+plugins/wayfinder/mcp/wayfinder-app.html linguist-generated=true
+plugins/wayfinder/skills/wayfinder/scripts/** linguist-generated=true
+skills/wayfinder/scripts/** linguist-generated=true
+**/THIRD_PARTY_LICENSES.txt linguist-generated=true
+media/d3.min.js linguist-vendored=true

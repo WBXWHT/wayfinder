@@ -8,6 +8,7 @@ API key is required by Wayfinder.
 
 [Downloads](https://github.com/WBXWHT/wayfinder/releases/tag/v0.3.1) |
 [Install Guide](docs/INSTALL.md) | [Privacy](PRIVACY.md) |
+[Publication Status](docs/PUBLISHING.md) |
 [Report a Bug](https://github.com/WBXWHT/wayfinder/issues)
 
 ## Where It Lives
@@ -86,7 +87,7 @@ npm install -g https://github.com/WBXWHT/wayfinder/releases/download/v0.3.1/wbxw
 wayfinder --version
 ```
 
-This installs a signed-in-free GitHub Release artifact using npm. It is **not**
+This installs a public GitHub Release artifact using npm. It is **not**
 an npm Registry listing; `npm install -g @wbxwht/wayfinder` is not yet available.
 
 ### Local MCP Bundle
@@ -95,6 +96,10 @@ Download [wayfinder-0.3.1.mcpb](https://github.com/WBXWHT/wayfinder/releases/dow
 and install it through a desktop client's local MCP extension installer. Select
 the project directory containing existing Wayfinder history. This is a local,
 unsigned MCP bundle, not a Claude Desktop directory listing.
+
+The same bundle is listed in the
+[official MCP Registry](https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.WBXWHT/wayfinder)
+as `io.github.WBXWHT/wayfinder`.
 
 ## Capture And Inspect
 

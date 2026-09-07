@@ -1,0 +1,21 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.WBXWHT/wayfinder",
+  "title": "Wayfinder",
+  "description": "Read local AI coding paths, decisions, and branches as an in-host voyage map.",
+  "repository": {
+    "url": "https://github.com/WBXWHT/wayfinder",
+    "source": "github"
+  },
+  "version": "0.3.1",
+  "packages": [
+    {
+      "registryType": "mcpb",
+      "identifier": "https://github.com/WBXWHT/wayfinder/releases/download/v0.3.1/wayfinder-0.3.1.mcpb",
+      "fileSha256": "058f603cee0af0293e7b03f3a030d7a6c9e3bde8ef9bf68c424fad59d96a2fc3",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
