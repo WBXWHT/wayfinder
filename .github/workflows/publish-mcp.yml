@@ -1,0 +1,55 @@
+name: Publish MCP Registry
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing, verified GitHub Release tag
+        default: v0.3.1
+        required: true
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      RELEASE_TAG: ${{ inputs.tag }}
+      GH_REPO: ${{ github.repository }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Download published metadata and MCP bundle
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          gh release download "$RELEASE_TAG" --pattern server.json --pattern '*.mcpb'
+          node <<'NODE'
+          const fs = require('node:fs');
+          const crypto = require('node:crypto');
+          const info = JSON.parse(fs.readFileSync('server.json', 'utf8'));
+          const pkg = info.packages[0];
+          const url = new URL(pkg.identifier);
+          if (url.hostname !== 'github.com' ||
+              !url.pathname.startsWith('/' + process.env.GH_REPO + '/releases/download/' + process.env.RELEASE_TAG + '/')) {
+            throw new Error('Unexpected MCP bundle source');
+          }
+          const file = url.pathname.split('/').at(-1);
+          const digest = crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+          if (digest !== pkg.fileSha256) throw new Error('MCP bundle checksum mismatch');
+          NODE
+      - name: Install verified MCP publisher
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 -o publisher.tar.gz https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/mcp-publisher_linux_amd64.tar.gz
+          printf '%s  publisher.tar.gz\n' 'a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc' | sha256sum -c -
+          tar xzf publisher.tar.gz mcp-publisher
+      - name: Validate
+        run: ./mcp-publisher validate
+      - name: Authenticate without a stored token
+        run: ./mcp-publisher login github-oidc
+      - name: Publish
+        run: ./mcp-publisher publish

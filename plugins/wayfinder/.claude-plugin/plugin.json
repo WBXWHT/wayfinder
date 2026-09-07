@@ -1,0 +1,13 @@
+{
+  "name": "wayfinder",
+  "description": "Capture Claude Code sessions into the local Wayfinder voyage map.",
+  "version": "0.3.1",
+  "author": {
+    "name": "WBXWHT"
+  },
+  "hooks": "./hooks/claude.json",
+  "mcpServers": "./.mcp.json",
+  "repository": "https://github.com/WBXWHT/wayfinder",
+  "license": "MIT",
+  "skills": "./skills/"
+}

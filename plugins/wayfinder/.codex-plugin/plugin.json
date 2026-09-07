@@ -1,0 +1,13 @@
+{
+  "name": "wayfinder",
+  "version": "0.3.1",
+  "description": "Capture Codex sessions into the local Wayfinder voyage map.",
+  "hooks": "./hooks/codex.json",
+  "mcpServers": "./.mcp.json",
+  "author": {
+    "name": "WBXWHT"
+  },
+  "repository": "https://github.com/WBXWHT/wayfinder",
+  "license": "MIT",
+  "skills": "./skills/"
+}

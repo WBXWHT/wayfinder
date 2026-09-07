@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wayfinder</title>
+</head>
+<body>
+<main>
+  <header>
+    <strong id="title">Wayfinder 航海图</strong>
+    <nav aria-label="航海图切换与显示">
+      <button id="previous" title="上一张航海图" aria-label="上一张航海图">‹</button>
+      <span id="treeCount"></span>
+      <button id="next" title="下一张航海图" aria-label="下一张航海图">›</button>
+      <button id="expand" title="全屏显示" aria-label="全屏显示">⛶</button>
+    </nav>
+  </header>
+  <section id="map"><div class="empty">正在读取航迹</div></section>
+</main>
+<style>
+  :root {
+    color-scheme: light;
+    font-family: "PingFang SC", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    color: #254852;
+    background: #eaf7fb;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; overflow: hidden; background: #eaf7fb; }
+  main { min-height: 280px; height: 100vh; overflow: hidden; }
+  header {
+    position: relative;
+    z-index: 5;
+    display: flex;
+    height: 42px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 10px 0 13px;
+    border-bottom: 1px solid #b8d9df;
+    background: #fffdf7;
+    box-shadow: 0 1px 0 rgba(37, 72, 82, .05);
+  }
+  header strong {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 13px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    letter-spacing: 0;
+  }
+  nav { display: flex; align-items: center; flex: none; gap: 2px; }
+  nav span { min-width: 34px; color: #647980; font-size: 10px; text-align: center; }
+  button {
+    display: inline-grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 5px;
+    color: #315d67;
+    background: transparent;
+    font: inherit;
+    font-size: 19px;
+    cursor: pointer;
+  }
+  button:hover { background: #e4f2f5; }
+  button:focus-visible { outline: 2px solid #2f9fbd; outline-offset: -2px; }
+  #map {
+    position: relative;
+    height: calc(100vh - 42px);
+    min-height: 238px;
+    overflow: hidden;
+    background: #eaf7fb;
+  }
+  .viewport {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    cursor: grab;
+    touch-action: none;
+  }
+  .viewport:active { cursor: grabbing; }
+  .stage {
+    position: relative;
+    transform-origin: 0 0;
+    will-change: transform;
+  }
+  svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  .ocean { fill: #eaf7fb; }
+  .shore-fill { fill: #f4d38b; opacity: .94; }
+  .shore-line {
+    fill: none;
+    stroke: #fff;
+    stroke-width: 6;
+    filter: drop-shadow(1px 2px 0 rgba(25, 92, 108, .17));
+  }
+  .waves {
+    fill: none;
+    stroke: #70bfd2;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+  }
+  .waves.far { opacity: .42; }
+  .waves.near { opacity: .62; }
+  .route-bed {
+    fill: none;
+    stroke: rgba(255, 255, 255, .92);
+    stroke-width: 22;
+    stroke-linecap: round;
+  }
+  .route {
+    fill: none;
+    stroke: #2f9fbd;
+    stroke-width: 9;
+    stroke-linecap: round;
+  }
+  .route-1 { stroke: #4d9ff8; }
+  .route-2 { stroke: #8c72db; }
+  .route-3 { stroke: #d79b32; }
+  .route-4 { stroke: #28a69a; }
+  .route.bad {
+    stroke: #ee7469;
+    stroke-dasharray: 10 8;
+  }
+  .route-bed.bad { stroke: rgba(255, 255, 255, .82); }
+  .pole { fill: none; stroke: #9a6b2f; stroke-width: 1.8; stroke-linecap: round; }
+  .flag {
+    fill: #f3bd4f;
+    stroke: #b57b2f;
+    stroke-width: 1.2;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 2px 1px rgba(154, 107, 47, .2));
+  }
+  .node { cursor: pointer; outline: none; }
+  .node circle {
+    fill: #7a64cf;
+    stroke: #fff;
+    stroke-width: 5;
+    filter: drop-shadow(1px 2px 0 rgba(25, 92, 108, .18));
+  }
+  .node rect {
+    fill: #fffdf7;
+    stroke: #d4e5e8;
+    stroke-width: 1;
+    filter: drop-shadow(2px 3px 0 rgba(25, 92, 108, .2));
+  }
+  .node text {
+    fill: #254852;
+    font-size: 10.5px;
+    font-weight: 650;
+    letter-spacing: 0;
+    pointer-events: none;
+  }
+  .node:focus rect, .node:hover rect { stroke: #2f9fbd; stroke-width: 2; }
+  .node.bad circle { fill: #ee7469; }
+  .node.current circle { fill: #2f9fbd; }
+  .reef { fill: #cc6a5d; stroke: #fff; stroke-width: 3; stroke-linejoin: round; }
+  .boat {
+    filter: drop-shadow(1px 2px 0 rgba(25, 92, 108, .2));
+    animation: boat-bob 1.9s ease-in-out infinite;
+  }
+  .boat .sail { fill: #f8cf6d; stroke: #9a6b2f; stroke-width: 1; }
+  .boat .hull { fill: #2f9fbd; stroke: #176f89; stroke-width: 1; }
+  #detail {
+    position: absolute;
+    z-index: 4;
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    max-height: min(150px, 42vh);
+    overflow: auto;
+    padding: 10px 12px;
+    border: 1px solid #d4e5e8;
+    border-radius: 7px;
+    background: rgba(255, 253, 247, .97);
+    box-shadow: 2px 3px 0 rgba(25, 92, 108, .2);
+  }
+  .detail-head { display: flex; align-items: start; justify-content: space-between; gap: 8px; }
+  #detail strong { font-size: 12px; letter-spacing: 0; }
+  #detail .close { flex: none; width: 22px; height: 22px; font-size: 17px; }
+  #detail p { margin: 5px 0; color: #526d74; font-size: 12px; line-height: 1.45; }
+  #detail small { color: #71858a; font-size: 10px; }
+  .empty { display: grid; min-height: 238px; place-items: center; color: #647980; font-size: 12px; }
+  @keyframes boat-bob {
+    0%, 100% { transform: translate(13px, -20px) rotate(-1deg); }
+    50% { transform: translate(13px, -22px) rotate(1deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .boat { animation: none; }
+  }
+</style>
+<script>/* WAYFINDER_APP */</script>
+</body>
+</html>

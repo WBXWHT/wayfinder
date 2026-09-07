@@ -1,0 +1,13 @@
+{
+  "name": "wayfinder",
+  "owner": {
+    "name": "Wayfinder"
+  },
+  "plugins": [
+    {
+      "name": "wayfinder",
+      "source": "./plugins/wayfinder",
+      "description": "Capture AI coding sessions as a local voyage map."
+    }
+  ]
+}

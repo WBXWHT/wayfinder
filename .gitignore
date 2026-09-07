@@ -1,0 +1,13 @@
+node_modules/
+out/
+*.vsix
+.DS_Store
+.wayfinder/
+release/
+*.tgz
+*.mcpb
+*.log
+.env
+.env.*
+.npmrc
+.DS_Store
