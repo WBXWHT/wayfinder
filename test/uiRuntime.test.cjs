@@ -1,6 +1,7 @@
 /* global WebSocket */
 const assert = require("node:assert/strict");
 const childProcess = require("node:child_process");
+const console = require("node:console");
 const fs = require("node:fs");
 const http = require("node:http");
 const os = require("node:os");
@@ -90,7 +91,7 @@ test(
         `--user-data-dir=${userDataDir}`,
         `${origin}/sidebar.html`
       ],
-      { stdio: "ignore" }
+      { stdio: "ignore", detached: process.platform !== "win32" }
     );
 
     try {
@@ -617,12 +618,24 @@ test(
       );
       assert.deepEqual(exceptions, []);
       cdp.close();
+    } catch (error) {
+      console.error(error);
+      throw error;
     } finally {
       const exited = new Promise((resolve) => browser.once("exit", resolve));
-      browser.kill("SIGTERM");
+      const killBrowser = (signal) => {
+        try {
+          if (process.platform === "win32") browser.kill(signal);
+          else process.kill(-browser.pid, signal);
+        } catch (error) {
+          if (error.code !== "ESRCH") throw error;
+        }
+      };
+      killBrowser("SIGTERM");
       await Promise.race([exited, delay(2_000)]);
+      killBrowser("SIGKILL");
       await new Promise((resolve) => server.close(resolve));
-      fs.rmSync(temp, {
+      await fs.promises.rm(temp, {
         recursive: true,
         force: true,
         maxRetries: 5,
