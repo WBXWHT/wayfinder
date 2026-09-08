@@ -205,7 +205,44 @@ usage-based reviews; do not solicit empty votes or claim a nomination early.
 - MCPFind: imported and marked Verified. Its incorrect MCPB-to-`npx` conversion
   remains reported at:
   https://github.com/MCPFind/mcp-find/issues/191
+- PulseMCP: expected to ingest from the official MCP Registry, but the public
+  site rejected direct HTTP checks and did not finish loading in Chromium. No
+  listing is claimed until a public Wayfinder page can be verified.
+- Smithery: its CLI accepts the verified `wayfinder-0.3.3.mcpb`, but its login
+  asks for GitHub write access to Gists, stars, and watched repositories.
+  GitHub also disabled the OAuth authorization action. No broad account
+  permission was granted for a directory listing.
 - Cline MCP Marketplace: not submitted. Its issue template requires an actual
   Cline-driven install test and a declaration that the server is stable for
   public use; Wayfinder is explicitly an early-access release and has not
   completed that Cline-specific test.
+
+## Community Claude and Skill Directories
+
+- `skills.sh`: publicly indexed with one recorded install:
+  https://skills.sh/wbxwht/wayfinder/wayfinder
+  The live page exposes the reviewed `SKILL.md`; Socket passes, while Gen Agent
+  Trust Hub and Snyk report expected medium warnings for persistent Hooks,
+  command execution, and the linked GitHub release.
+- Awesome Claude Code Workflows: PR open; CodeRabbit passes with no actionable
+  findings, while maintainer review remains pending:
+  https://github.com/ithiria894/awesome-claude-code-workflows/pull/30
+- Awesome Claude Skills: PR open and mergeable; listing validation and both
+  Socket checks pass:
+  https://github.com/ComposioHQ/awesome-claude-skills/pull/1861
+- Awesome Claude Plugins: PR open and mergeable in the `Developer
+  Productivity` category:
+  https://github.com/composio-community/awesome-claude-plugins/pull/459
+- `claude-plugins.dev`: automatically discovers public GitHub plugins, but its
+  live API does not yet return `WBXWHT/wayfinder`. Repository topics now
+  include `claude-plugin`, `model-context-protocol`, and `ai-collaboration` for
+  the next crawl.
+- SkillsMP: automatically indexes public `SKILL.md` files and has no required
+  manual submission flow; Wayfinder is not yet discoverable there.
+- SkillHub: not submitted. Its publisher flow requires an account, and the
+  isolated-browser GitHub login action failed in the site's client code before
+  OAuth began.
+- `awesome-vibe-coding`: not submitted. Maintainer rejection records state a
+  50-star baseline; Wayfinder currently has 0 stars.
+- Awesome Claude Code: not eligible yet. Its form requires at least 14 days of
+  development or 100 stars and a human-authored recommendation.

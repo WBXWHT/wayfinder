@@ -10,7 +10,7 @@ Version: **0.3.3 early access**. Checked 2026-09-08.
 | GitHub Releases / VSIX | https://github.com/WBXWHT/wayfinder/releases/tag/v0.3.3 | Ten uploaded assets, SHA-256 manifest |
 | Claude Code self-hosted marketplace | `WBXWHT/wayfinder`, plugin `wayfinder@wayfinder` | Public catalog, complete Plugin bundle and Hook process checks |
 | Codex self-hosted marketplace | `codex plugin marketplace add WBXWHT/wayfinder` | Public catalog, complete Plugin bundle and Hook process checks |
-| Agent Skill distribution | `npx skills add WBXWHT/wayfinder --skill wayfinder` | Public discovery and actual isolated install; bundled CLI reports 0.3.3 |
+| Agent Skill distribution | https://skills.sh/wbxwht/wayfinder/wayfinder | Public `skills.sh` page, one recorded install, and actual isolated CLI install; bundled CLI reports 0.3.3 |
 | Homebrew Tap | https://github.com/WBXWHT/homebrew-tap | Clean macOS runner installed the formula and passed `brew test` |
 | Scoop Bucket | https://github.com/WBXWHT/scoop-wayfinder | Clean Windows runner installed, checked the download hash, ran CLI |
 | npm-compatible release tarball | `wbxwht-wayfinder-0.3.3.tgz` in GitHub Releases | Clean macOS, Windows, and Linux installations |
@@ -19,8 +19,8 @@ Version: **0.3.3 early access**. Checked 2026-09-08.
 | MCPFind | https://www.mcpfind.org/servers/io-github-wbxwht-wayfinder | Auto-imported from the official Registry and marked `Verified` |
 
 These rows distinguish formats and installation paths, not ten independent
-marketplaces. The Skill is distributable through the open skills CLI; no
-claim is made about a skills.sh ranking or curated placement.
+marketplaces. The `skills.sh` page is an automated public listing, not a
+ranking, endorsement, or curated placement.
 
 The Claude/Codex catalogs are self-hosted, not official directory approvals.
 Wayfinder has also been submitted separately to Anthropic's official plugin
@@ -37,10 +37,18 @@ review flow; that submission is pending and is not yet an approval.
 | Glama | Automatically indexed, not deployable through Glama | https://glama.ai/mcp/servers/WBXWHT/wayfinder |
 | Product Hunt | Scheduled for 2026-09-09 (Pacific Time) | https://www.producthunt.com/products/wayfinder-5?launch=wayfinder-6 |
 | punkpeye/awesome-mcp-servers | Submitted; automated check passes | https://github.com/punkpeye/awesome-mcp-servers/pull/13982 |
-| skills.sh | CLI installation verified; directory page not indexed yet | The repository route currently returns a 404 and must not be presented as a live listing |
+| Awesome Claude Code Workflows | Submitted; CodeRabbit check passes, maintainer review pending | https://github.com/ithiria894/awesome-claude-code-workflows/pull/30 |
+| Awesome Claude Skills | Submitted; listing validation and both Socket checks pass, maintainer review pending | https://github.com/ComposioHQ/awesome-claude-skills/pull/1861 |
+| Awesome Claude Plugins | Submitted; clean and mergeable, maintainer review pending | https://github.com/composio-community/awesome-claude-plugins/pull/459 |
+| skills.sh | Publicly indexed on 2026-09-08 | https://skills.sh/wbxwht/wayfinder/wayfinder; one install recorded, Socket audit passes, and two scanners report expected medium warnings for Hooks, command execution, and the linked GitHub release |
+| claude-plugins.dev | Automatic GitHub discovery pending | The live API does not yet return `WBXWHT`; repository topics now include `claude-plugin`, `model-context-protocol`, and `ai-collaboration` to expose accurate discovery metadata |
+| PulseMCP | Expected downstream Registry sync, not yet verified | The public site rejected direct HTTP checks and hung in Chromium; no manual listing is claimed |
+| SkillsMP | Automatic GitHub indexing pending | No manual submission path is required, and the public catalog does not yet return Wayfinder |
+| SkillHub | Not submitted | Publisher login requires an account; the isolated-browser GitHub login action failed in the site's client code, so no account or listing was created |
 | appcypher/awesome-mcp-servers | Unavailable | Repository is archived; GitHub rejected PR creation |
 | Cline MCP Marketplace | Not submitted | Requires observed Cline-driven installation and a stable-release assertion; these are not yet verified |
 | Awesome Claude Code | Not eligible yet | Requires 14 days of development or 100 stars; recommendations must be made by a human through its web form |
+| awesome-vibe-coding | Not eligible yet | Maintainer rejection history states a 50-star baseline; Wayfinder currently has 0 stars, so no low-confidence promotional PR was opened |
 
 Glama currently imports the README and repository metadata, but its latest
 crawl still shows `0.3.1`, reports no Glama release or tool-schema inspection,
@@ -60,7 +68,9 @@ them to nonexistent local paths.
 
 Submission payloads are retained under [submissions/](submissions/) so that
 the same reviewed facts can be reused without claiming unverified features.
-The active Awesome MCP Servers PR is `#13982`; the archived
+The active community submissions are Awesome MCP Servers `#13982`, OpenModels
+`#32`, TensorBlock `#2231`, Awesome Claude Code Workflows `#30`, Awesome Claude
+Skills `#1861`, and Awesome Claude Plugins `#459`. The archived
 `appcypher/awesome-mcp-servers` list remains unavailable.
 
 ## Public Evidence
@@ -74,6 +84,8 @@ The active Awesome MCP Servers PR is `#13982`; the archived
   https://github.com/WBXWHT/wayfinder/actions/runs/34200822012
 - Registry query:
   https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.WBXWHT/wayfinder
+- Public Agent Skill page:
+  https://skills.sh/wbxwht/wayfinder/wayfinder
 - Glama profile quality details:
   https://glama.ai/mcp/servers/WBXWHT/wayfinder/score
 - OpenModels schema validation was run locally against all 218 entries before
@@ -89,6 +101,7 @@ The active Awesome MCP Servers PR is `#13982`; the archived
 | OpenAI Plugin Directory | The official portal exists and the account is authenticated, but creating either plugin type requires a verified developer identity; the verification flow requires a payment method that the owner does not currently have | Defer the official submission and retain the validated Skills-only artifact; the current local stdio MCPB remains ineligible for the With MCP path |
 | TRAE native marketplace | Deferred at the owner's request on 2026-09-08; official docs describe installation but not an independent publisher portal, and the available cooperation route is email | Do not send the prepared inquiry unless the owner explicitly resumes this channel; the VSIX remains publicly downloadable and locally installable |
 | Glama claim/release | GitHub disabled the OAuth authorization action; a Glama release would also require a deliberate hosted/container build | Allow automatic re-indexing, then retry claim/sync later; do not create a hosted release that misrepresents this local stdio server |
+| Smithery | Its CLI accepts the verified 0.3.3 MCPB, but login requests GitHub write access to Gists, stars, and watched repositories; GitHub also disabled the OAuth authorization action | Do not grant unrelated broad write scopes merely to obtain a directory listing; revisit only if Smithery offers least-privilege authentication |
 
 No credentials are stored in this repository. Do not put access tokens into
 chat, commits, release notes, or public issues. Authenticate through the
