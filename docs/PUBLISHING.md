@@ -87,18 +87,19 @@ The active Awesome MCP Servers PR is `#13982`; the archived
 | VS Code Marketplace | Deferred on 2026-09-08: Microsoft account creation repeatedly returned to the press-and-hold human-verification challenge; no publisher or listing was created | Stop retries for at least 24 hours; retry later in a normal browser on another device/network, preferably with an existing Microsoft account |
 | Open VSX | Required Eclipse Foundation account, publisher agreement, namespace, and PAT | Create the Eclipse account with the owner's identity, complete hCaptcha, link it under Open VSX Profile, then publish the VSIX |
 | OpenAI Plugin Directory | The official portal exists and the account is authenticated, but creating either plugin type requires a verified developer identity; the verification flow requires a payment method that the owner does not currently have | Defer the official submission and retain the validated Skills-only artifact; the current local stdio MCPB remains ineligible for the With MCP path |
-| TRAE native marketplace | Official docs describe installation but not an independent publisher portal; the official cooperation route is email, but no outgoing mail account is configured here | Send the prepared inquiry to `feedback@mail.trae.cn`; VSIX remains publicly downloadable and locally installable |
+| TRAE native marketplace | Deferred at the owner's request on 2026-09-08; official docs describe installation but not an independent publisher portal, and the available cooperation route is email | Do not send the prepared inquiry unless the owner explicitly resumes this channel; the VSIX remains publicly downloadable and locally installable |
 | Glama claim/release | GitHub disabled the OAuth authorization action; a Glama release would also require a deliberate hosted/container build | Allow automatic re-indexing, then retry claim/sync later; do not create a hosted release that misrepresents this local stdio server |
 
 No credentials are stored in this repository. Do not put access tokens into
 chat, commits, release notes, or public issues. Authenticate through the
 platform's normal login or a protected local environment.
 
-The npm login, Eclipse/Open VSX publisher authorization, verified OpenAI
-developer identity, and outgoing mail account remain unavailable on the
-publishing machine at the latest check. Claude Platform authentication was
-completed and the official Anthropic submission was accepted for review.
-Source-metadata improvements do not replace publisher authorization.
+The npm login, Eclipse/Open VSX publisher authorization, and verified OpenAI
+developer identity remain unavailable on the publishing machine at the latest
+check. The owner explicitly deferred the TRAE email route. Claude Platform
+authentication was completed and the official Anthropic submission was
+accepted for review. Source-metadata improvements do not replace publisher
+authorization.
 
 ## Next Release
 

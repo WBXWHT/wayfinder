@@ -66,12 +66,12 @@ Required account action:
 
 ## TRAE Marketplace
 
-Status: no independent third-party publisher portal was found in current
-official documentation. TraeCode officially supports its own marketplace,
-local VSIX import, and compatible extensions from the VS Code Marketplace.
-The official cooperation route remains `feedback@mail.trae.cn`. The prepared
-inquiry was not sent because no outgoing mail account is configured on this
-machine.
+Status: deferred at the owner's request on 2026-09-08. No independent
+third-party publisher portal was found in current official documentation.
+TraeCode officially supports its own marketplace, local VSIX import, and
+compatible extensions from the VS Code Marketplace. The available cooperation
+route remains `feedback@mail.trae.cn`, but no message should be sent unless the
+owner explicitly resumes this channel.
 
 Cooperation email: `feedback@mail.trae.cn`
 
