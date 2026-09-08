@@ -79,7 +79,7 @@ No PR was created against either Awesome MCP Servers list.
 | Channel | Missing prerequisite | Next action |
 | --- | --- | --- |
 | npm Registry | npm account login and package-scope ownership | Log in, confirm the scope, publish the verified tarball |
-| VS Code Marketplace | Microsoft/Azure login and publisher authorization are not present on this machine | Create or verify the `wayfinder` publisher, then upload `wayfinder-0.3.3.vsix` |
+| VS Code Marketplace | Deferred on 2026-09-08: Microsoft account creation repeatedly returned to the press-and-hold human-verification challenge; no publisher or listing was created | Stop retries for at least 24 hours; retry later in a normal browser on another device/network, preferably with an existing Microsoft account |
 | Open VSX | GitHub OAuth consent, namespace ownership, publisher agreement, and PAT | Complete login at https://open-vsx.org/user-settings/tokens, create/claim `wayfinder`, then publish the VSIX |
 | Anthropic community/curated directory | No public general submission route verified in current official Plugin documentation | Continue using the self-hosted Claude marketplace; monitor official announcements |
 | OpenAI curated directory | No public Codex Plugin directory submission route verified | Continue using the self-hosted Codex marketplace; monitor official announcements |

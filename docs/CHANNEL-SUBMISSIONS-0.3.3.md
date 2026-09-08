@@ -22,18 +22,28 @@ then turns them into a branching voyage map that can be revisited and reused.
 
 ## VS Code Marketplace
 
-Status: blocked on Microsoft/Azure sign-in and publisher authorization.
+Status: deferred on 2026-09-08. GitHub authentication reached Microsoft account
+creation, but Microsoft's press-and-hold human-verification challenge repeated
+after successful user completion. No Marketplace publisher or listing was
+created.
 
 Submission asset:
 
 https://github.com/WBXWHT/wayfinder/releases/download/v0.3.3/wayfinder-0.3.3.vsix
 
-Required account action:
+Do not retry before 2026-09-09. Repeated attempts can extend Microsoft's
+temporary risk block. On a later attempt:
 
-1. Sign in at https://marketplace.visualstudio.com/manage.
-2. Create or verify publisher `wayfinder`.
-3. Generate a Marketplace PAT with extension management permission.
-4. Run `npx @vscode/vsce publish --packagePath wayfinder-0.3.3.vsix`.
+1. Use an existing Microsoft account if available.
+2. Otherwise create the account outside the Marketplace flow, using a normal
+   Chrome, Edge, or Safari profile with JavaScript enabled.
+3. Use another device or network, such as a phone on mobile data, if the
+   challenge still loops.
+4. After the account works at https://account.microsoft.com, sign in at
+   https://marketplace.visualstudio.com/manage.
+5. Create or verify publisher `wayfinder`.
+6. Generate a Marketplace PAT with extension management permission.
+7. Run `npx @vscode/vsce publish --packagePath wayfinder-0.3.3.vsix`.
 
 ## Open VSX
 
