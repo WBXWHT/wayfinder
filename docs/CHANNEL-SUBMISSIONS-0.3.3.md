@@ -103,12 +103,23 @@ https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.WBXWHT/wa
 
 ## Anthropic Plugin Directory
 
-Status: Wayfinder already has a working self-hosted Claude Code marketplace.
-An official submission URL now exists at
-https://platform.claude.com/plugins/submit, but it requires a Claude Platform
-account login. This machine has no authenticated Claude Platform session, so
-no submission was made. Do not describe the self-hosted catalog as Anthropic
-approval.
+Status: submitted for Anthropic review on 2026-09-08 through the authenticated
+form at https://platform.claude.com/plugins/submit. The form confirmed
+**Plugin submitted for review** and stated that the review team may contact the
+publisher for more information. Claude Code was selected as the supported
+surface; Claude Cowork was not selected because it has not completed a
+host-specific acceptance test.
+
+Submitted source:
+
+- Repository: https://github.com/WBXWHT/wayfinder
+- Repository path: `plugins/wayfinder`
+- License: MIT
+- Privacy: local-first, no telemetry, no Wayfinder cloud backend
+
+Wayfinder also retains its working self-hosted Claude Code marketplace. The
+official submission is pending review and must not be described as Anthropic
+approval or directory inclusion until Anthropic accepts it.
 
 The validated upload artifact and form copy are documented in
 [`OFFICIAL-PLUGIN-SUBMISSIONS-0.3.3.md`](OFFICIAL-PLUGIN-SUBMISSIONS-0.3.3.md).
@@ -125,8 +136,16 @@ endpoint, domain verification, CSP, tool annotations, and reviewer test cases.
 The current viable route is a **Skills only** submission containing the
 Wayfinder skill and bundled local CLI. This requires an authenticated OpenAI
 Platform organization, a verified individual or business identity, and Owner
-or **Apps Management: Write** permission. No official submission has been made
-yet.
+or **Apps Management: Write** permission.
+
+The OpenAI Platform login succeeded on 2026-09-08 and the official Plugins
+console exposed both **With MCP** and **Skills only** creation paths. Selecting
+**Skills only** opened a blocking **Complete identity verification** dialog:
+OpenAI requires a verified developer identity before any plugin can be created
+or uploaded. The owner's verification flow requires a payment method, which is
+not currently available, so no official OpenAI submission was made. This is an
+account prerequisite, not an absent submission route or package validation
+failure.
 
 The existing GitHub marketplace remains a valid independent Codex distribution
 source:

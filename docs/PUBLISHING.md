@@ -23,12 +23,14 @@ marketplaces. The Skill is distributable through the open skills CLI; no
 claim is made about a skills.sh ranking or curated placement.
 
 The Claude/Codex catalogs are self-hosted, not official directory approvals.
-Authenticated end-to-end acceptance in those clients remains pending.
+Wayfinder has also been submitted separately to Anthropic's official plugin
+review flow; that submission is pending and is not yet an approval.
 
 ## Additional Directory Status
 
 | Directory | Status | Evidence / next prerequisite |
 | --- | --- | --- |
+| Anthropic Plugin Directory | Submitted for review on 2026-09-08 | The authenticated Claude Platform form confirmed "Plugin submitted for review"; Claude Code was selected as the supported surface |
 | MCP.so | Submitted, awaiting review | https://github.com/chatmcp/mcpso/issues/3991 |
 | TensorBlock MCP Index | Source issue corrected to 0.3.3; stale generated draft PR awaiting regeneration | https://github.com/TensorBlock/awesome-mcp-servers/pull/2231 |
 | OpenModels MCP Registry | PR updated to 0.3.3; all 218 registry files validate | https://github.com/openmodelsrun/mcp/pull/32 |
@@ -84,8 +86,7 @@ The active Awesome MCP Servers PR is `#13982`; the archived
 | npm Registry | npm account login and package-scope ownership | Log in, confirm the scope, publish the verified tarball |
 | VS Code Marketplace | Deferred on 2026-09-08: Microsoft account creation repeatedly returned to the press-and-hold human-verification challenge; no publisher or listing was created | Stop retries for at least 24 hours; retry later in a normal browser on another device/network, preferably with an existing Microsoft account |
 | Open VSX | Required Eclipse Foundation account, publisher agreement, namespace, and PAT | Create the Eclipse account with the owner's identity, complete hCaptcha, link it under Open VSX Profile, then publish the VSIX |
-| Anthropic community/curated directory | Official submission page exists, but no Claude Platform account is authenticated on this machine | Log in at https://platform.claude.com/plugins/submit, inspect the current review requirements, and submit only if Wayfinder meets them |
-| OpenAI Plugin Directory | Official submission portal exists, but no OpenAI Platform account is authenticated on this machine | Log in at https://platform.openai.com/plugins, verify the publisher identity, and submit Wayfinder as Skills only; the current local stdio MCPB is not eligible for the With MCP path |
+| OpenAI Plugin Directory | The official portal exists and the account is authenticated, but creating either plugin type requires a verified developer identity; the verification flow requires a payment method that the owner does not currently have | Defer the official submission and retain the validated Skills-only artifact; the current local stdio MCPB remains ineligible for the With MCP path |
 | TRAE native marketplace | Official docs describe installation but not an independent publisher portal; the official cooperation route is email, but no outgoing mail account is configured here | Send the prepared inquiry to `feedback@mail.trae.cn`; VSIX remains publicly downloadable and locally installable |
 | Glama claim/release | GitHub disabled the OAuth authorization action; a Glama release would also require a deliberate hosted/container build | Allow automatic re-indexing, then retry claim/sync later; do not create a hosted release that misrepresents this local stdio server |
 
@@ -93,10 +94,11 @@ No credentials are stored in this repository. Do not put access tokens into
 chat, commits, release notes, or public issues. Authenticate through the
 platform's normal login or a protected local environment.
 
-The npm login, Eclipse/Open VSX publisher authorization, Claude Platform login,
-and outgoing mail account remain unavailable on the publishing machine at the
-latest check. Source-metadata improvements do not replace publisher
-authorization.
+The npm login, Eclipse/Open VSX publisher authorization, verified OpenAI
+developer identity, and outgoing mail account remain unavailable on the
+publishing machine at the latest check. Claude Platform authentication was
+completed and the official Anthropic submission was accepted for review.
+Source-metadata improvements do not replace publisher authorization.
 
 ## Next Release
 

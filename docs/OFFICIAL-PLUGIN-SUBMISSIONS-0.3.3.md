@@ -4,8 +4,10 @@ Checked: 2026-09-08
 
 ## Submission Decision
 
-- Anthropic: submit the complete local Claude plugin.
-- OpenAI / Codex: submit a Skills-only plugin first.
+- Anthropic: complete local Claude plugin submitted for review on 2026-09-08.
+- OpenAI / Codex: validated Skills-only package retained for a later attempt;
+  no submission was created because developer identity verification is
+  blocked on the owner's unavailable payment method.
 
 The OpenAI **With MCP** path is not currently valid for Wayfinder. OpenAI
 requires a production HTTPS Streamable HTTP MCP endpoint, domain verification,
@@ -56,19 +58,33 @@ Portal:
 
 https://platform.claude.com/plugins/submit
 
-Suggested description:
+Status: **submitted for review** on 2026-09-08. The authenticated form returned
+**Plugin submitted for review**. No public listing or approval is claimed.
+
+Submitted source:
 
 ```text
-Wayfinder is a local-first experience history for AI coding. It records
-prompts, tool activity, file changes, validation results, decisions, and wrong
-turns, then presents them as branching paths that can be inspected and restored
-without deleting the abandoned future.
+Repository: https://github.com/WBXWHT/wayfinder
+Repository path: plugins/wayfinder
+Homepage: https://github.com/WBXWHT/wayfinder
+Supported surface: Claude Code
+License: MIT
 ```
 
-The submitted archive includes Claude hooks, the local read-only MCP server,
-the interactive MCP App, the bundled Wayfinder skill, and the Core CLI.
-Wayfinder has no telemetry or cloud backend. MCP calls expose selected local
-project history to the calling Claude host, whose privacy rules then apply.
+Submitted description:
+
+```text
+Wayfinder is an open-source, local-first experience history for AI-assisted
+coding. It records prompts, tool activity, file changes, validation results,
+decisions, and wrong turns, then turns them into branching voyage maps that can
+be inspected and restored without deleting abandoned paths. It includes Claude
+Code hooks, a read-only local MCP server with an interactive MCP App, and a
+bundled skill and CLI. It has no telemetry or Wayfinder cloud backend.
+```
+
+The optional privacy-policy field was left empty; the repository and submission
+description disclose the local-first, no-telemetry behavior, and the public
+privacy document remains available at the URL listed above.
 
 The official submission form feeds Anthropic's community plugin marketplace.
 It is not a claim of inclusion in Anthropic's separately curated built-in
@@ -81,6 +97,12 @@ Portal:
 https://platform.openai.com/plugins
 
 Submission type: **Skills only**
+
+Status: not submitted. The authenticated Plugins console exposed both
+**With MCP** and **Skills only**, confirming that the official route exists.
+Selecting **Skills only** produced a blocking **Complete identity
+verification** dialog before draft creation. The owner's verification flow
+requires a payment method that is not currently available.
 
 Short description:
 
@@ -136,8 +158,8 @@ Show this project's Wayfinder history as a terminal tree.
 
 ## Account Requirements
 
-Anthropic requires the account owner to sign in before the submission form can
-be inspected or submitted.
+Anthropic authentication and the directory terms acknowledgement were
+completed by the account owner before the form was submitted.
 
 OpenAI requires:
 
@@ -145,6 +167,9 @@ OpenAI requires:
 2. A verified individual or business identity.
 3. Owner access or a role with **Apps Management: Write**.
 4. Final policy attestations completed by the verified publisher.
+
+The account is authenticated, but requirement 2 remains blocked because the
+available verification flow requires a payment method.
 
 Passwords, verification documents, access tokens, and CAPTCHA responses must
 never be placed in the repository or chat.
