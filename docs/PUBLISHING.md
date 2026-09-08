@@ -16,6 +16,7 @@ Version: **0.3.1 early access**. Checked 2026-09-08.
 | npm-compatible release tarball | `wbxwht-wayfinder-0.3.1.tgz` in GitHub Releases | Clean macOS, Windows, and Linux installations |
 | Official MCP Registry | `io.github.WBXWHT/wayfinder` | Registry API returns version 0.3.1 with `active` status |
 | Desktop MCP bundle | `wayfinder-0.3.1.mcpb` in GitHub Releases | Official manifest validation and stdio MCP process checks |
+| MCPFind | https://www.mcpfind.org/servers/io-github-wbxwht-wayfinder | Auto-imported from the official Registry and marked `Verified` |
 
 These rows distinguish formats and installation paths, not ten independent
 marketplaces. The Skill is distributable through the open skills CLI; no
@@ -29,7 +30,10 @@ Authenticated end-to-end acceptance in those clients remains pending.
 | Directory | Status | Evidence / next prerequisite |
 | --- | --- | --- |
 | MCP.so | Submitted, awaiting review | https://github.com/chatmcp/mcpso/issues/3991 |
+| TensorBlock MCP Index | Submitted; generated draft PR awaiting review | https://github.com/TensorBlock/awesome-mcp-servers/pull/2231 |
+| OpenModels MCP Registry | Validated submission awaiting review | https://github.com/openmodelsrun/mcp/pull/32 |
 | Glama | Automatically indexed, not deployable through Glama | https://glama.ai/mcp/servers/WBXWHT/wayfinder |
+| skills.sh | CLI installation verified; directory page not indexed yet | The repository route currently returns a 404 and must not be presented as a live listing |
 | punkpeye/awesome-mcp-servers | Not submitted | Requires a working Glama release and quality evaluation first |
 | appcypher/awesome-mcp-servers | Unavailable | Repository is archived; GitHub rejected PR creation |
 | Cline MCP Marketplace | Not submitted | Requires observed Cline-driven installation and a stable-release assertion; these are not yet verified |
@@ -42,6 +46,13 @@ the VSIX project package as private and supplies `glama.json` with the actual
 maintainer. Neither change proves Glama has corrected or re-evaluated the
 profile; claim/sync/build/release actions still require the author's Glama
 login. Use the verified GitHub tarball or MCPB in the meantime.
+
+MCPFind's generated page is discoverable, but it currently turns the MCPB URL
+into an invalid `npx` command. This is an importer bug, not a supported
+installation path. It is tracked at
+https://github.com/MCPFind/mcp-find/issues/191. Repository-relative README
+links were changed to absolute GitHub links so directory mirrors do not rewrite
+them to nonexistent local paths.
 
 Submission payloads are retained under [submissions/](submissions/) so that
 the same reviewed facts can be reused without claiming unverified features.
@@ -59,6 +70,8 @@ No PR was created against either Awesome MCP Servers list.
   https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.WBXWHT/wayfinder
 - Glama profile quality details:
   https://glama.ai/mcp/servers/WBXWHT/wayfinder/score
+- OpenModels schema validation was run locally against all 218 entries before
+  PR #32 was opened.
 
 ## Not Published Yet
 

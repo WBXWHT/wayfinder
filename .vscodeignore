@@ -20,3 +20,6 @@ docs/**
 *.tgz
 *.mcpb
 RESEARCH.md
+glama.json
+server.json
+llms-install.md

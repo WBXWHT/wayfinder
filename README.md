@@ -7,8 +7,9 @@ branches, and lessons, kept alongside the assistant you already use.
 API key is required by Wayfinder.
 
 [Downloads](https://github.com/WBXWHT/wayfinder/releases/tag/v0.3.1) |
-[Install Guide](docs/INSTALL.md) | [Privacy](PRIVACY.md) |
-[Publication Status](docs/PUBLISHING.md) |
+[Install Guide](https://github.com/WBXWHT/wayfinder/blob/main/docs/INSTALL.md) |
+[Privacy](https://github.com/WBXWHT/wayfinder/blob/main/PRIVACY.md) |
+[Publication Status](https://github.com/WBXWHT/wayfinder/blob/main/docs/PUBLISHING.md) |
 [Report a Bug](https://github.com/WBXWHT/wayfinder/issues)
 
 ## Where It Lives
@@ -100,6 +101,8 @@ unsigned MCP bundle, not a Claude Desktop directory listing.
 The same bundle is listed in the
 [official MCP Registry](https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.WBXWHT/wayfinder)
 as `io.github.WBXWHT/wayfinder`.
+Automated installers can follow the conservative
+[agent-readable installation guide](https://github.com/WBXWHT/wayfinder/blob/main/llms-install.md).
 
 ## Capture And Inspect
 
@@ -143,7 +146,8 @@ package installations, or AI chat context.
 
 Wayfinder has no telemetry or cloud backend. **MCP tool calls return project
 content to the calling AI host**, whose privacy rules then apply. See
-[PRIVACY.md](PRIVACY.md) before exposing confidential projects.
+[PRIVACY.md](https://github.com/WBXWHT/wayfinder/blob/main/PRIVACY.md)
+before exposing confidential projects.
 
 ## Development
 
@@ -158,5 +162,6 @@ Chromium UI checks run when a supported Chrome executable is available.
 Release verification executes the packaged Core in an isolated project and
 checks actual Hook processes, CLI install/uninstall, stdio MCP, and hashes.
 
-See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for acknowledgements.
+See [THIRD_PARTY_NOTICES.md](https://github.com/WBXWHT/wayfinder/blob/main/THIRD_PARTY_NOTICES.md)
+for acknowledgements.
 Bundled third-party license texts accompany the release artifacts.
