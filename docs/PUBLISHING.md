@@ -24,6 +24,29 @@ claim is made about a skills.sh ranking or curated placement.
 The Claude/Codex catalogs are self-hosted, not official directory approvals.
 Authenticated end-to-end acceptance in those clients remains pending.
 
+## Additional Directory Status
+
+| Directory | Status | Evidence / next prerequisite |
+| --- | --- | --- |
+| MCP.so | Submitted, awaiting review | https://github.com/chatmcp/mcpso/issues/3991 |
+| Glama | Automatically indexed, not deployable through Glama | https://glama.ai/mcp/servers/WBXWHT/wayfinder |
+| punkpeye/awesome-mcp-servers | Not submitted | Requires a working Glama release and quality evaluation first |
+| appcypher/awesome-mcp-servers | Unavailable | Repository is archived; GitHub rejected PR creation |
+| Cline MCP Marketplace | Not submitted | Requires observed Cline-driven installation and a stable-release assertion; these are not yet verified |
+| Awesome Claude Code | Not eligible yet | Requires 14 days of development or 100 stars; recommendations must be made by a human through its web form |
+
+Glama currently imports the README and repository metadata, but its profile
+reports no Glama release or tool-schema inspection. Its generated npm link
+points to the unrelated unscoped `wayfinder` package. The repository now marks
+the VSIX project package as private and supplies `glama.json` with the actual
+maintainer. Neither change proves Glama has corrected or re-evaluated the
+profile; claim/sync/build/release actions still require the author's Glama
+login. Use the verified GitHub tarball or MCPB in the meantime.
+
+Submission payloads are retained under [submissions/](submissions/) so that
+the same reviewed facts can be reused without claiming unverified features.
+No PR was created against either Awesome MCP Servers list.
+
 ## Public Evidence
 
 - Build, 49-test suite, archive build, and packaged-Core verification:
@@ -34,6 +57,8 @@ Authenticated end-to-end acceptance in those clients remains pending.
   https://github.com/WBXWHT/wayfinder/actions/runs/34166101484
 - Registry query:
   https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.WBXWHT/wayfinder
+- Glama profile quality details:
+  https://glama.ai/mcp/servers/WBXWHT/wayfinder/score
 
 ## Not Published Yet
 
@@ -50,6 +75,10 @@ No credentials are stored in this repository. Do not put access tokens into
 chat, commits, release notes, or public issues. Authenticate through the
 platform's normal login or a protected local environment.
 
+The npm login and Open VSX browser login remain unavailable on the publishing
+machine at the latest check. Source-metadata improvements do not replace
+publisher authorization.
+
 ## Next Release
 
 1. Update `package.json` and `src/version.ts` together.
@@ -65,6 +94,9 @@ platform's normal login or a protected local environment.
    the `Publish MCP Registry` workflow for the new tag.
 9. Update the pinned version in the `Verify Published Downloads` workflow,
    run it, and inspect each installation job before declaring success.
+10. Before preparing a community submission, check that the destination is
+    not archived, read its current contribution gates, and search for an
+    existing submission. Record a pending issue/PR as pending, not published.
 
 Never overwrite an existing published asset to fix a package: publish a new
 version so recorded hashes and MCP Registry metadata remain consistent.

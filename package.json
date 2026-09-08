@@ -3,6 +3,7 @@
   "displayName": "Wayfinder",
   "description": "A local voyage map of AI coding paths, decisions, branches, evidence, and lessons.",
   "version": "0.3.1",
+  "private": true,
   "publisher": "wayfinder",
   "license": "MIT",
   "engines": {
