@@ -4,7 +4,7 @@
 
 **Tagline**
 
-Turn scattered AI work into experience you can revisit and reuse.
+Turn scattered AI work into experience you can reuse.
 
 **Opening**
 
@@ -58,15 +58,28 @@ For future Orbit Awards eligibility, keep the category accurate and collect
 detailed, experience-based reviews. Product Hunt states that Orbit is driven by
 verified reviews, with extra weight on detailed and founder reviews.
 
-## Assets Needed Before Scheduling
+## Launch Status
 
-- 240x240 product logo
-- 1270x760 gallery cover
-- Three to five gallery images showing:
-  - the readable IDE voyage map;
-  - a failed branch and non-destructive restore;
-  - Claude/Codex/TraeCode host coverage;
-  - the in-conversation MCP App;
-  - local-first privacy and installation options.
-- A concise demo video showing one ordinary coding turn, a branch, a failed
-  path, and restore.
+Scheduled successfully for September 9, 2026 (Pacific Time).
+
+Pre-launch dashboard:
+
+https://www.producthunt.com/products/wayfinder-5/wayfinder-6/prelaunch
+
+Public product route:
+
+https://www.producthunt.com/products/wayfinder-5?launch=wayfinder-6
+
+Submitted assets:
+
+- 400x400 Wayfinder product icon, cropped by Product Hunt to its 240x240
+  thumbnail format.
+- 1270x760 real Wayfinder voyage-map screenshot.
+- 1270x760 workflow graphic showing prompt, branch, validation, wrong turn,
+  restore, and reuse.
+- 1270x760 host graphic showing the shared Core across TraeCode, Claude Code,
+  and Codex.
+
+Product Hunt reported the required launch information as 100% complete. A demo
+video and shoutouts remain optional post-scheduling improvements, not launch
+blockers.

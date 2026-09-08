@@ -47,21 +47,31 @@ temporary risk block. On a later attempt:
 
 ## Open VSX
 
-Status: blocked on GitHub OAuth consent, publisher agreement, namespace
-ownership, and a PAT.
+Status: GitHub authentication now succeeds, but publishing is blocked on the
+required first-time Eclipse Foundation account. The account form requires the
+owner's public email, username, real name, employment status, country,
+password, agreement acceptance, and hCaptcha. No account, publisher agreement,
+namespace, or PAT was created.
 
 Required account action:
 
-1. Sign in at https://open-vsx.org/user-settings/tokens.
-2. Create or claim namespace `wayfinder`.
-3. Generate a token.
-4. Run `npx ovsx publish wayfinder-0.3.3.vsix -p <token>`.
+1. Create the Eclipse account at https://accounts.eclipse.org/user/register
+   with GitHub username `WBXWHT`.
+2. Return to https://open-vsx.org/user-settings/profile and select
+   **Log in with Eclipse**.
+3. Review and accept the Open VSX Publisher Agreement.
+4. Generate a token under **Access Tokens**.
+5. Run `npx ovsx create-namespace wayfinder -p <token>`.
+6. Run `npx ovsx publish wayfinder-0.3.3.vsix -p <token>`.
 
 ## TRAE Marketplace
 
 Status: no independent third-party publisher portal was found in current
-official documentation. TraeCode officially supports local VSIX import and
-installing compatible extensions from the VS Code Marketplace.
+official documentation. TraeCode officially supports its own marketplace,
+local VSIX import, and compatible extensions from the VS Code Marketplace.
+The official cooperation route remains `feedback@mail.trae.cn`. The prepared
+inquiry was not sent because no outgoing mail account is configured on this
+machine.
 
 Cooperation email: `feedback@mail.trae.cn`
 
@@ -94,9 +104,11 @@ https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.WBXWHT/wa
 ## Anthropic Plugin Directory
 
 Status: Wayfinder already has a working self-hosted Claude Code marketplace.
-Current official Plugin documentation documents local and self-hosted
-marketplaces, but no general public curated-directory submission route could be
-verified. Do not describe the self-hosted catalog as Anthropic approval.
+An official submission URL now exists at
+https://platform.claude.com/plugins/submit, but it requires a Claude Platform
+account login. This machine has no authenticated Claude Platform session, so
+no submission was made. Do not describe the self-hosted catalog as Anthropic
+approval.
 
 ## OpenAI Codex Plugin Directory
 
@@ -107,9 +119,20 @@ approval.
 
 ## Product Hunt / Orbit Awards
 
-Status: launch copy is ready in
-[`PRODUCT-HUNT-0.3.3.md`](PRODUCT-HUNT-0.3.3.md). Publishing is blocked on the
-account owner's GitHub OAuth and Cloudflare verification.
+Status: successfully scheduled for September 9, 2026 (Pacific Time). Product
+Hunt reported the required submission fields as 100% complete.
+
+Pre-launch dashboard:
+
+https://www.producthunt.com/products/wayfinder-5/wayfinder-6/prelaunch
+
+Public product route:
+
+https://www.producthunt.com/products/wayfinder-5?launch=wayfinder-6
+
+The submitted launch includes the Wayfinder icon, a real voyage-map screenshot,
+two purpose-built 1270x760 gallery graphics, the launch description, the first
+Maker comment, the `Developer Tools` tag, and maker `@xuan_world`.
 
 Recommended categories:
 
@@ -122,3 +145,26 @@ Orbit Awards are not a separate one-off application. Product Hunt says
 eligibility is driven by correct categorization, traction, verified reviews,
 and especially detailed and founder reviews. Launch first, then collect genuine
 usage-based reviews; do not solicit empty votes or claim a nomination early.
+
+## Community MCP Directories
+
+- MCP.so: issue open and awaiting review:
+  https://github.com/chatmcp/mcpso/issues/3991
+- OpenModels MCP Registry: PR updated to `0.3.3`; local validator passed all
+  218 entries:
+  https://github.com/openmodelsrun/mcp/pull/32
+- TensorBlock MCP Index: source issue updated to `0.3.3`; automated draft PR
+  still contains stale `0.3.1` data and has been asked to regenerate:
+  https://github.com/TensorBlock/awesome-mcp-servers/pull/2231
+- Awesome MCP Servers: PR open, current automated submission check passes:
+  https://github.com/punkpeye/awesome-mcp-servers/pull/13982
+- Glama: automatically indexed, but its current crawl still shows `0.3.1`.
+  Manual claim/sync was attempted; GitHub disabled the OAuth **Authorize**
+  action with "You can't perform that action at this time."
+- MCPFind: imported and marked Verified. Its incorrect MCPB-to-`npx` conversion
+  remains reported at:
+  https://github.com/MCPFind/mcp-find/issues/191
+- Cline MCP Marketplace: not submitted. Its issue template requires an actual
+  Cline-driven install test and a declaration that the server is stable for
+  public use; Wayfinder is explicitly an early-access release and has not
+  completed that Cline-specific test.

@@ -30,22 +30,24 @@ Authenticated end-to-end acceptance in those clients remains pending.
 | Directory | Status | Evidence / next prerequisite |
 | --- | --- | --- |
 | MCP.so | Submitted, awaiting review | https://github.com/chatmcp/mcpso/issues/3991 |
-| TensorBlock MCP Index | Submitted; generated draft PR awaiting review | https://github.com/TensorBlock/awesome-mcp-servers/pull/2231 |
-| OpenModels MCP Registry | Validated submission awaiting review | https://github.com/openmodelsrun/mcp/pull/32 |
+| TensorBlock MCP Index | Source issue corrected to 0.3.3; stale generated draft PR awaiting regeneration | https://github.com/TensorBlock/awesome-mcp-servers/pull/2231 |
+| OpenModels MCP Registry | PR updated to 0.3.3; all 218 registry files validate | https://github.com/openmodelsrun/mcp/pull/32 |
 | Glama | Automatically indexed, not deployable through Glama | https://glama.ai/mcp/servers/WBXWHT/wayfinder |
+| Product Hunt | Scheduled for 2026-09-09 (Pacific Time) | https://www.producthunt.com/products/wayfinder-5?launch=wayfinder-6 |
+| punkpeye/awesome-mcp-servers | Submitted; automated check passes | https://github.com/punkpeye/awesome-mcp-servers/pull/13982 |
 | skills.sh | CLI installation verified; directory page not indexed yet | The repository route currently returns a 404 and must not be presented as a live listing |
-| punkpeye/awesome-mcp-servers | Not submitted | Requires a working Glama release and quality evaluation first |
 | appcypher/awesome-mcp-servers | Unavailable | Repository is archived; GitHub rejected PR creation |
 | Cline MCP Marketplace | Not submitted | Requires observed Cline-driven installation and a stable-release assertion; these are not yet verified |
 | Awesome Claude Code | Not eligible yet | Requires 14 days of development or 100 stars; recommendations must be made by a human through its web form |
 
-Glama currently imports the README and repository metadata, but its profile
-reports no Glama release or tool-schema inspection. Its generated npm link
-points to the unrelated unscoped `wayfinder` package. The repository now marks
-the VSIX project package as private and supplies `glama.json` with the actual
-maintainer. Neither change proves Glama has corrected or re-evaluated the
-profile; claim/sync/build/release actions still require the author's Glama
-login. Use the verified GitHub tarball or MCPB in the meantime.
+Glama currently imports the README and repository metadata, but its latest
+crawl still shows `0.3.1`, reports no Glama release or tool-schema inspection,
+and links to the unrelated unscoped `wayfinder` npm package. The repository now
+marks the VSIX project package as private and supplies `glama.json` with the
+actual maintainer. A manual claim/sync was attempted, but GitHub disabled the
+OAuth **Authorize** action with "You can't perform that action at this time."
+Use the verified GitHub tarball or MCPB while Glama's automatic crawl catches
+up.
 
 MCPFind's generated page is discoverable, but it currently turns the MCPB URL
 into an invalid `npx` command. This is an importer bug, not a supported
@@ -56,7 +58,8 @@ them to nonexistent local paths.
 
 Submission payloads are retained under [submissions/](submissions/) so that
 the same reviewed facts can be reused without claiming unverified features.
-No PR was created against either Awesome MCP Servers list.
+The active Awesome MCP Servers PR is `#13982`; the archived
+`appcypher/awesome-mcp-servers` list remains unavailable.
 
 ## Public Evidence
 
@@ -80,19 +83,20 @@ No PR was created against either Awesome MCP Servers list.
 | --- | --- | --- |
 | npm Registry | npm account login and package-scope ownership | Log in, confirm the scope, publish the verified tarball |
 | VS Code Marketplace | Deferred on 2026-09-08: Microsoft account creation repeatedly returned to the press-and-hold human-verification challenge; no publisher or listing was created | Stop retries for at least 24 hours; retry later in a normal browser on another device/network, preferably with an existing Microsoft account |
-| Open VSX | GitHub OAuth consent, namespace ownership, publisher agreement, and PAT | Complete login at https://open-vsx.org/user-settings/tokens, create/claim `wayfinder`, then publish the VSIX |
-| Anthropic community/curated directory | No public general submission route verified in current official Plugin documentation | Continue using the self-hosted Claude marketplace; monitor official announcements |
+| Open VSX | Required Eclipse Foundation account, publisher agreement, namespace, and PAT | Create the Eclipse account with the owner's identity, complete hCaptcha, link it under Open VSX Profile, then publish the VSIX |
+| Anthropic community/curated directory | Official submission page exists, but no Claude Platform account is authenticated on this machine | Log in at https://platform.claude.com/plugins/submit, inspect the current review requirements, and submit only if Wayfinder meets them |
 | OpenAI curated directory | No public Codex Plugin directory submission route verified | Continue using the self-hosted Codex marketplace; monitor official announcements |
-| TRAE native marketplace | Official docs describe installation but not an independent publisher portal | Send a cooperation inquiry to `feedback@mail.trae.cn`; VSIX remains supported |
-| Product Hunt | GitHub OAuth and Cloudflare verification require the account owner | Complete the prepared launch at https://www.producthunt.com/posts/new |
+| TRAE native marketplace | Official docs describe installation but not an independent publisher portal; the official cooperation route is email, but no outgoing mail account is configured here | Send the prepared inquiry to `feedback@mail.trae.cn`; VSIX remains publicly downloadable and locally installable |
+| Glama claim/release | GitHub disabled the OAuth authorization action; a Glama release would also require a deliberate hosted/container build | Allow automatic re-indexing, then retry claim/sync later; do not create a hosted release that misrepresents this local stdio server |
 
 No credentials are stored in this repository. Do not put access tokens into
 chat, commits, release notes, or public issues. Authenticate through the
 platform's normal login or a protected local environment.
 
-The npm login and Open VSX browser login remain unavailable on the publishing
-machine at the latest check. Source-metadata improvements do not replace
-publisher authorization.
+The npm login, Eclipse/Open VSX publisher authorization, Claude Platform login,
+and outgoing mail account remain unavailable on the publishing machine at the
+latest check. Source-metadata improvements do not replace publisher
+authorization.
 
 ## Next Release
 
