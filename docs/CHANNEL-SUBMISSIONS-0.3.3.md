@@ -110,12 +110,34 @@ account login. This machine has no authenticated Claude Platform session, so
 no submission was made. Do not describe the self-hosted catalog as Anthropic
 approval.
 
+The validated upload artifact and form copy are documented in
+[`OFFICIAL-PLUGIN-SUBMISSIONS-0.3.3.md`](OFFICIAL-PLUGIN-SUBMISSIONS-0.3.3.md).
+
 ## OpenAI Codex Plugin Directory
 
-Status: Wayfinder already has a working self-hosted Codex marketplace. No
-public curated-directory submission route could be verified in current
-official documentation. Do not describe the self-hosted catalog as OpenAI
-approval.
+Status: an official public submission route now exists at
+https://platform.openai.com/plugins. Approved plugins enter the universal
+Plugin Directory shared by ChatGPT and Codex.
+
+Wayfinder's local `stdio` MCP server and `.mcpb` cannot be submitted through
+OpenAI's **With MCP** path: OpenAI requires a production HTTPS Streamable HTTP
+endpoint, domain verification, CSP, tool annotations, and reviewer test cases.
+The current viable route is a **Skills only** submission containing the
+Wayfinder skill and bundled local CLI. This requires an authenticated OpenAI
+Platform organization, a verified individual or business identity, and Owner
+or **Apps Management: Write** permission. No official submission has been made
+yet.
+
+The existing GitHub marketplace remains a valid independent Codex distribution
+source:
+
+```text
+codex plugin marketplace add WBXWHT/wayfinder
+```
+
+The validated Skills-only upload artifact, listing copy, and five positive plus
+three negative test cases are documented in
+[`OFFICIAL-PLUGIN-SUBMISSIONS-0.3.3.md`](OFFICIAL-PLUGIN-SUBMISSIONS-0.3.3.md).
 
 ## Product Hunt / Orbit Awards
 
