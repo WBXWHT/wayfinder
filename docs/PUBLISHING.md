@@ -63,12 +63,10 @@ No PR was created against either Awesome MCP Servers list.
 - The current release runs 50 automated tests, including Chromium checks at
   220px and 320px sidebar widths:
   https://github.com/WBXWHT/wayfinder/actions/runs/34200350782
-- The 0.3.1 baseline build, archive, and packaged-Core verification:
-  https://github.com/WBXWHT/wayfinder/actions/runs/34166355120
-- The 0.3.1 Homebrew, Scoop, and cross-platform tarball installations:
-  https://github.com/WBXWHT/wayfinder/actions/runs/34166371656
-- The 0.3.1 official MCP Registry publish using GitHub OIDC:
-  https://github.com/WBXWHT/wayfinder/actions/runs/34166101484
+- The 0.3.3 Homebrew, Scoop, and cross-platform tarball installations:
+  https://github.com/WBXWHT/wayfinder/actions/runs/34200816132
+- The 0.3.3 official MCP Registry publish using GitHub OIDC:
+  https://github.com/WBXWHT/wayfinder/actions/runs/34200822012
 - Registry query:
   https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.WBXWHT/wayfinder
 - Glama profile quality details:
@@ -81,11 +79,12 @@ No PR was created against either Awesome MCP Servers list.
 | Channel | Missing prerequisite | Next action |
 | --- | --- | --- |
 | npm Registry | npm account login and package-scope ownership | Log in, confirm the scope, publish the verified tarball |
-| VS Code Marketplace | Microsoft/Azure publisher account and publishing authorization | Create or verify the `wayfinder` publisher, then upload VSIX |
-| Open VSX | Signed-in publisher, namespace ownership, applicable publisher agreement | Log in at https://open-vsx.org/user-settings/extensions |
+| VS Code Marketplace | Microsoft/Azure login and publisher authorization are not present on this machine | Create or verify the `wayfinder` publisher, then upload `wayfinder-0.3.3.vsix` |
+| Open VSX | GitHub OAuth consent, namespace ownership, publisher agreement, and PAT | Complete login at https://open-vsx.org/user-settings/tokens, create/claim `wayfinder`, then publish the VSIX |
 | Anthropic community/curated directory | No public general submission route verified in current official Plugin documentation | Continue using the self-hosted Claude marketplace; monitor official announcements |
 | OpenAI curated directory | No public Codex Plugin directory submission route verified | Continue using the self-hosted Codex marketplace; monitor official announcements |
 | TRAE native marketplace | Official docs describe installation but not an independent publisher portal | Send a cooperation inquiry to `feedback@mail.trae.cn`; VSIX remains supported |
+| Product Hunt | GitHub OAuth and Cloudflare verification require the account owner | Complete the prepared launch at https://www.producthunt.com/posts/new |
 
 No credentials are stored in this repository. Do not put access tokens into
 chat, commits, release notes, or public issues. Authenticate through the
