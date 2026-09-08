@@ -8,12 +8,12 @@ Wayfinder Core. Node.js 22.13+ and Git are required.
 If the client supports local MCPB installation, download the versioned bundle
 from:
 
-https://github.com/WBXWHT/wayfinder/releases/download/v0.3.1/wayfinder-0.3.1.mcpb
+https://github.com/WBXWHT/wayfinder/releases/download/v0.3.3/wayfinder-0.3.3.mcpb
 
 Verify its SHA-256 is:
 
 ```text
-058f603cee0af0293e7b03f3a030d7a6c9e3bde8ef9bf68c424fad59d96a2fc3
+d33fd95ace064cffe86b31d5265e8a17afc51eb482100c66f8488ea82d053adc
 ```
 
 Install it through the client's local extension UI and let the user select the
@@ -24,11 +24,11 @@ project whose existing Wayfinder history should be read.
 Install the versioned GitHub Release tarball:
 
 ```bash
-npm install -g https://github.com/WBXWHT/wayfinder/releases/download/v0.3.1/wbxwht-wayfinder-0.3.1.tgz
+npm install -g https://github.com/WBXWHT/wayfinder/releases/download/v0.3.3/wbxwht-wayfinder-0.3.3.tgz
 wayfinder --version
 ```
 
-Expected version: `0.3.1`.
+Expected version: `0.3.3`.
 
 Do not install the unrelated unscoped npm Registry package named `wayfinder`.
 

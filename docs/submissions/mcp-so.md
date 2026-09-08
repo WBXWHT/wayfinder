@@ -2,7 +2,7 @@
 
 **Repository:** https://github.com/WBXWHT/wayfinder
 
-**Release:** https://github.com/WBXWHT/wayfinder/releases/tag/v0.3.1
+**Release:** https://github.com/WBXWHT/wayfinder/releases/tag/v0.3.3
 
 **Official MCP Registry name:** `io.github.WBXWHT/wayfinder`
 
@@ -28,7 +28,7 @@ available. MCP does not expose the IDE's code-restore actions.
 Requires Node.js 22.13+. Install the versioned public release tarball:
 
 ```bash
-npm install -g https://github.com/WBXWHT/wayfinder/releases/download/v0.3.1/wbxwht-wayfinder-0.3.1.tgz
+npm install -g https://github.com/WBXWHT/wayfinder/releases/download/v0.3.3/wbxwht-wayfinder-0.3.3.tgz
 ```
 
 Then merge this MCP entry into the client's configuration, replacing the

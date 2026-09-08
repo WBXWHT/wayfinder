@@ -16,7 +16,7 @@ chat history.
 - No duplicate suggestion for `WBXWHT/wayfinder` was found.
 - This PR adds one entry at the bottom of the relevant category, as requested.
 - TypeScript implementation, MIT license, Node.js 22.13+, stdio transport.
-- Official MCP Registry entry: `io.github.WBXWHT/wayfinder`, version `0.3.1`.
+- Official MCP Registry entry: `io.github.WBXWHT/wayfinder`, version `0.3.3`.
 - Public release, installation guide, and privacy statement are in the repo.
 - Clean macOS, Windows, and Linux installation checks:
   https://github.com/WBXWHT/wayfinder/actions/runs/34166371656

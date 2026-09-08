@@ -14,7 +14,7 @@ const root = path.resolve(__dirname, "..");
 const chrome = findChrome();
 
 test(
-  "generated voyage previews run in Chromium at 320px",
+  "generated voyage previews run in Chromium at 220px and 320px",
   { skip: !chrome, timeout: 45_000 },
   async () => {
     const temp = fs.mkdtempSync(path.join(os.tmpdir(), "wayfinder-ui-"));
@@ -123,8 +123,34 @@ test(
           width: innerWidth,
           scrollWidth: document.body.scrollWidth,
           title: document.querySelector('.voyage-title')?.textContent,
+          summaryHeight: document.querySelector(
+            '.summary'
+          )?.getBoundingClientRect().height,
+          summaryTitleHeight: document.querySelector(
+            '.summary-title'
+          )?.getBoundingClientRect().height,
+          summaryMetaHeight: document.querySelector(
+            '.summary-meta'
+          )?.getBoundingClientRect().height,
+          disabledPagerTitle: document.querySelector(
+            '.pager-button:disabled'
+          )?.getAttribute('title'),
           projects: document.querySelectorAll('.lineage-section').length,
           reefs: document.querySelectorAll('.reef-sticker').length,
+          canvasBottomGap: innerHeight - document.querySelector(
+            '.lineage-canvas'
+          ).getBoundingClientRect().bottom,
+          stageDesignWidth: document.querySelector(
+            '.lineage-stage'
+          )?.offsetWidth,
+          stageScale: Number(
+            /scale\\(([^)]+)\\)/.exec(
+              document.querySelector('.lineage-stage')?.style.transform || ''
+            )?.[1]
+          ),
+          renderedCardWidth: document.querySelector(
+            '.lineage-node-button'
+          )?.getBoundingClientRect().width,
           maxLabelHeight: Math.max(
             ...[...document.querySelectorAll('.lineage-node-button')]
               .map((element) => element.getBoundingClientRect().height)
@@ -216,8 +242,19 @@ test(
       assert.equal(sidebar.title, "示例应用");
       assert.equal(sidebar.projects, 1);
       assert.equal(sidebar.reefs, 1);
-      // The whole stage is scaled to fit the panel width, so the measured
-      // card height is the 34px design height times the fit scale (≤ 34).
+      assert.ok(sidebar.summaryHeight <= 43);
+      assert.ok(sidebar.summaryTitleHeight <= 16);
+      assert.ok(sidebar.summaryMetaHeight <= 16);
+      assert.equal(sidebar.disabledPagerTitle, null);
+      assert.ok(sidebar.canvasBottomGap >= 20 && sidebar.canvasBottomGap <= 28);
+      assert.ok(sidebar.stageDesignWidth <= 925);
+      assert.ok(sidebar.stageScale >= 0.793 && sidebar.stageScale <= 0.794);
+      // Preserve the readable scale measured in the final pre-rename build:
+      // 128px design cards rendered at roughly 101px (scale 0.7935).
+      assert.ok(
+        sidebar.renderedCardWidth >= 100 &&
+          sidebar.renderedCardWidth <= 102
+      );
       assert.ok(sidebar.maxLabelHeight > 10 && sidebar.maxLabelHeight <= 34);
       assert.equal(sidebar.labelMetadata, 0);
       assert.equal(sidebar.stageClasses, 0);
@@ -254,6 +291,106 @@ test(
       assert.equal(new Set(sidebar.routeIdentity).size, 1);
       assert.match(sidebar.successFill, /47,\s*158,\s*98/);
       assert.match(sidebar.failureFill, /238,\s*116,\s*105/);
+
+      await cdp.send("Emulation.setDeviceMetricsOverride", {
+        width: 220,
+        height: 800,
+        deviceScaleFactor: 2,
+        mobile: false
+      });
+      await cdp.send("Page.reload", { ignoreCache: true });
+      await waitForExpression(
+        cdp,
+        "document.querySelectorAll('.lineage-node-button').length === 9"
+      );
+      await waitForExpression(
+        cdp,
+        "document.querySelector('.lineage-stage')" +
+          "?.style.transform.includes('scale(')"
+      );
+      const narrowSidebar = await evaluateJson(
+        cdp,
+        `({
+          width: innerWidth,
+          scrollWidth: document.body.scrollWidth,
+          summaryHeight: document.querySelector(
+            '.summary'
+          )?.getBoundingClientRect().height,
+          titleHeight: document.querySelector(
+            '.summary-title'
+          )?.getBoundingClientRect().height,
+          metaHeight: document.querySelector(
+            '.summary-meta'
+          )?.getBoundingClientRect().height,
+          disabledPagerTitle: document.querySelector(
+            '.pager-button:disabled'
+          )?.getAttribute('title'),
+          canvasBottomGap: innerHeight - document.querySelector(
+            '.lineage-canvas'
+          ).getBoundingClientRect().bottom,
+          stageDesignWidth: document.querySelector(
+            '.lineage-stage'
+          )?.offsetWidth,
+          stageScale: Number(
+            /scale\\(([^)]+)\\)/.exec(
+              document.querySelector('.lineage-stage')?.style.transform || ''
+            )?.[1]
+          ),
+          renderedCardWidth: document.querySelector(
+            '.lineage-node-button'
+          )?.getBoundingClientRect().width,
+          labelsInside: [...document.querySelectorAll(
+            '.lineage-node-button'
+          )].every((element) => {
+            const rect = element.getBoundingClientRect();
+            return rect.left >= 0 && rect.right <= innerWidth;
+          }),
+          visibleCardCount: (() => {
+            const canvas = document.querySelector(
+              '.lineage-canvas'
+            ).getBoundingClientRect();
+            return [...document.querySelectorAll(
+              '.lineage-node-button'
+            )].filter((element) => {
+              const rect = element.getBoundingClientRect();
+              return rect.right > canvas.left && rect.left < canvas.right;
+            }).length;
+          })()
+        })`
+      );
+      assert.equal(narrowSidebar.width, 220);
+      assert.equal(narrowSidebar.scrollWidth, 220);
+      assert.ok(narrowSidebar.summaryHeight <= 43);
+      assert.ok(narrowSidebar.titleHeight <= 16);
+      assert.ok(narrowSidebar.metaHeight <= 16);
+      assert.equal(narrowSidebar.disabledPagerTitle, null);
+      assert.equal(narrowSidebar.labelsInside, false);
+      assert.ok(narrowSidebar.visibleCardCount >= 1);
+      assert.ok(
+        narrowSidebar.canvasBottomGap >= 20 &&
+          narrowSidebar.canvasBottomGap <= 28
+      );
+      assert.ok(narrowSidebar.stageDesignWidth <= 925);
+      assert.ok(
+        narrowSidebar.stageScale >= 0.793 &&
+          narrowSidebar.stageScale <= 0.794
+      );
+      assert.ok(
+        narrowSidebar.renderedCardWidth >= 100 &&
+          narrowSidebar.renderedCardWidth <= 102
+      );
+
+      await cdp.send("Emulation.setDeviceMetricsOverride", {
+        width: 320,
+        height: 800,
+        deviceScaleFactor: 1,
+        mobile: false
+      });
+      await cdp.send("Page.reload", { ignoreCache: true });
+      await waitForExpression(
+        cdp,
+        "document.querySelectorAll('.lineage-node-button').length === 9"
+      );
 
       await cdp.send("Runtime.evaluate", {
         expression:

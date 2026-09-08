@@ -1,12 +1,17 @@
 # Wayfinder
 
-A local voyage map for AI coding sessions: prompts, changes, decisions,
-branches, and lessons, kept alongside the assistant you already use.
+Most work with AI is scattered across one chat after another. Wayfinder records
+the prompts, attempts, changes, evidence, decisions, and wrong turns locally,
+then turns them into a branching voyage map you can revisit and reuse.
 
-**Early access, v0.3.1.** MIT licensed. No account, telemetry, or separate model
+The first production capture adapters focus on AI coding. The underlying
+experience model is designed to extend to other work advanced through
+conversation, including writing, research, and design.
+
+**Early access, v0.3.3.** MIT licensed. No account, telemetry, or separate model
 API key is required by Wayfinder.
 
-[Downloads](https://github.com/WBXWHT/wayfinder/releases/tag/v0.3.1) |
+[Downloads](https://github.com/WBXWHT/wayfinder/releases/tag/v0.3.3) |
 [Install Guide](https://github.com/WBXWHT/wayfinder/blob/main/docs/INSTALL.md) |
 [Privacy](https://github.com/WBXWHT/wayfinder/blob/main/PRIVACY.md) |
 [Publication Status](https://github.com/WBXWHT/wayfinder/blob/main/docs/PUBLISHING.md) |
@@ -31,7 +36,7 @@ Node.js 22.13+ and Git are required for the Core and capture adapters.
 
 ### IDE Sidebar
 
-Download [wayfinder-0.3.1.vsix](https://github.com/WBXWHT/wayfinder/releases/download/v0.3.1/wayfinder-0.3.1.vsix).
+Download [wayfinder-0.3.3.vsix](https://github.com/WBXWHT/wayfinder/releases/download/v0.3.3/wayfinder-0.3.3.vsix).
 Choose **Extensions: Install from VSIX**, open the Wayfinder activity-bar icon,
 then use **Connect AI Tool / 连接 AI 工具** to configure a project adapter.
 
@@ -84,7 +89,7 @@ scoop install wayfinder
 ### npm-Compatible Tarball
 
 ```bash
-npm install -g https://github.com/WBXWHT/wayfinder/releases/download/v0.3.1/wbxwht-wayfinder-0.3.1.tgz
+npm install -g https://github.com/WBXWHT/wayfinder/releases/download/v0.3.3/wbxwht-wayfinder-0.3.3.tgz
 wayfinder --version
 ```
 
@@ -93,7 +98,7 @@ an npm Registry listing; `npm install -g @wbxwht/wayfinder` is not yet available
 
 ### Local MCP Bundle
 
-Download [wayfinder-0.3.1.mcpb](https://github.com/WBXWHT/wayfinder/releases/download/v0.3.1/wayfinder-0.3.1.mcpb)
+Download [wayfinder-0.3.3.mcpb](https://github.com/WBXWHT/wayfinder/releases/download/v0.3.3/wayfinder-0.3.3.mcpb)
 and install it through a desktop client's local MCP extension installer. Select
 the project directory containing existing Wayfinder history. This is a local,
 unsigned MCP bundle, not a Claude Desktop directory listing.

@@ -1,6 +1,6 @@
 {
   "name": "wayfinder",
-  "version": "0.3.1",
+  "version": "0.3.3",
   "description": "Capture Codex sessions into the local Wayfinder voyage map.",
   "hooks": "./hooks/codex.json",
   "mcpServers": "./.mcp.json",

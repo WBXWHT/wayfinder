@@ -3789,7 +3789,7 @@ var require_version = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.WAYFINDER_VERSION = void 0;
-    exports2.WAYFINDER_VERSION = "0.3.1";
+    exports2.WAYFINDER_VERSION = "0.3.3";
   }
 });
 

@@ -1,7 +1,7 @@
 {
   "name": "wayfinder",
   "description": "Capture Claude Code sessions into the local Wayfinder voyage map.",
-  "version": "0.3.1",
+  "version": "0.3.3",
   "author": {
     "name": "WBXWHT"
   },

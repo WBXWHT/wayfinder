@@ -18,6 +18,7 @@ Module._load = function load(request, parent, isMain) {
 
 const { ExperienceMapPanel } = require("../out/experienceMapPanel.js");
 const { TimelineViewProvider } = require("../out/timelineView.js");
+const extensionManifest = require("../package.json");
 
 const webview = {
   cspSource: "https://preview.invalid",
@@ -49,7 +50,7 @@ test("sidebar renders one active project with accessible voyage paging", () => {
   );
   assert.match(
     html,
-    /d3\.tree\(\)\.nodeSize\(\[lineageSiblingGap, 96\]\)\(root\)/
+    /d3\.tree\(\)[\s\S]*?\.nodeSize\(\[lineageSiblingGap, 96\]\)[\s\S]*?\.separation\(\(\) => 1\)\(root\)/
   );
   assert.match(html, /const smoothVerticalPath = \(/);
   assert.match(html, /sourceY \+ \(targetY - sourceY\) \* \.5/);
@@ -59,9 +60,17 @@ test("sidebar renders one active project with accessible voyage paging", () => {
   assert.match(html, /scaleExtent/);
   assert.match(html, /translateExtent\(\[\[-Infinity, 0\], \[Infinity, Infinity\]\]\)/);
   assert.match(html, /new ResizeObserver/);
+  assert.match(html, /const minimumReadableScale = 0\.7935/);
+  assert.match(html, /Math\.max\(minimumReadableScale, fitScale\)/);
+  assert.match(html, /Math\.max\(scaledHeight, viewportRoom, 240\)/);
   assert.match(html, /'wheel\.zoom', null/);
   assert.match(html, /zoom\.translateBy/);
   assert.match(html, /zoom\.scaleBy/);
+  assert.match(
+    html,
+    /if \(!previous\.disabled\) previous\.title = previousLabel/
+  );
+  assert.match(html, /if \(!next\.disabled\) next\.title = nextLabel/);
   // A seeded (reproducible) natural ocean, not the old equal-spaced sine rows.
   assert.match(html, /const waveSeed = /);
   // Waves scatter across the whole ocean (a jittered grid spanning the full
@@ -81,6 +90,23 @@ test("sidebar renders one active project with accessible voyage paging", () => {
   assert.doesNotMatch(html, /stageTone|stage-(sun|leaf|sky|bloom)/);
   assert.doesNotMatch(html, /lineage-node-meta/);
   assert.doesNotMatch(html, /section\.append\(detail\)/);
+});
+
+test("sidebar title bar keeps secondary commands in the overflow menu", () => {
+  const items = extensionManifest.contributes.menus["view/title"];
+  const visible = items
+    .filter((item) => item.group.startsWith("navigation"))
+    .map((item) => item.command);
+  const overflow = items
+    .filter((item) => !item.group.startsWith("navigation"))
+    .map((item) => item.command);
+
+  assert.deepEqual(visible, ["wayfinder.openMap", "wayfinder.refresh"]);
+  assert.deepEqual(overflow, [
+    "wayfinder.captureCheckpoint",
+    "wayfinder.installHooks",
+    "wayfinder.configureValidation"
+  ]);
 });
 
 test("full map scopes layout to one project and removes legacy project list", () => {

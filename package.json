@@ -2,7 +2,7 @@
   "name": "wayfinder",
   "displayName": "Wayfinder",
   "description": "A local voyage map of AI coding paths, decisions, branches, evidence, and lessons.",
-  "version": "0.3.1",
+  "version": "0.3.3",
   "private": true,
   "publisher": "wayfinder",
   "icon": "media/wayfinder-marketplace.png",
@@ -105,22 +105,22 @@
         {
           "command": "wayfinder.captureCheckpoint",
           "when": "view == wayfinder.timeline",
-          "group": "navigation@2"
+          "group": "wayfinder@1"
         },
         {
           "command": "wayfinder.refresh",
           "when": "view == wayfinder.timeline",
-          "group": "navigation@3"
+          "group": "navigation@2"
         },
         {
           "command": "wayfinder.installHooks",
           "when": "view == wayfinder.timeline",
-          "group": "navigation@4"
+          "group": "wayfinder@2"
         },
         {
           "command": "wayfinder.configureValidation",
           "when": "view == wayfinder.timeline",
-          "group": "navigation@5"
+          "group": "wayfinder@3"
         }
       ]
     },

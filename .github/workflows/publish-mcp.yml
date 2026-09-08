@@ -4,7 +4,7 @@ on:
     inputs:
       tag:
         description: Existing, verified GitHub Release tag
-        default: v0.3.1
+        default: v0.3.3
         required: true
 permissions:
   contents: read

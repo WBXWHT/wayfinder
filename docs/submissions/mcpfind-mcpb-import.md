@@ -13,7 +13,7 @@ the GitHub Release `.mcpb` asset as an npm package:
   "command": "npx",
   "args": [
     "-y",
-    "https://github.com/WBXWHT/wayfinder/releases/download/v0.3.1/wayfinder-0.3.1.mcpb"
+    "https://github.com/WBXWHT/wayfinder/releases/download/v0.3.3/wayfinder-0.3.3.mcpb"
   ]
 }
 ```
@@ -28,7 +28,7 @@ The official Registry entry correctly declares:
 ```json
 {
   "registryType": "mcpb",
-  "identifier": "https://github.com/WBXWHT/wayfinder/releases/download/v0.3.1/wayfinder-0.3.1.mcpb",
+  "identifier": "https://github.com/WBXWHT/wayfinder/releases/download/v0.3.3/wayfinder-0.3.3.mcpb",
   "fileSha256": "058f603cee0af0293e7b03f3a030d7a6c9e3bde8ef9bf68c424fad59d96a2fc3",
   "transport": { "type": "stdio" }
 }
@@ -48,7 +48,7 @@ The project also publishes a separate npm-compatible GitHub tarball, but it is
 not an npm Registry package:
 
 ```bash
-npm install -g https://github.com/WBXWHT/wayfinder/releases/download/v0.3.1/wbxwht-wayfinder-0.3.1.tgz
+npm install -g https://github.com/WBXWHT/wayfinder/releases/download/v0.3.3/wbxwht-wayfinder-0.3.3.tgz
 ```
 
 After that explicit install, the MCP command is `wayfinder-mcp` with

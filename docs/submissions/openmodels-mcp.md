@@ -10,7 +10,7 @@ Apps-capable clients.
 ## Metadata scope
 
 - Repository: https://github.com/WBXWHT/wayfinder
-- Official MCP Registry: `io.github.WBXWHT/wayfinder`, active version `0.3.1`
+- Official MCP Registry: `io.github.WBXWHT/wayfinder`, active version `0.3.3`
 - Transport: stdio
 - Tool: `wayfinder_show_map`
 - Resource: `ui://wayfinder/map`

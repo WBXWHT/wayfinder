@@ -15,7 +15,7 @@ jobs:
         with:
           node-version: "22"
       - name: Install public tarball
-        run: npm install -g https://github.com/WBXWHT/wayfinder/releases/download/v0.3.1/wbxwht-wayfinder-0.3.1.tgz
+        run: npm install -g https://github.com/WBXWHT/wayfinder/releases/download/v0.3.3/wbxwht-wayfinder-0.3.3.tgz
       - name: Check commands
         run: |
           wayfinder --version

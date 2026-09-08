@@ -1,7 +1,7 @@
 # Install Wayfinder
 
-Version: **0.3.1 early access**. Release assets:
-https://github.com/WBXWHT/wayfinder/releases/tag/v0.3.1
+Version: **0.3.3 early access**. Release assets:
+https://github.com/WBXWHT/wayfinder/releases/tag/v0.3.3
 
 ## Choose One Capture Installation
 
@@ -19,7 +19,7 @@ hosting/tunneling is not included.
 
 ## Local Plugin Archives
 
-`wayfinder-plugin-0.3.1.zip` contains `wayfinder/` with Claude and Codex manifests,
+`wayfinder-plugin-0.3.3.zip` contains `wayfinder/` with Claude and Codex manifests,
 bundled Hooks, MCP, and a Skill. Keep the whole directory together.
 
 For local Claude Code development:
@@ -34,7 +34,7 @@ For distribution, add `WBXWHT/wayfinder` as the marketplace and install
 
 ## Standalone Core
 
-Install the release tarball using npm, or extract `wayfinder-core-0.3.1.tar.gz`.
+Install the release tarball using npm, or extract `wayfinder-core-0.3.3.tar.gz`.
 The Core includes its dependencies; Node.js 22.13+ and Git must be installed.
 
 ```bash

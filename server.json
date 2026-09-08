@@ -7,12 +7,12 @@
     "url": "https://github.com/WBXWHT/wayfinder",
     "source": "github"
   },
-  "version": "0.3.1",
+  "version": "0.3.3",
   "packages": [
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/WBXWHT/wayfinder/releases/download/v0.3.1/wayfinder-0.3.1.mcpb",
-      "fileSha256": "058f603cee0af0293e7b03f3a030d7a6c9e3bde8ef9bf68c424fad59d96a2fc3",
+      "identifier": "https://github.com/WBXWHT/wayfinder/releases/download/v0.3.3/wayfinder-0.3.3.mcpb",
+      "fileSha256": "d33fd95ace064cffe86b31d5265e8a17afc51eb482100c66f8488ea82d053adc",
       "transport": {
         "type": "stdio"
       }

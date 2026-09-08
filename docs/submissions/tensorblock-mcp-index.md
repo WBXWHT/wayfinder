@@ -25,15 +25,15 @@ Requires Node.js 22.13+ and existing Wayfinder history for the selected project.
 
 Preferred desktop installation:
 
-1. Download `wayfinder-0.3.1.mcpb` from
-   https://github.com/WBXWHT/wayfinder/releases/tag/v0.3.1
+1. Download `wayfinder-0.3.3.mcpb` from
+   https://github.com/WBXWHT/wayfinder/releases/tag/v0.3.3
 2. Install it through the client's local MCP bundle installer.
 3. Select the project directory when prompted.
 
 Standalone Core:
 
 ```bash
-npm install -g https://github.com/WBXWHT/wayfinder/releases/download/v0.3.1/wbxwht-wayfinder-0.3.1.tgz
+npm install -g https://github.com/WBXWHT/wayfinder/releases/download/v0.3.3/wbxwht-wayfinder-0.3.3.tgz
 ```
 
 Then merge:
@@ -78,7 +78,7 @@ MIT
 
 ## Verification
 
-- Official MCP Registry: `io.github.WBXWHT/wayfinder`, active version `0.3.1`
+- Official MCP Registry: `io.github.WBXWHT/wayfinder`, active version `0.3.3`
 - Packaged-Core Hook/CLI/MCP process verification:
   https://github.com/WBXWHT/wayfinder/actions/runs/34166940002
 - Cross-platform public downloads:

@@ -225,7 +225,13 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
       border-bottom: 1px solid var(--line);
       background: var(--surface);
     }
-    .summary-left { display: flex; min-width: 0; align-items: center; gap: 8px; }
+    .summary-left {
+      display: flex;
+      min-width: 0;
+      flex: 1 1 auto;
+      align-items: center;
+      gap: 8px;
+    }
     .recording-dot {
       width: 7px;
       height: 7px;
@@ -237,8 +243,21 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
       background: var(--good);
       box-shadow: 0 0 0 4px color-mix(in srgb, var(--good) 14%, transparent);
     }
-    .summary-title { font-size: 11px; font-weight: 650; }
-    .summary-meta { color: var(--muted); font-size: 10px; }
+    .summary-title {
+      min-width: 0;
+      overflow: hidden;
+      font-size: 11px;
+      font-weight: 650;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .summary-meta {
+      flex: 0 0 auto;
+      margin-left: 8px;
+      color: var(--muted);
+      font-size: 10px;
+      white-space: nowrap;
+    }
     .notice {
       min-height: 18px;
       padding: 3px 0;
@@ -1185,10 +1204,11 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
       previous.className = 'pager-button';
       previous.type = 'button';
       previous.disabled = activeIndex === 0;
-      previous.title = previous.disabled
+      const previousLabel = previous.disabled
         ? '已经是第一个项目'
         : '上一个项目：' + trees[activeIndex - 1].title;
-      previous.setAttribute('aria-label', previous.title);
+      previous.setAttribute('aria-label', previousLabel);
+      if (!previous.disabled) previous.title = previousLabel;
       previous.dataset.focusKey = 'project-previous';
       previous.append(icon('chevron-left'));
       previous.addEventListener('click', () => move(activeIndex - 1));
@@ -1212,10 +1232,11 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
       next.className = 'pager-button';
       next.type = 'button';
       next.disabled = activeIndex === trees.length - 1;
-      next.title = next.disabled
+      const nextLabel = next.disabled
         ? '已经是最后一个项目'
         : '下一个项目：' + trees[activeIndex + 1].title;
-      next.setAttribute('aria-label', next.title);
+      next.setAttribute('aria-label', nextLabel);
+      if (!next.disabled) next.title = nextLabel;
       next.dataset.focusKey = 'project-next';
       next.append(icon('chevron-right'));
       next.addEventListener('click', () => move(activeIndex + 1));
@@ -1328,9 +1349,16 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
           requestAnimationFrame(fitStage);
           return;
         }
-        const baseScale = Math.min(1, available / geometry.graphWidth);
-        // Grow the ocean canvas to fill the remaining panel height so a short
-        // voyage sits in open sea instead of leaving grey space.
+        // Match the last pre-rename sidebar baseline: cards rendered at about
+        // 101.6px (128px * 0.7935). On narrower panels, preserve that readable
+        // scale and let the existing two-finger pan expose outer branches.
+        // Users can still pinch out to the 0.4 overview scale.
+        const minimumReadableScale = 0.7935;
+        const fitScale = available / geometry.graphWidth;
+        const baseScale = Math.min(
+          1,
+          Math.max(minimumReadableScale, fitScale)
+        );
         const scaledHeight = Math.ceil(graphHeight * baseScale);
         const viewportRoom = Math.floor(
           window.innerHeight - chart.getBoundingClientRect().top - 24
@@ -1339,10 +1367,7 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
           Math.max(scaledHeight, viewportRoom, 240) + 'px';
         // Center the fitted tree, pin to top, and make that the zoom's initial
         // transform so pinch/pan build on the fitted view.
-        const offsetX = Math.max(
-          0,
-          (available - geometry.graphWidth * baseScale) / 2
-        );
+        const offsetX = (available - geometry.graphWidth * baseScale) / 2;
         const initial = d3.zoomIdentity.translate(offsetX, 0).scale(baseScale);
         canvasSelection.call(zoom.transform, initial);
         // Apply directly too, so the fitted view paints even if the zoom
@@ -1986,10 +2011,30 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
       const lineageCardWidth = ${lineageCardWidth};
       const lineageCardGap = ${lineageCardGap};
       const lineageSiblingGap = lineageCardWidth + lineageCardGap;
-      d3.tree().nodeSize([lineageSiblingGap, 96])(root);
+      d3.tree()
+        .nodeSize([lineageSiblingGap, 96])
+        // D3 defaults to double spacing between cousin subtrees. Cards are
+        // equal-width boxes, so one card-plus-gap is sufficient at every
+        // depth and avoids shrinking a sparse tree into a thumbnail.
+        .separation(() => 1)(root);
       const real = root
         .descendants()
         .filter((node) => node.data.session);
+      // Pack each depth into the minimum number of aligned card columns.
+      // D3's tidy-tree centering can leave unused half-columns between
+      // unrelated subtrees; preserving that empty space makes every label
+      // smaller in a narrow sidebar. The original left-to-right D3 order is
+      // retained, so links do not cross, while node, route, card, and
+      // descendants continue to move together.
+      const nodesByDepth = d3.group(real, (node) => node.depth);
+      nodesByDepth.forEach((nodesAtDepth) => {
+        nodesAtDepth
+          .sort((a, b) => a.x - b.x)
+          .forEach((node, index) => {
+            node.x =
+              (index - (nodesAtDepth.length - 1) / 2) * lineageSiblingGap;
+          });
+      });
       const minX = Math.min(...real.map((node) => node.x));
       const maxX = Math.max(...real.map((node) => node.x));
       const minY = Math.min(...real.map((node) => node.y));
