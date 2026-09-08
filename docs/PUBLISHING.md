@@ -61,8 +61,8 @@ No PR was created against either Awesome MCP Servers list.
 ## Public Evidence
 
 - The current release runs 50 automated tests, including Chromium checks at
-  220px and 320px sidebar widths. The public CI run is linked after the release
-  commit completes.
+  220px and 320px sidebar widths:
+  https://github.com/WBXWHT/wayfinder/actions/runs/34200350782
 - The 0.3.1 baseline build, archive, and packaged-Core verification:
   https://github.com/WBXWHT/wayfinder/actions/runs/34166355120
 - The 0.3.1 Homebrew, Scoop, and cross-platform tarball installations:
