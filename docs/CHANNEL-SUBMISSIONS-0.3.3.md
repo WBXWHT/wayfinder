@@ -171,6 +171,14 @@ Public product route:
 
 https://www.producthunt.com/products/wayfinder-5?launch=wayfinder-6
 
+Public pre-launch discussion:
+
+https://www.producthunt.com/p/wayfinder-5/what-part-of-your-ai-workflow-do-you-wish-you-could-revisit
+
+The discussion asks which context is hardest to reconstruct after AI-assisted
+work: why a decision was made, which attempt failed, or how to reuse the
+successful path. It does not solicit votes or claim unverified adoption.
+
 The submitted launch includes the Wayfinder icon, a real voyage-map screenshot,
 two purpose-built 1270x760 gallery graphics, the launch description, the first
 Maker comment, the `Developer Tools` tag, and maker `@xuan_world`.

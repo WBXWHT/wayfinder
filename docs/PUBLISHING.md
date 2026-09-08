@@ -35,7 +35,7 @@ review flow; that submission is pending and is not yet an approval.
 | TensorBlock MCP Index | Source issue corrected to 0.3.3; stale generated draft PR awaiting regeneration | https://github.com/TensorBlock/awesome-mcp-servers/pull/2231 |
 | OpenModels MCP Registry | PR updated to 0.3.3; all 218 registry files validate | https://github.com/openmodelsrun/mcp/pull/32 |
 | Glama | Automatically indexed, not deployable through Glama | https://glama.ai/mcp/servers/WBXWHT/wayfinder |
-| Product Hunt | Scheduled for 2026-09-09 (Pacific Time) | https://www.producthunt.com/products/wayfinder-5?launch=wayfinder-6 |
+| Product Hunt | Scheduled for 2026-09-09 (Pacific Time); pre-launch discussion published | https://www.producthunt.com/products/wayfinder-5?launch=wayfinder-6 |
 | punkpeye/awesome-mcp-servers | Submitted; automated check passes | https://github.com/punkpeye/awesome-mcp-servers/pull/13982 |
 | Awesome Claude Code Workflows | Submitted; CodeRabbit check passes, maintainer review pending | https://github.com/ithiria894/awesome-claude-code-workflows/pull/30 |
 | Awesome Claude Skills | Submitted; listing validation and both Socket checks pass, maintainer review pending | https://github.com/ComposioHQ/awesome-claude-skills/pull/1861 |
@@ -86,6 +86,8 @@ Skills `#1861`, and Awesome Claude Plugins `#459`. The archived
   https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.WBXWHT/wayfinder
 - Public Agent Skill page:
   https://skills.sh/wbxwht/wayfinder/wayfinder
+- Product Hunt pre-launch discussion:
+  https://www.producthunt.com/p/wayfinder-5/what-part-of-your-ai-workflow-do-you-wish-you-could-revisit
 - Glama profile quality details:
   https://glama.ai/mcp/servers/WBXWHT/wayfinder/score
 - OpenModels schema validation was run locally against all 218 entries before
