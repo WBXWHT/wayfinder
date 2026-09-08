@@ -212,10 +212,42 @@ usage-based reviews; do not solicit empty votes or claim a nomination early.
   asks for GitHub write access to Gists, stars, and watched repositories.
   GitHub also disabled the OAuth authorization action. No broad account
   permission was granted for a directory listing.
+- LobeHub MCP Marketplace: the official CLI inspected the real stdio server
+  and generated root [`lhm.plugin.json`](../lhm.plugin.json) with one tool and
+  one MCP App resource. Publishing now requires the two mandatory human steps:
+
+  ```bash
+  npx -y @lobehub/market-cli login
+  npx -y @lobehub/market-cli github connect
+  npx -y @lobehub/market-cli plugin publish \
+    https://github.com/WBXWHT/wayfinder \
+    --dir /absolute/path/to/wayfinder
+  ```
+
+  Do not bypass the OIDC/GitHub ownership checks or inspect credential files
+  under `~/.lobehub-market`.
+- mcpservers.org / wong2 list: its repository no longer accepts PRs and routes
+  submissions to https://mcpservers.org/submit. The free form is ready except
+  for its required contact email; the owner's GitHub account has no public
+  email, and the non-deliverable GitHub noreply address must not be substituted.
+  Prepared fields:
+
+  ```text
+  Server name: Wayfinder
+  Category: Memory
+  Description: Read local AI coding history as branching voyage maps for
+  failure diagnosis, evidence review, and non-destructive recovery.
+  Repository: https://github.com/WBXWHT/wayfinder
+  ```
+
 - Cline MCP Marketplace: not submitted. Its issue template requires an actual
   Cline-driven install test and a declaration that the server is stable for
   public use; Wayfinder is explicitly an early-access release and has not
   completed that Cline-specific test.
+- Cursor Marketplace and cursor.directory: not submitted. Cursor can package
+  Agent Plugins and local MCP servers, but Wayfinder has no tested Cursor
+  capture adapter or host-specific installation evidence. A read-only listing
+  must not be presented as the complete Wayfinder experience.
 
 ## Community Claude and Skill Directories
 
