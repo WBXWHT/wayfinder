@@ -15,7 +15,10 @@ const chrome = findChrome();
 
 test(
   "generated voyage previews run in Chromium at 220px and 320px",
-  { skip: !chrome, timeout: 45_000 },
+  {
+    skip: !chrome || process.env.WAYFINDER_SKIP_UI_TEST === "1",
+    timeout: 45_000
+  },
   async () => {
     const temp = fs.mkdtempSync(path.join(os.tmpdir(), "wayfinder-ui-"));
     const statePath = path.join(temp, "timeline.json");

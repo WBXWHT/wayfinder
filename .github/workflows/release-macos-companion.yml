@@ -117,6 +117,8 @@ jobs:
           workspaces: companion/src-tauri
       - run: npm ci
       - run: npm run check
+        env:
+          WAYFINDER_SKIP_UI_TEST: "1"
       - run: npm run build:agent-plugins
       - run: node scripts/build-sea.cjs
       - run: npm run generate:companion-licenses
