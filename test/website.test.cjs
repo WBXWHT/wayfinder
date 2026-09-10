@@ -46,13 +46,11 @@ test("download website exposes architecture-specific release links", () => {
     `https://github.com/WBXWHT/wayfinder/releases/download/${tag}/` +
       `${assetPrefix}-macOS-x86_64.dmg`
   );
-  if (releases.downloads.windowsX64) {
-    assert.equal(
-      releases.downloads.windowsX64,
-      `https://github.com/WBXWHT/wayfinder/releases/download/${tag}/` +
-        `${assetPrefix}-Windows-x86_64.exe`
-    );
-  }
+  assert.equal(
+    releases.downloads.windowsX64,
+    `https://github.com/WBXWHT/wayfinder/releases/download/${tag}/` +
+      `${assetPrefix}-Windows-x86_64.exe`
+  );
 });
 
 test("website scripts parse and visual CSS avoids decorative gradients", () => {

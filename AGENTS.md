@@ -40,8 +40,7 @@ stays under `~/.wayfinder`.
 
 ## Current State
 
-- Public/live release: `0.3.6` early access.
-- Public artifacts: Apple Silicon and Intel macOS `0.3.6` DMGs. The Windows
-  x64 `0.3.5` installer remains public while the cross-platform `0.3.7`
-  release is prepared.
-- Local source version: `0.3.7`, not yet released.
+- Public/live release: `0.3.7` early access.
+- Public artifacts: Apple Silicon and Intel macOS DMGs plus a Windows x64 NSIS
+  installer, with SHA-256 checksums.
+- Local source version: `0.3.7`.
