@@ -32,13 +32,23 @@ jobs:
           if (release.published !== true) {
             throw new Error("Companion release is not marked public");
           }
-          for (const architecture of ["arm64", "x64"]) {
-            const raw = release.downloads?.[architecture];
+          const downloads = [
+            ["arm64", release.downloads?.arm64, ".dmg"],
+            ["x64", release.downloads?.x64, ".dmg"]
+          ];
+          if (release.downloads?.windowsX64) {
+            downloads.push([
+              "windowsX64",
+              release.downloads.windowsX64,
+              ".exe"
+            ]);
+          }
+          for (const [architecture, raw, extension] of downloads) {
             const url = new URL(raw);
             if (
               url.protocol !== "https:" ||
               url.hostname !== "github.com" ||
-              !url.pathname.endsWith(".dmg")
+              !url.pathname.endsWith(extension)
             ) {
               throw new Error(`Invalid ${architecture} download URL`);
             }

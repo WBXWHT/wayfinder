@@ -2,7 +2,6 @@ use serde::Serialize;
 use serde_json::Value;
 use std::env;
 use std::fs;
-use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{
@@ -26,6 +25,7 @@ struct ProjectSummary {
     root: String,
     updated_at: String,
     node_count: usize,
+    pending_count: usize,
 }
 
 fn wayfinder_home() -> Result<PathBuf, String> {
@@ -98,6 +98,11 @@ fn list_projects() -> Result<Vec<ProjectSummary>, String> {
                 .and_then(Value::as_array)
                 .map(Vec::len)
                 .unwrap_or(0),
+            pending_count: state
+                .get("pending")
+                .and_then(Value::as_object)
+                .map(serde_json::Map::len)
+                .unwrap_or(0),
         });
     }
     projects.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
@@ -114,26 +119,34 @@ fn open_data_folder() -> Result<String, String> {
     let home = wayfinder_home()?;
     fs::create_dir_all(&home)
         .map_err(|error| format!("Unable to create {}: {error}", home.display()))?;
-    let status = Command::new("/usr/bin/open")
-        .arg(&home)
-        .status()
-        .map_err(|error| error.to_string())?;
-    if !status.success() {
-        return Err("macOS could not open the Wayfinder data folder".to_string());
-    }
+    open_with_system(home.as_os_str(), "Wayfinder data folder")?;
     Ok(home.display().to_string())
 }
 
 #[tauri::command]
 fn open_release_page() -> Result<(), String> {
-    let status = Command::new("/usr/bin/open")
-        .arg("https://github.com/WBXWHT/wayfinder/releases")
-        .status()
-        .map_err(|error| error.to_string())?;
+    open_with_system(
+        std::ffi::OsStr::new("https://github.com/WBXWHT/wayfinder/releases"),
+        "Wayfinder release page",
+    )
+}
+
+fn open_with_system(target: &std::ffi::OsStr, label: &str) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    let status = Command::new("/usr/bin/open").arg(target).status();
+    #[cfg(target_os = "windows")]
+    let status = Command::new("cmd")
+        .args(["/C", "start", ""])
+        .arg(target)
+        .status();
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let status = Command::new("xdg-open").arg(target).status();
+
+    let status = status.map_err(|error| format!("Unable to open {label}: {error}"))?;
     if status.success() {
         Ok(())
     } else {
-        Err("macOS could not open the Wayfinder release page".to_string())
+        Err(format!("The operating system could not open {label}"))
     }
 }
 
@@ -181,7 +194,7 @@ struct ProjectLock {
 
 struct ProjectLockState {
     path: PathBuf,
-    inode: u64,
+    token: String,
     modified: SystemTime,
     compromised: bool,
 }
@@ -192,14 +205,26 @@ impl ProjectLock {
         for _ in 0..2 {
             match fs::create_dir(&lock) {
                 Ok(()) => {
-                    let identity = refresh_lock(&lock, None).ok_or_else(|| {
-                        let _ = fs::remove_dir(&lock);
+                    let token = format!(
+                        "{}-{}",
+                        std::process::id(),
+                        SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .map_err(|error| error.to_string())?
+                            .as_nanos()
+                    );
+                    fs::write(lock.join("owner"), &token).map_err(|error| {
+                        let _ = fs::remove_dir_all(&lock);
+                        format!("Unable to initialize lock {}: {error}", lock.display())
+                    })?;
+                    let modified = refresh_lock(&lock, &token, None).ok_or_else(|| {
+                        let _ = fs::remove_dir_all(&lock);
                         format!("Unable to initialize lock {}", lock.display())
                     })?;
                     let state = Arc::new(Mutex::new(ProjectLockState {
                         path: lock,
-                        inode: identity.inode,
-                        modified: identity.modified,
+                        token,
+                        modified,
                         compromised: false,
                     }));
                     let stop = Arc::new(AtomicBool::new(false));
@@ -212,14 +237,12 @@ impl ProjectLock {
                                 break;
                             }
                             if let Ok(mut current) = thread_state.lock() {
-                                let expected = LockIdentity {
-                                    inode: current.inode,
-                                    modified: current.modified,
-                                };
-                                if let Some(identity) = refresh_lock(&current.path, Some(expected))
-                                {
-                                    current.inode = identity.inode;
-                                    current.modified = identity.modified;
+                                if let Some(modified) = refresh_lock(
+                                    &current.path,
+                                    &current.token,
+                                    Some(current.modified),
+                                ) {
+                                    current.modified = modified;
                                 } else {
                                     current.compromised = true;
                                     break;
@@ -234,7 +257,7 @@ impl ProjectLock {
                     });
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                    if lock_is_stale(&lock) && fs::remove_dir(&lock).is_ok() {
+                    if lock_is_stale(&lock) && fs::remove_dir_all(&lock).is_ok() {
                         continue;
                     }
                     return Err("项目正在记录新航迹，请在 AI 会话结束后重试。".to_string());
@@ -250,12 +273,9 @@ impl ProjectLock {
     fn relocate(&mut self, path: PathBuf) {
         if let Ok(mut state) = self.state.lock() {
             state.path = path;
-            if let Ok(metadata) = fs::metadata(&state.path) {
-                state.inode = metadata.ino();
-                if let Ok(modified) = metadata.modified() {
-                    state.modified = modified;
-                    return;
-                }
+            if let Some(modified) = lock_modified_if_owned(&state.path, &state.token) {
+                state.modified = modified;
+                return;
             }
             state.compromised = true;
         }
@@ -267,12 +287,7 @@ impl ProjectLock {
             .lock()
             .map_err(|_| "Wayfinder project lock state is unavailable".to_string())?;
         let owned = !state.compromised
-            && fs::metadata(&state.path).is_ok_and(|metadata| {
-                metadata.ino() == state.inode
-                    && metadata
-                        .modified()
-                        .is_ok_and(|modified| modified == state.modified)
-            });
+            && lock_modified_if_owned(&state.path, &state.token) == Some(state.modified);
         if owned {
             Ok(())
         } else {
@@ -281,40 +296,40 @@ impl ProjectLock {
     }
 }
 
-#[derive(Clone, Copy)]
-struct LockIdentity {
-    inode: u64,
-    modified: SystemTime,
-}
-
-fn refresh_lock(lock: &Path, expected: Option<LockIdentity>) -> Option<LockIdentity> {
-    let now = SystemTime::now();
-    let file = fs::File::open(lock).ok()?;
-    let before = file.metadata().ok()?;
-    if expected.is_some_and(|identity| {
-        before.ino() != identity.inode || before.modified().ok() != Some(identity.modified)
-    }) {
+fn lock_modified_if_owned(lock: &Path, token: &str) -> Option<SystemTime> {
+    let marker = lock.join("owner");
+    if fs::read_to_string(&marker).ok()?.trim() != token {
         return None;
     }
-    if fs::metadata(lock).ok()?.ino() != before.ino() {
+    fs::metadata(marker).ok()?.modified().ok()
+}
+
+fn refresh_lock(lock: &Path, token: &str, expected: Option<SystemTime>) -> Option<SystemTime> {
+    let now = SystemTime::now();
+    let marker = lock.join("owner");
+    if fs::read_to_string(&marker).ok()?.trim() != token {
+        return None;
+    }
+    let file = fs::OpenOptions::new().write(true).open(&marker).ok()?;
+    let before = file.metadata().ok()?;
+    if expected.is_some_and(|modified| before.modified().ok() != Some(modified)) {
         return None;
     }
     file.set_times(fs::FileTimes::new().set_modified(now))
         .ok()?;
     let after = file.metadata().ok()?;
-    let path_after = fs::metadata(lock).ok()?;
     let modified = after.modified().ok()?;
-    if path_after.ino() != after.ino() || path_after.modified().ok() != Some(modified) {
+    if fs::read_to_string(&marker).ok()?.trim() != token
+        || fs::metadata(&marker).ok()?.modified().ok() != Some(modified)
+    {
         return None;
     }
-    Some(LockIdentity {
-        inode: after.ino(),
-        modified,
-    })
+    Some(modified)
 }
 
 fn lock_is_stale(lock: &Path) -> bool {
-    fs::metadata(lock)
+    fs::metadata(lock.join("owner"))
+        .or_else(|_| fs::metadata(lock))
         .and_then(|metadata| metadata.modified())
         .ok()
         .and_then(|modified| SystemTime::now().duration_since(modified).ok())
@@ -330,14 +345,9 @@ impl Drop for ProjectLock {
         }
         if let Ok(state) = self.state.lock() {
             let still_owned = !state.compromised
-                && fs::metadata(&state.path).is_ok_and(|metadata| {
-                    metadata.ino() == state.inode
-                        && metadata
-                            .modified()
-                            .is_ok_and(|modified| modified == state.modified)
-                });
+                && lock_modified_if_owned(&state.path, &state.token) == Some(state.modified);
             if still_owned {
-                let _ = fs::remove_dir(&state.path);
+                let _ = fs::remove_dir_all(&state.path);
             }
         }
     }
@@ -481,9 +491,9 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use std::fs;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-    use super::{state_path, ProjectLock};
+    use super::{state_path, ProjectLock, PROJECT_LOCK_STALE};
 
     #[test]
     fn project_ids_cannot_escape_the_wayfinder_directory() {
@@ -552,11 +562,41 @@ mod tests {
         let state = dir.join("timeline.json");
         let lock = dir.join("timeline.json.lock");
         let guard = ProjectLock::acquire(&state).expect("lock");
-        fs::remove_dir(&lock).expect("remove owned lock");
+        fs::remove_dir_all(&lock).expect("remove owned lock");
         fs::create_dir(&lock).expect("replacement lock");
+        fs::write(lock.join("owner"), "replacement").expect("replacement token");
         assert!(guard.ensure_owned().is_err());
         drop(guard);
         assert!(lock.is_dir());
+        fs::remove_dir_all(dir).expect("remove test directory");
+    }
+
+    #[test]
+    fn stale_lock_directory_is_recovered() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let dir =
+            std::env::temp_dir().join(format!("wayfinder-stale-{}-{nonce}", std::process::id()));
+        fs::create_dir_all(&dir).expect("test directory");
+        let state = dir.join("timeline.json");
+        let lock = dir.join("timeline.json.lock");
+        fs::create_dir(&lock).expect("stale lock");
+        let owner = lock.join("owner");
+        fs::write(&owner, "stale").expect("stale owner");
+        let stale_at = SystemTime::now() - PROJECT_LOCK_STALE - Duration::from_secs(1);
+        fs::OpenOptions::new()
+            .write(true)
+            .open(&owner)
+            .expect("open stale owner")
+            .set_times(fs::FileTimes::new().set_modified(stale_at))
+            .expect("age stale owner");
+
+        let guard = ProjectLock::acquire(&state).expect("recover stale lock");
+        assert!(guard.ensure_owned().is_ok());
+        drop(guard);
+        assert!(!lock.exists());
         fs::remove_dir_all(dir).expect("remove test directory");
     }
 }

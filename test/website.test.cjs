@@ -18,7 +18,16 @@ test("download website exposes architecture-specific release links", () => {
   assert.match(html, /<h1>Wayfinder<\/h1>/);
   assert.match(html, /data-download="arm64"/);
   assert.match(html, /data-download="x64"/);
+  assert.match(html, /data-download="windowsX64" hidden/);
   assert.match(html, /data-default-download/);
+  assert.match(html, /class="hero-waypoint waypoint-start"/);
+  assert.match(html, /src="\.\/wayfinder-icon\.svg"/);
+  assert.match(
+    html,
+    /data-download="arm64"[\s\S]*?href="https:\/\/github\.com\/WBXWHT\/wayfinder\/releases"/
+  );
+  assert.doesNotMatch(html, /无需 Node、插件或 MCP/);
+  assert.doesNotMatch(html, /首次打开需在系统设置中允许/);
   assert.equal(typeof releases.published, "boolean");
   assert.match(releases.downloads.arm64, /Alpha.*macOS-aarch64\.dmg$/);
   assert.match(releases.downloads.x64, /Alpha.*macOS-x86_64\.dmg$/);
@@ -33,11 +42,14 @@ test("website scripts parse and visual CSS avoids decorative gradients", () => {
 
   assert.doesNotThrow(() => new vm.Script(script));
   assert.doesNotMatch(styles, /linear-gradient|radial-gradient/i);
+  assert.match(styles, /a:focus-visible/);
   assert.match(styles, /\.hero\s*\{/);
   assert.match(styles, /#voyageCanvas/);
   assert.match(script, /prefers-reduced-motion: reduce/);
   assert.match(script, /data-default-download/);
-  assert.match(script, /release\.downloads\?\.\[architecture\]/);
+  assert.match(script, /release\.downloads\?\.\[target\]/);
+  assert.match(script, /detectDownloadTarget/);
+  assert.match(script, /"选择桌面版本"/);
 });
 
 test("Cloudflare deployment cannot silently claim the occupied project name", () => {
@@ -53,12 +65,22 @@ test("Cloudflare deployment cannot silently claim the occupied project name", ()
 });
 
 test("Intel detection updates the generic CTA and reduced motion stops animation", async () => {
-  const runtime = await runWebsiteScript("x86");
+  const runtime = await runWebsiteScript("x86", true, true, "macOS");
 
   assert.match(runtime.defaultLink.href, /macOS-x86_64\.dmg$/);
   assert.ok(runtime.x64Link.classes.has("primary"));
   assert.ok(runtime.arm64Link.classes.has("secondary"));
   assert.equal(runtime.animationFrames, 0);
+});
+
+test("Windows detection exposes and prioritizes the Windows installer", async () => {
+  const runtime = await runWebsiteScript("x86", true, true, "Windows");
+
+  assert.match(runtime.defaultLink.href, /Windows-x86_64\.exe$/);
+  assert.equal(runtime.defaultLink.textContent, "下载 Windows 版");
+  assert.equal(runtime.windowsLink.hidden, false);
+  assert.ok(runtime.windowsLink.classes.has("primary"));
+  assert.ok(runtime.arm64Link.classes.has("secondary"));
 });
 
 test("unpublished downloads fall back to the release page", async () => {
@@ -69,6 +91,7 @@ test("unpublished downloads fall back to the release page", async () => {
     "https://github.com/WBXWHT/wayfinder/releases"
   );
   assert.equal(runtime.defaultLink.href, runtime.arm64Link.href);
+  assert.equal(runtime.windowsLink.hidden, true);
 });
 
 test("runtime reduced-motion changes cancel the active canvas frame", async () => {
@@ -83,7 +106,8 @@ test("runtime reduced-motion changes cancel the active canvas frame", async () =
 async function runWebsiteScript(
   architecture,
   published = true,
-  initiallyReduced = true
+  initiallyReduced = true,
+  platform = "macOS"
 ) {
   const script = fs.readFileSync(path.join(root, "website", "app.js"), "utf8");
   const drawingContext = new Proxy({}, {
@@ -105,6 +129,8 @@ async function runWebsiteScript(
   const link = (download, classes) => ({
     dataset: { download },
     href: "",
+    hidden: false,
+    textContent: "",
     classes: new Set(classes),
     classList: {
       replace(from, to) {
@@ -116,10 +142,13 @@ async function runWebsiteScript(
   });
   const arm64Link = link("arm64", ["download", "primary"]);
   const x64Link = link("x64", ["download", "secondary"]);
+  const windowsLink = link("windowsX64", ["download", "secondary"]);
   const defaultLink = link("arm64", ["download", "primary", "compact"]);
-  for (const item of [arm64Link, x64Link, defaultLink]) {
+  for (const item of [arm64Link, x64Link, windowsLink, defaultLink]) {
     item.classList.owner = item;
   }
+  const macVersion = { textContent: "" };
+  const windowsVersion = { textContent: "" };
   let animationFrames = 0;
   let cancelledFrames = 0;
   let motionListener;
@@ -133,7 +162,8 @@ async function runWebsiteScript(
         releasePage: "https://github.com/WBXWHT/wayfinder/releases",
         downloads: {
           arm64: "https://example.test/macOS-aarch64.dmg",
-          x64: "https://example.test/macOS-x86_64.dmg"
+          x64: "https://example.test/macOS-x86_64.dmg",
+          windowsX64: "https://example.test/Windows-x86_64.exe"
         }
       })
     }),
@@ -148,8 +178,11 @@ async function runWebsiteScript(
     }),
     navigator: {
       userAgentData: {
+        platform,
         getHighEntropyValues: async () => ({ architecture })
-      }
+      },
+      platform,
+      userAgent: platform
     },
     performance: { now: () => 1_000 },
     requestAnimationFrame: () => {
@@ -162,13 +195,19 @@ async function runWebsiteScript(
     document: {
       querySelector(selector) {
         if (selector === "#voyageCanvas") return canvas;
+        if (selector.includes("windowsX64")) return windowsLink;
         if (selector.includes("arm64")) return arm64Link;
         if (selector.includes("x64")) return x64Link;
         return undefined;
       },
       querySelectorAll(selector) {
+        if (selector === "[data-version='macos']") return [macVersion];
+        if (selector === "[data-version='windows']") return [windowsVersion];
+        if (selector === ".download-row [data-download]") {
+          return [arm64Link, x64Link, windowsLink];
+        }
         if (selector === "[data-download]") {
-          return [arm64Link, x64Link, defaultLink];
+          return [arm64Link, x64Link, windowsLink, defaultLink];
         }
         if (selector === "[data-default-download]") return [defaultLink];
         return [];
@@ -184,6 +223,7 @@ async function runWebsiteScript(
   return {
     arm64Link,
     x64Link,
+    windowsLink,
     defaultLink,
     animationFrames,
     get cancelledFrames() {

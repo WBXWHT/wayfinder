@@ -14,19 +14,19 @@ let reducedMotion = motionPreference?.matches || false;
 const routes = [
   {
     color: "#1d8fb4",
-    points: [[.58, .2], [.64, .36], [.7, .48], [.76, .67]],
-    nodes: [[.58, .2], [.64, .36], [.7, .48], [.76, .67]]
+    points: [[.56, .17], [.64, .34], [.69, .5], [.77, .78]],
+    nodes: [[.56, .17], [.64, .34], [.69, .5], [.77, .78]]
   },
   {
     color: "#258e7d",
-    points: [[.64, .36], [.74, .32], [.83, .4], [.88, .56]],
-    nodes: [[.83, .4], [.88, .56]]
+    points: [[.64, .34], [.76, .31], [.84, .39], [.9, .62]],
+    nodes: [[.84, .39], [.9, .62]]
   },
   {
     color: "#d85f57",
     failed: true,
-    points: [[.7, .48], [.77, .46], [.82, .52], [.85, .62]],
-    nodes: [[.85, .62]]
+    points: [[.69, .5], [.76, .47], [.81, .56], [.86, .73]],
+    nodes: [[.86, .73]]
   }
 ];
 
@@ -42,37 +42,99 @@ function resize() {
 
 function draw(time) {
   context.clearRect(0, 0, width, height);
-  drawGrid();
+  drawMapSurface();
   const progress = Math.min(1, (time - startedAt) / 1_400);
   context.save();
   context.translate(pointerX * 8, pointerY * 8);
   for (const route of routes) drawRoute(route, progress, time);
   context.restore();
-  animationFrame = reducedMotion ? undefined : requestAnimationFrame(draw);
+  animationFrame =
+    reducedMotion || progress >= 1
+      ? undefined
+      : requestAnimationFrame(draw);
 }
 
-function drawGrid() {
-  context.strokeStyle = "#e7e9ed";
+function drawMapSurface() {
+  const coastBase = width <= 820 ? width * .86 : width * .5;
+  const coastX = (y) =>
+    coastBase + Math.sin(y / 142) * 10 + Math.sin(y / 57) * 4;
+  context.fillStyle = "#eaf7fb";
+  context.fillRect(0, 0, width, height);
+  context.strokeStyle = "#d5ebf1";
   context.lineWidth = 1;
-  for (let x = width * .52; x < width; x += 32) {
+  for (let x = coastBase; x < width; x += 34) {
     context.beginPath();
     context.moveTo(x, 0);
     context.lineTo(x, height);
     context.stroke();
   }
-  for (let y = 0; y < height; y += 32) {
+  for (let y = 0; y < height; y += 34) {
     context.beginPath();
-    context.moveTo(width * .52, y);
+    context.moveTo(coastBase, y);
     context.lineTo(width, y);
     context.stroke();
   }
+
+  context.beginPath();
+  context.moveTo(0, 0);
+  context.lineTo(coastX(0), 0);
+  for (let y = 0; y <= height + 20; y += 24) {
+    context.lineTo(coastX(y), y);
+  }
+  context.lineTo(0, height);
+  context.closePath();
+  context.fillStyle = "#f7f8fa";
+  context.fill();
+
+  context.beginPath();
+  context.moveTo(coastX(0) - 32, 0);
+  context.lineTo(coastX(0), 0);
+  for (let y = 0; y <= height + 20; y += 24) {
+    context.lineTo(coastX(y), y);
+  }
+  for (let y = height + 20; y >= 0; y -= 24) {
+    context.lineTo(coastX(y) - 32, y);
+  }
+  context.closePath();
+  context.fillStyle = "#f2d795";
+  context.fill();
+
+  context.beginPath();
+  context.moveTo(coastX(0), 0);
+  for (let y = 0; y <= height + 20; y += 24) {
+    context.lineTo(coastX(y), y);
+  }
+  context.strokeStyle = "#ffffff";
+  context.lineWidth = 7;
+  context.stroke();
+  context.strokeStyle = "#b7863d";
+  context.lineWidth = 1.5;
+  context.stroke();
+
+  context.beginPath();
+  context.moveTo(coastBase + 30, height * .18);
+  context.bezierCurveTo(
+    width * .7,
+    height * .1,
+    width * .82,
+    height * .24,
+    width - 24,
+    height * .16
+  );
+  context.strokeStyle = "#a9dce9";
+  context.lineWidth = 1.2;
+  context.setLineDash([4, 10]);
+  context.stroke();
+  context.setLineDash([]);
 }
 
 function drawRoute(route, progress, time) {
-  const points = route.points.map(([x, y]) => [
-    x * width,
-    y * height
-  ]);
+  const compact = width <= 820;
+  const mapPoint = ([x, y]) => [
+    (compact ? .5 + x * .52 : x) * width,
+    y * height * (compact ? .58 : 1)
+  ];
+  const points = route.points.map(mapPoint);
   context.beginPath();
   context.moveTo(...points[0]);
   for (let index = 1; index < points.length; index += 1) {
@@ -89,18 +151,17 @@ function drawRoute(route, progress, time) {
   context.strokeStyle = route.color;
   context.lineWidth = 3;
   context.setLineDash(route.failed ? [7, 8] : []);
-  context.lineDashOffset = route.failed && !reducedMotion ? -time / 90 : 0;
+  context.lineDashOffset = route.failed ? -Math.min(time - startedAt, 1_400) / 90 : 0;
   context.globalAlpha = .25 + progress * .75;
   context.stroke();
   context.setLineDash([]);
   context.globalAlpha = 1;
 
-  route.nodes.forEach(([x, y], index) => {
+  route.nodes.forEach((point, index) => {
     const delay = index / Math.max(1, route.nodes.length) * .4;
     const nodeProgress = Math.max(0, Math.min(1, (progress - delay) / .6));
     if (!nodeProgress) return;
-    const px = x * width;
-    const py = y * height;
+    const [px, py] = mapPoint(point);
     context.beginPath();
     context.arc(px, py, 8 * nodeProgress, 0, Math.PI * 2);
     context.fillStyle = "#f6f7f9";
@@ -120,33 +181,41 @@ async function loadDownloads() {
     const response = await fetch("./releases.json", { cache: "no-store" });
     const release = await response.json();
     const published = release.published === true;
-    document.querySelectorAll("[data-version]").forEach((element) => {
+    document.querySelectorAll("[data-version='macos']").forEach((element) => {
       element.textContent = published
         ? `macOS ${release.version} · Early Access`
         : `macOS ${release.version} · 即将开放`;
+    });
+    document.querySelectorAll("[data-version='windows']").forEach((element) => {
+      element.textContent = published
+        ? `Windows ${release.version} · Early Access`
+        : `Windows ${release.version} · 即将开放`;
     });
     document.querySelectorAll("[data-download]").forEach((link) => {
       const url = published
         ? release.downloads?.[link.dataset.download]
         : undefined;
-      if (url) link.href = url;
-      else link.href = release.releasePage;
+      link.href = url || release.releasePage;
+      link.hidden = link.dataset.download === "windowsX64" && !url;
     });
-    const architecture = await detectArchitecture();
-    if (published && architecture === "x64") {
-      const arm64 = document.querySelector(
-        ".download-row [data-download='arm64']"
+    const target = await detectDownloadTarget();
+    if (published && target) {
+      document.querySelectorAll(".download-row [data-download]").forEach(
+        (link) => link.classList.replace("primary", "secondary")
       );
-      const x64 = document.querySelector(
-        ".download-row [data-download='x64']"
-      );
-      arm64?.classList.replace("primary", "secondary");
-      x64?.classList.replace("secondary", "primary");
+      document.querySelector(
+        `.download-row [data-download='${target}']`
+      )?.classList.replace("secondary", "primary");
     }
     document.querySelectorAll("[data-default-download]").forEach((link) => {
-      link.href = published && architecture
-        ? release.downloads?.[architecture] || release.releasePage
+      link.href = published && target
+        ? release.downloads?.[target] || release.releasePage
         : release.releasePage;
+      link.textContent = target === "windowsX64"
+        ? "下载 Windows 版"
+        : target
+          ? "下载 macOS 版"
+          : "选择桌面版本";
     });
   } catch {
     document.querySelectorAll("[data-download]").forEach((link) => {
@@ -155,7 +224,17 @@ async function loadDownloads() {
   }
 }
 
-async function detectArchitecture() {
+async function detectDownloadTarget() {
+  const platform = [
+    navigator.userAgentData?.platform,
+    navigator.userAgent
+  ].filter(Boolean).join(" ");
+  if (/Windows|Win32|Win64/i.test(platform)) {
+    return "windowsX64";
+  }
+  if (!/Mac/i.test(platform)) {
+    return undefined;
+  }
   try {
     if (navigator.userAgentData?.getHighEntropyValues) {
       const value = await navigator.userAgentData.getHighEntropyValues([
@@ -164,9 +243,9 @@ async function detectArchitecture() {
       return value.architecture === "x86" ? "x64" : "arm64";
     }
   } catch {
-    // Fall through to the architecture-neutral release page.
+    // Safari does not expose architecture, so prefer current Apple Silicon.
   }
-  return undefined;
+  return "arm64";
 }
 
 const observer = new IntersectionObserver((entries) => {
@@ -184,6 +263,9 @@ window.addEventListener("pointermove", (event) => {
   if (reducedMotion) return;
   pointerX = (event.clientX / Math.max(1, width) - .5) * .5;
   pointerY = (event.clientY / Math.max(1, height) - .5) * .5;
+  if (animationFrame === undefined) {
+    animationFrame = requestAnimationFrame(draw);
+  }
 });
 motionPreference?.addEventListener?.("change", (event) => {
   reducedMotion = event.matches;

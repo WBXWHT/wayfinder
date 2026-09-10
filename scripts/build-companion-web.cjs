@@ -75,11 +75,16 @@ fs.copyFileSync(
   ),
   path.join(output, "codicon.ttf")
 );
+fs.copyFileSync(
+  path.join(root, "companion", "src-tauri", "icons", "icon.png"),
+  path.join(output, "wayfinder-icon.png")
+);
 
 const topbar = `<header class="topbar desktop-topbar">
   <div class="brand workspace-context">
     <button id="toggleProjects" class="icon-button project-toggle"
-      title="切换项目" aria-label="切换项目">
+      title="切换项目" aria-label="切换项目"
+      aria-controls="projectSidebar" aria-expanded="false">
       <span class="codicon codicon-list-tree"></span>
     </button>
     <div class="brand-copy">
@@ -87,23 +92,16 @@ const topbar = `<header class="topbar desktop-topbar">
       <div id="projectMeta" class="brand-meta">选择一个项目</div>
     </div>
   </div>
-  <label class="search">
+  <label class="search" title="搜索航点、对话或文件">
     <span class="codicon codicon-search" aria-hidden="true"></span>
-    <input id="search" type="search" placeholder="搜索当前项目"
-      aria-label="搜索当前项目">
+    <input id="search" type="search" placeholder="搜索航点、对话或文件"
+      aria-label="搜索航点、对话或文件">
   </label>
   <div class="top-actions">
-    <button id="refresh" class="icon-button" title="刷新"
-      aria-label="刷新">
-      <span class="codicon codicon-refresh"></span>
-    </button>
-    <button id="fit" class="icon-button" title="适应画布"
-      aria-label="适应画布">
-      <span class="codicon codicon-screen-full"></span>
-    </button>
-    <button id="settings" class="icon-button" title="数据管理"
-      aria-label="数据管理">
-      <span class="codicon codicon-settings-gear"></span>
+    <button id="fit" class="tool-button" title="回到默认视图"
+      aria-label="回到默认视图">
+      <span class="codicon codicon-target" aria-hidden="true"></span>
+      <span>复位</span>
     </button>
   </div>
 </header>`;
@@ -111,9 +109,7 @@ const topbar = `<header class="topbar desktop-topbar">
 const desktopOpen = `<div class="desktop-shell">
   <aside id="projectSidebar" class="project-sidebar" aria-label="项目列表">
     <div class="sidebar-brand">
-      <span class="brand-mark" aria-hidden="true">
-        <span class="codicon codicon-compass"></span>
-      </span>
+      <img class="brand-logo" src="./wayfinder-icon.png" alt="">
       <strong>Wayfinder</strong>
       <button id="closeProjects" class="icon-button sidebar-close"
         title="关闭项目列表" aria-label="关闭项目列表">
@@ -122,28 +118,18 @@ const desktopOpen = `<div class="desktop-shell">
     </div>
     <div class="sidebar-heading">项目</div>
     <nav id="projectList" class="project-list"></nav>
-    <div id="projectSummary" class="project-summary"></div>
+    <div class="project-footer">
+      <span id="projectSummary" class="project-summary"></span>
+      <button id="openData" class="local-data-button" type="button"
+        title="打开 Wayfinder 本地数据目录">
+        <span class="codicon codicon-database" aria-hidden="true"></span>
+        <span>本地数据</span>
+      </button>
+    </div>
   </aside>
   <div class="desktop-main">`;
 
-const settingsDialog = `<dialog id="settingsDialog" aria-labelledby="settingsTitle">
-  <div class="dialog-head">
-    <div>
-      <h2 id="settingsTitle">本地数据</h2>
-      <span>~/.wayfinder</span>
-    </div>
-    <button id="closeSettings" class="icon-button" aria-label="关闭">
-      <span class="codicon codicon-close"></span>
-    </button>
-  </div>
-  <p>对话、航点和文件变更都保存在本机。</p>
-  <div class="dialog-actions">
-    <button id="checkUpdates">检查更新</button>
-    <button id="openData">打开数据目录</button>
-    <button id="archiveProject" class="danger-action">归档当前项目</button>
-  </div>
-</dialog>
-<button id="sidebarScrim" class="sidebar-scrim" tabindex="-1"
+const desktopUtilities = `<button id="sidebarScrim" class="sidebar-scrim" tabindex="-1"
   aria-label="关闭项目列表"></button>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>`;
 
@@ -177,7 +163,7 @@ const desktopStyles = `
     display: grid;
     min-width: 0;
     min-height: 0;
-    grid-template-rows: 52px 30px minmax(0, 1fr) 36px;
+    grid-template-rows: 56px 32px minmax(0, 1fr) 46px;
     border-right: 1px solid var(--line);
     background: #f2f2f7;
   }
@@ -188,6 +174,12 @@ const desktopStyles = `
     align-items: center;
     gap: 9px;
     border-bottom: 1px solid var(--line);
+  }
+  .brand-logo {
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    border-radius: 7px;
   }
   .sidebar-brand strong {
     min-width: 0;
@@ -217,8 +209,8 @@ const desktopStyles = `
     width: 100%;
     min-width: 0;
     min-height: 46px;
-    grid-template-columns: 24px minmax(0, 1fr);
-    gap: 8px;
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 9px;
     align-items: center;
     padding: 6px 8px;
     border: 0;
@@ -230,12 +222,28 @@ const desktopStyles = `
   }
   .project-item:hover { background: var(--hover); }
   .project-item[aria-current="true"] { background: var(--selected); }
-  .project-item .codicon {
-    color: var(--muted);
-    font-size: 15px;
-    text-align: center;
+  .project-icon {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border-radius: 7px;
+    color: #277da1;
+    background: rgba(29, 143, 180, .10);
   }
-  .project-item[aria-current="true"] .codicon { color: var(--accent); }
+  .project-icon .codicon { font-size: 15px; }
+  .project-item:nth-child(3n + 2) .project-icon {
+    color: #7567b5;
+    background: rgba(117, 103, 181, .10);
+  }
+  .project-item:nth-child(3n) .project-icon {
+    color: #b98236;
+    background: rgba(185, 130, 54, .11);
+  }
+  .project-item[aria-current="true"] .project-icon {
+    color: #ffffff;
+    background: var(--accent);
+  }
   .project-copy { min-width: 0; }
   .project-name {
     display: block;
@@ -260,68 +268,51 @@ const desktopStyles = `
     font-size: 10px;
     line-height: 1.55;
   }
-  .project-summary {
+  .project-footer {
     display: flex;
-    padding: 0 14px;
+    min-width: 0;
+    padding: 0 8px 0 14px;
     align-items: center;
+    justify-content: space-between;
+    gap: 8px;
     border-top: 1px solid var(--line);
+  }
+  .project-summary {
+    overflow: hidden;
     color: var(--muted);
     font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .local-data-button,
+  .tool-button {
+    display: inline-flex;
+    min-height: 30px;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 9px;
+    border: 0;
+    border-radius: 6px;
+    color: var(--muted);
+    background: transparent;
+    font: inherit;
+    font-size: 9px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .local-data-button:hover,
+  .tool-button:hover {
+    color: var(--text);
+    background: var(--hover);
   }
   .desktop-topbar {
-    grid-template-columns: minmax(150px, 230px) minmax(180px, 520px) 1fr;
+    grid-template-columns: minmax(180px, 1fr) minmax(220px, 360px) auto;
   }
   .project-toggle { display: none; flex: 0 0 30px; }
   .desktop-topbar .brand-mark { display: none; }
-  .top-actions .is-spinning { animation: desktop-spin 700ms linear infinite; }
-  @keyframes desktop-spin { to { transform: rotate(360deg); } }
+  .desktop-topbar .top-actions { min-width: max-content; }
   .sidebar-scrim { display: none; }
-  dialog {
-    width: min(420px, calc(100% - 36px));
-    padding: 0;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    color: var(--text);
-    background: var(--surface);
-    box-shadow: 0 24px 80px rgba(24, 26, 29, .22);
-  }
-  dialog::backdrop { background: rgba(20, 22, 25, .28); }
-  .dialog-head {
-    display: flex;
-    min-height: 56px;
-    padding: 0 12px 0 18px;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid var(--line);
-  }
-  .dialog-head > div { display: grid; gap: 2px; }
-  .dialog-head h2 { margin: 0; font-size: 13px; }
-  .dialog-head span { color: var(--muted); font: 9px ui-monospace, monospace; }
-  dialog > p {
-    margin: 0;
-    padding: 18px;
-    color: var(--muted);
-    font-size: 11px;
-    line-height: 1.6;
-  }
-  .dialog-actions {
-    display: flex;
-    padding: 0 18px 18px;
-    justify-content: flex-end;
-    gap: 8px;
-  }
-  .dialog-actions button {
-    min-height: 30px;
-    padding: 0 10px;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    color: var(--text);
-    background: var(--surface);
-    font: inherit;
-    font-size: 10px;
-  }
-  .dialog-actions button:hover { background: var(--hover); }
-  .dialog-actions .danger-action { color: var(--bad); }
   .toast {
     position: fixed;
     z-index: 20;
@@ -374,10 +365,11 @@ const desktopStyles = `
       padding: 0 8px;
     }
     .workspace-context { min-width: 30px; }
+    .desktop-topbar .workspace-context { display: flex; }
     .workspace-context .brand-copy { display: none; }
     .desktop-topbar .search { min-width: 0; }
     .top-actions { gap: 0; }
-    .dialog-actions { flex-direction: column; }
+    .tool-button > span:last-child { display: none; }
   }
   @media (prefers-color-scheme: dark) {
     body.desktop-mode {
@@ -406,7 +398,7 @@ html = html
   )
   .replace(
     /(\s*<script nonce="[^"]+" src="__WAYFINDER_D3__"><\/script>)/,
-    (match) => `${settingsDialog}</div></div>${match}`
+    (match) => `${desktopUtilities}</div></div>${match}`
   )
   .replace(
     /<script nonce="[^"]+" src="__WAYFINDER_D3__"><\/script>/,

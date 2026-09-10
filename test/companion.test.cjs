@@ -27,11 +27,14 @@ test("companion web bundle reuses the final map and project navigation", () => {
   assert.match(html, /invoke\("list_projects"\)/);
   assert.match(html, /trail-start-pole/);
   assert.match(html, /forest-node/);
-  assert.match(
-    html,
-    /id="settingsDialog" aria-labelledby="settingsTitle"/
-  );
-  assert.match(html, /id="settingsTitle">本地数据<\/h2>/);
+  assert.match(html, /src="\.\/wayfinder-icon\.png"/);
+  assert.match(html, /iconGlyph\.className = "codicon codicon-map"/);
+  assert.match(html, /id="openData" class="local-data-button"/);
+  assert.match(html, /id="fit" class="tool-button"/);
+  assert.doesNotMatch(html, /id="refresh"/);
+  assert.doesNotMatch(html, /id="settingsDialog"/);
+  assert.match(html, /const focusedProjectId =/);
+  assert.match(html, /data-project-id="\$\{focusedProjectId\}"/);
   assert.match(html, /setInterval\(\(\) => \{[\s\S]*refreshIfChanged/);
   const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
   assert.equal(scripts.length, 3);
@@ -40,16 +43,20 @@ test("companion web bundle reuses the final map and project navigation", () => {
   }
 });
 
-test("macOS companion bundle is a DMG with one native sidecar", () => {
+test("desktop companion bundles one native sidecar and platform icons", () => {
   const config = JSON.parse(fs.readFileSync(
     path.join(root, "companion", "src-tauri", "tauri.conf.json"),
     "utf8"
   ));
   assert.equal(config.identifier, "io.github.WBXWHT.wayfinder");
   assert.deepEqual(config.bundle.targets, ["dmg"]);
+  assert.equal(config.app.windows[0].minWidth, 320);
+  assert.equal(config.app.windows[0].minHeight, 480);
   assert.deepEqual(config.bundle.externalBin, ["binaries/wayfinder"]);
   assert.equal(config.bundle.macOS.signingIdentity, null);
   assert.equal(config.bundle.macOS.entitlements, "Entitlements.plist");
+  assert.ok(config.bundle.icon.includes("icons/icon.ico"));
+  assert.doesNotMatch(config.app.security.csp, /127\.0\.0\.1|connect-src/);
   const entitlements = fs.readFileSync(
     path.join(root, "companion", "src-tauri", "Entitlements.plist"),
     "utf8"
@@ -77,6 +84,35 @@ test("companion uses a stale-aware archive lock", () => {
   assert.match(source, /PROJECT_LOCK_STALE/);
   assert.match(source, /impl Drop for ProjectLock/);
   assert.match(source, /lock_is_stale/);
+  assert.match(source, /lock\.join\("owner"\)/);
+  assert.doesNotMatch(source, /std::os::unix/);
+});
+
+test("release map contains no local debug telemetry", () => {
+  const source = fs.readFileSync(
+    path.join(root, "src", "forestMapPanel.ts"),
+    "utf8"
+  );
+
+  assert.doesNotMatch(source, /debug-point|map-pan-stall|127\.0\.0\.1:7777/);
+});
+
+test("companion keeps projects that only have pending work", () => {
+  const rust = fs.readFileSync(
+    path.join(root, "companion", "src-tauri", "src", "main.rs"),
+    "utf8"
+  );
+  const browser = fs.readFileSync(
+    path.join(root, "companion", "main.js"),
+    "utf8"
+  );
+
+  assert.match(rust, /pending_count: usize/);
+  assert.match(browser, /project\.pendingCount > 0/);
+  assert.match(
+    browser,
+    /project\.nodeCount <= 0 && project\.pendingCount <= 0/
+  );
 });
 
 test("release workflow requires signing and notarization credentials", () => {
@@ -116,11 +152,21 @@ test("zero-cost alpha workflow uses ad-hoc signing and a prerelease tag", () => 
   assert.match(workflow, /APPLE_SIGNING_IDENTITY: "-"/);
   assert.match(workflow, /verify-companion-version\.cjs --prefix alpha-v/);
   assert.match(workflow, /releaseId: \$\{\{ needs\.prepare\.outputs\.release_id \}\}/);
-  assert.match(workflow, /group: release-macos-alpha\b/);
+  assert.match(workflow, /group: release-desktop-alpha\b/);
   assert.match(workflow, /Release tag points to/);
   assert.match(workflow, /SHA256SUMS/);
   assert.match(workflow, /prerelease: true/);
   assert.doesNotMatch(workflow, /APPLE_CERTIFICATE/);
+  assert.match(workflow, /codesign --verify --deep --strict/);
+  assert.match(workflow, /hdiutil attach -nobrowse -readonly/);
+  assert.match(workflow, /CFBundleShortVersionString/);
+  assert.match(workflow, /Contents\/MacOS\/wayfinder-companion/);
+  assert.match(workflow, /Contents\/MacOS\/wayfinder"/);
+  assert.match(workflow, /runs-on: windows-latest/);
+  assert.match(workflow, /x86_64-pc-windows-msvc/);
+  assert.match(workflow, /--bundles nsis/);
+  assert.match(workflow, /Wayfinder-Alpha-\[version\]-Windows-x86_64/);
+  assert.match(workflow, /Windows-x86_64\.exe/);
   assert.ok(
     workflow.indexOf("npm run build:companion:sidecar") <
       workflow.indexOf("cargo test --manifest-path"),

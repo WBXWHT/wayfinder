@@ -3,16 +3,22 @@ import { buildConversationForest } from "../src/conversationForest";
 const projectList = document.querySelector("#projectList");
 const projectSummary = document.querySelector("#projectSummary");
 const currentProjectLabel = document.querySelector("#currentProjectLabel");
-const refreshButton = document.querySelector("#refresh");
-const settingsDialog = document.querySelector("#settingsDialog");
+const projectSidebar = document.querySelector("#projectSidebar");
+const projectToggle = document.querySelector("#toggleProjects");
+const closeProjectsButton = document.querySelector("#closeProjects");
+const openDataButton = document.querySelector("#openData");
 const toast = document.querySelector("#toast");
+const narrowProjects = globalThis.matchMedia("(max-width: 760px)");
 
 let invoke;
 let projects = [];
 let activeProjectId = "";
 let lastUpdatedAt = "";
 let projectLoadGeneration = 0;
+let activeProjectMisses = 0;
+let refreshInFlight = false;
 let toastTimer;
+const ACTIVE_PROJECT_MISS_LIMIT = 3;
 
 async function start() {
   invoke = globalThis.__TAURI__.core.invoke;
@@ -21,6 +27,7 @@ async function start() {
   globalThis.__WAYFINDER_DESKTOP_MESSAGE_QUEUE__ = [];
   queued.forEach(handleMapMessage);
 
+  syncProjectsAccessibility();
   await loadProjects();
   setInterval(() => {
     void refreshIfChanged().catch(() => undefined);
@@ -38,7 +45,7 @@ function sendToMap(data) {
 }
 
 async function loadProjects(preferredId) {
-  projects = await invoke("list_projects");
+  projects = visibleProjects(await invoke("list_projects"));
   const nextId =
     activeProjectId && projects.some((item) => item.id === activeProjectId)
       ? activeProjectId
@@ -46,11 +53,14 @@ async function loadProjects(preferredId) {
         ? preferredId
         : projects[0]?.id || "";
   activeProjectId = nextId;
+  activeProjectMisses = 0;
   renderProjectList();
   await loadActiveProject();
 }
 
 function renderProjectList() {
+  const focusedProjectId =
+    document.activeElement?.closest(".project-item")?.dataset.projectId || "";
   projectList.replaceChildren();
   if (projects.length === 0) {
     const empty = document.createElement("div");
@@ -70,8 +80,11 @@ function renderProjectList() {
     item.title = project.root || project.name;
 
     const icon = document.createElement("span");
-    icon.className = "codicon codicon-folder";
+    icon.className = "project-icon";
     icon.setAttribute("aria-hidden", "true");
+    const iconGlyph = document.createElement("span");
+    iconGlyph.className = "codicon codicon-map";
+    icon.append(iconGlyph);
 
     const copy = document.createElement("span");
     copy.className = "project-copy";
@@ -81,9 +94,11 @@ function renderProjectList() {
     const meta = document.createElement("span");
     meta.className = "project-meta";
     const parent = projectParentLabel(project.root);
-    meta.textContent = parent
-      ? `${project.nodeCount} 轮 · ${parent}`
-      : `${project.nodeCount} 轮记录`;
+    meta.textContent = project.pendingCount > 0
+      ? `正在记录 · ${project.nodeCount} 轮${parent ? ` · ${parent}` : ""}`
+      : parent
+        ? `${project.nodeCount} 轮 · ${parent}`
+        : `${project.nodeCount} 轮记录`;
     copy.append(name, meta);
     item.append(icon, copy);
 
@@ -101,6 +116,18 @@ function renderProjectList() {
   });
 
   projectSummary.textContent = `${projects.length} 个项目`;
+  syncProjectsAccessibility();
+  if (
+    focusedProjectId &&
+    (
+      !narrowProjects.matches ||
+      document.body.classList.contains("projects-open")
+    )
+  ) {
+    projectList
+      .querySelector(`[data-project-id="${focusedProjectId}"]`)
+      ?.focus();
+  }
 }
 
 function projectParentLabel(root) {
@@ -108,6 +135,15 @@ function projectParentLabel(root) {
     .split(/[\\/]/)
     .filter(Boolean);
   return parts.length > 1 ? parts[parts.length - 2] : "";
+}
+
+function visibleProjects(items) {
+  return items.filter((project) => {
+    if (project.nodeCount <= 0 && project.pendingCount <= 0) return false;
+    return !/^\/private\/var\/folders\/.+\/T\/tmp[._-]/.test(
+      String(project.root || "")
+    );
+  });
 }
 
 async function loadActiveProject() {
@@ -159,108 +195,133 @@ async function loadActiveProject() {
 }
 
 async function refreshIfChanged() {
-  const latest = await invoke("list_projects");
-  const active = latest.find((item) => item.id === activeProjectId);
-  const projectSetChanged =
-    latest.length !== projects.length ||
-    latest.some((item, index) =>
-      item.id !== projects[index]?.id ||
-      item.name !== projects[index]?.name ||
-      item.nodeCount !== projects[index]?.nodeCount
-    );
-  if (projectSetChanged) {
-    await loadProjects(activeProjectId);
-    return;
-  }
-  projects = latest;
-  if (active?.updatedAt && active.updatedAt !== lastUpdatedAt) {
-    await loadActiveProject();
+  if (refreshInFlight) return;
+  refreshInFlight = true;
+  try {
+    const latest = visibleProjects(await invoke("list_projects"));
+    const active = latest.find((item) => item.id === activeProjectId);
+    const projectSetChanged =
+      latest.length !== projects.length ||
+      latest.some((item, index) =>
+        item.id !== projects[index]?.id ||
+        item.name !== projects[index]?.name ||
+        item.nodeCount !== projects[index]?.nodeCount ||
+        item.pendingCount !== projects[index]?.pendingCount
+      );
+    projects = latest;
+
+    if (!activeProjectId) {
+      activeProjectId = projects[0]?.id || "";
+      activeProjectMisses = 0;
+      renderProjectList();
+      await loadActiveProject();
+      return;
+    }
+
+    if (!active) {
+      activeProjectMisses += 1;
+      if (projectSetChanged) renderProjectList();
+      if (activeProjectMisses < ACTIVE_PROJECT_MISS_LIMIT) return;
+      activeProjectId = projects[0]?.id || "";
+      activeProjectMisses = 0;
+      renderProjectList();
+      await loadActiveProject();
+      return;
+    }
+
+    activeProjectMisses = 0;
+    if (projectSetChanged) renderProjectList();
+    if (active.updatedAt && active.updatedAt !== lastUpdatedAt) {
+      await loadActiveProject();
+    }
+  } finally {
+    refreshInFlight = false;
   }
 }
 
-refreshButton.addEventListener("click", async () => {
-  const icon = refreshButton.querySelector(".codicon");
-  refreshButton.disabled = true;
-  icon?.classList.add("is-spinning");
-  try {
-    await loadProjects(activeProjectId);
-  } catch (error) {
-    showToast(`刷新失败：${String(error)}`);
-  } finally {
-    refreshButton.disabled = false;
-    icon?.classList.remove("is-spinning");
+projectToggle.addEventListener("click", () => {
+  if (document.body.classList.contains("projects-open")) {
+    closeProjects();
+    return;
   }
+  document.body.classList.add("projects-open");
+  syncProjectsAccessibility();
+  requestAnimationFrame(() => {
+    (
+      projectList.querySelector('[aria-current="true"]') ||
+      closeProjectsButton
+    )?.focus();
+  });
 });
-
-document.querySelector("#toggleProjects").addEventListener("click", () => {
-  document.body.classList.toggle("projects-open");
-});
-document.querySelector("#closeProjects").addEventListener("click", closeProjects);
+closeProjectsButton.addEventListener("click", closeProjects);
 document.querySelector("#sidebarScrim").addEventListener("click", closeProjects);
 
 function closeProjects() {
+  const restoreFocus =
+    narrowProjects.matches &&
+    document.body.classList.contains("projects-open");
   document.body.classList.remove("projects-open");
+  syncProjectsAccessibility();
+  if (restoreFocus) projectToggle.focus();
 }
 
-document.querySelector("#settings").addEventListener("click", () => {
-  document.querySelector("#archiveProject").disabled = !activeProjectId;
-  settingsDialog.showModal();
-});
-document.querySelector("#closeSettings").addEventListener("click", () => {
-  settingsDialog.close();
-});
-settingsDialog.addEventListener("click", (event) => {
-  if (event.target === settingsDialog) settingsDialog.close();
-});
-document.querySelector("#openData").addEventListener("click", async () => {
-  await invoke("open_data_folder");
-});
-document.querySelector("#checkUpdates").addEventListener("click", async () => {
-  await invoke("open_release_page");
-});
-document.querySelector("#archiveProject").addEventListener("click", async () => {
-  if (!activeProjectId) return;
-  const project = projects.find((item) => item.id === activeProjectId);
-  const confirmed = globalThis.confirm(
-    `归档“${project?.name || "当前项目"}”？原始数据仍会保存在本机。`
-  );
-  if (!confirmed) return;
+function syncProjectsAccessibility() {
+  const open =
+    !narrowProjects.matches ||
+    document.body.classList.contains("projects-open");
+  projectToggle.setAttribute("aria-expanded", String(open));
+  projectSidebar.toggleAttribute("inert", !open);
+  projectSidebar.setAttribute("aria-hidden", String(!open));
+  [
+    closeProjectsButton,
+    ...projectList.querySelectorAll("button"),
+    openDataButton
+  ].forEach((element) => {
+    if (open) element.removeAttribute("tabindex");
+    else element.tabIndex = -1;
+  });
+}
 
+openDataButton.addEventListener("click", async () => {
   try {
-    await invoke("archive_project", {
-      projectId: activeProjectId,
-      force: false
-    });
-    activeProjectId = "";
-    settingsDialog.close();
-    await loadProjects();
-    showToast("项目已归档");
+    await invoke("open_data_folder");
   } catch (error) {
-    if (
-      String(error).includes("PENDING_TURNS:") &&
-      globalThis.confirm("当前项目仍在记录。确认停止相关 AI 会话后强制归档？")
-    ) {
-      try {
-        await invoke("archive_project", {
-          projectId: activeProjectId,
-          force: true
-        });
-        activeProjectId = "";
-        settingsDialog.close();
-        await loadProjects();
-        showToast("项目已归档");
-        return;
-      } catch (forceError) {
-        showToast(`归档失败：${String(forceError)}`);
-        return;
-      }
-    }
-    showToast(`归档失败：${String(error)}`);
+    showToast(`无法打开数据目录：${String(error)}`);
   }
 });
 
 globalThis.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") closeProjects();
+  if (event.key === "Escape") {
+    closeProjects();
+    return;
+  }
+  if (
+    event.key !== "Tab" ||
+    !narrowProjects.matches ||
+    !document.body.classList.contains("projects-open")
+  ) {
+    return;
+  }
+  const focusable = [
+    closeProjectsButton,
+    ...projectList.querySelectorAll("button"),
+    openDataButton
+  ].filter((element) => !element.disabled);
+  const first = focusable[0];
+  const last = focusable.at(-1);
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last?.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first?.focus();
+  }
+});
+narrowProjects.addEventListener?.("change", () => {
+  if (!narrowProjects.matches) {
+    document.body.classList.remove("projects-open");
+  }
+  syncProjectsAccessibility();
 });
 
 function showToast(message) {

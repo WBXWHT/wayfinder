@@ -277,6 +277,10 @@ export class ExperienceMapPanel implements vscode.Disposable {
       transform: translateX(-50%);
     }
     .canvas-page-copy { min-width: 0; text-align: center; }
+    .canvas-head.single-voyage {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .canvas-head.single-voyage .project-pager-button { display: none; }
     .canvas-title {
       display: block;
       color: var(--ink);
@@ -447,8 +451,22 @@ export class ExperienceMapPanel implements vscode.Disposable {
     .node-title {
       fill: var(--ink);
       font-family: var(--vscode-font-family);
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 700;
+      pointer-events: none;
+    }
+    .node-summary {
+      fill: var(--sticker-muted);
+      font-family: var(--vscode-font-family);
+      font-size: 12px;
+      font-weight: 500;
+      pointer-events: none;
+    }
+    .node-card-meta {
+      fill: color-mix(in srgb, var(--sticker-muted) 84%, transparent);
+      font-family: var(--vscode-font-family);
+      font-size: 11.5px;
+      font-weight: 600;
       pointer-events: none;
     }
     .journey-disc {
@@ -601,12 +619,12 @@ export class ExperienceMapPanel implements vscode.Disposable {
           <div id="projectMeta" class="brand-meta">航海图</div>
         </div>
       </div>
-      <label class="search">
+      <label class="search" title="搜索航点、对话或文件">
         <span class="codicon codicon-search" aria-hidden="true"></span>
-        <input id="search" type="search" placeholder="搜索当前项目" aria-label="搜索当前项目">
+        <input id="search" type="search" placeholder="搜索航点、对话或文件" aria-label="搜索航点、对话或文件">
       </label>
       <div class="top-actions">
-        <button id="fit" class="icon-button" title="适应画布" aria-label="适应画布"><span class="codicon codicon-screen-full"></span></button>
+        <button id="fit" class="icon-button" title="回到默认视图" aria-label="回到默认视图"><span class="codicon codicon-target"></span></button>
       </div>
     </header>
     <div class="layout">
@@ -647,16 +665,126 @@ export class ExperienceMapPanel implements vscode.Disposable {
     let fitAllRequested = false;
     let composingSearch = false;
     let viewportSignature = '';
-    const nodeCardWidth = 164;
-    const nodeCardHeight = 58;
+    let wheelFrame = 0;
+    let pendingPanX = 0;
+    let pendingPanY = 0;
+    let pendingScale = 1;
+    let pendingZoomPoint = null;
+    let graphBounds = null;
+    let viewportTabTimer = 0;
+    let currentNodeById = new Map();
+    const nodeCardWidth = 240;
+    const nodeCardHeight = 120;
     const nodeCardTop = 24;
-    const nodeVerticalPitch = 176;
-    const nodeHorizontalPitch = 236;
-    const mapStartX = 142;
+    const nodeVerticalPitch = 216;
+    const nodeHorizontalPitch = 324;
+    const mapStartX = 184;
     const mapTopInset = 112;
-    const minimumReadableScale = .7935;
+    const minimumReadableScale = .86;
+
+    function normalizedWheelDelta(value, deltaMode, pageSize) {
+      if (!Number.isFinite(value)) return 0;
+      const unit = deltaMode === 1 ? 16 : deltaMode === 2 ? pageSize : 1;
+      return Math.max(-160, Math.min(160, value * unit));
+    }
+
+    function scheduleViewportFrame() {
+      if (wheelFrame) return;
+      wheelFrame = requestAnimationFrame(flushViewportFrame);
+    }
+
+    function scheduleVisibleCardTabStops() {
+      clearTimeout(viewportTabTimer);
+      viewportTabTimer = setTimeout(() => {
+        if (!graphLayer) return;
+        const viewport = graph.node().getBoundingClientRect();
+        const query = searchInput.value.trim().toLocaleLowerCase('zh-CN');
+        graphLayer.selectAll('.session-card').attr(
+          'tabindex',
+          function({ tree, node }) {
+            if (!node.data.session) return -1;
+            const matches =
+              !query ||
+              tree.title.toLocaleLowerCase('zh-CN').includes(query) ||
+              sessionMatches(node.data.session, currentNodeById, query);
+            if (!matches) return -1;
+            const rect = this.getBoundingClientRect();
+            const visible =
+              rect.right > viewport.left &&
+              rect.left < viewport.right &&
+              rect.bottom > viewport.top &&
+              rect.top < viewport.bottom;
+            return visible ? 0 : -1;
+          }
+        );
+      }, 140);
+    }
+
+    function flushViewportFrame() {
+      wheelFrame = 0;
+      if (!zoomBehavior || !graphLayer) return;
+      const current = d3.zoomTransform(graph.node());
+      let nextX = current.x;
+      let nextY = current.y;
+      let nextScale = current.k;
+      const queuedPanX = pendingPanX;
+      const queuedPanY = pendingPanY;
+      const queuedScale = pendingScale;
+      const framePanX = Math.max(-240, Math.min(240, queuedPanX));
+      const framePanY = Math.max(-240, Math.min(240, queuedPanY));
+      const frameScale = Math.max(.72, Math.min(1.4, queuedScale));
+      const zoomPoint = pendingZoomPoint;
+      pendingPanX -= framePanX;
+      pendingPanY -= framePanY;
+      pendingScale = queuedScale / frameScale;
+      if (Math.abs(pendingScale - 1) < .0001) pendingScale = 1;
+      pendingZoomPoint = null;
+
+      if (frameScale !== 1 && zoomPoint) {
+        nextScale = Math.max(.4, Math.min(3.2, current.k * frameScale));
+        const ratio = nextScale / current.k;
+        nextX = zoomPoint[0] - (zoomPoint[0] - current.x) * ratio;
+        nextY = zoomPoint[1] - (zoomPoint[1] - current.y) * ratio;
+        if (
+          (nextScale === 3.2 && pendingScale > 1) ||
+          (nextScale === .4 && pendingScale < 1)
+        ) {
+          pendingScale = 1;
+        }
+        if (pendingScale !== 1) pendingZoomPoint = zoomPoint;
+      }
+      nextX = Math.min(0, nextX - framePanX);
+      nextY -= framePanY;
+      if (nextX === 0 && framePanX < 0 && pendingPanX < 0) {
+        pendingPanX = 0;
+      }
+      const next = d3.zoomIdentity
+        .translate(nextX, nextY)
+        .scale(nextScale);
+      const changed =
+        Math.abs(next.x - current.x) > .001 ||
+        Math.abs(next.y - current.y) > .001 ||
+        Math.abs(next.k - current.k) > .0001;
+      if (changed) {
+        graph.call(zoomBehavior.transform, next);
+      }
+
+      if (
+        Math.abs(pendingPanX) > .001 ||
+        Math.abs(pendingPanY) > .001 ||
+        Math.abs(pendingScale - 1) > .0001
+      ) {
+        scheduleViewportFrame();
+      }
+    }
 
     function renderGraph() {
+      const resumePendingWheel = Boolean(wheelFrame);
+      if (wheelFrame) {
+        cancelAnimationFrame(wheelFrame);
+        wheelFrame = 0;
+      }
+      clearTimeout(viewportTabTimer);
       const previousTransform = d3.zoomTransform(graph.node());
       const query = searchInput.value.trim().toLocaleLowerCase('zh-CN');
       if (!forest.trees.some((tree) => tree.id === activeTreeId)) {
@@ -667,6 +795,10 @@ export class ExperienceMapPanel implements vscode.Disposable {
         forest.trees.findIndex((tree) => tree.id === activeTreeId)
       );
       const activeTree = forest.trees[activeIndex];
+      document.querySelector('.canvas-head')?.classList.toggle(
+        'single-voyage',
+        forest.trees.length <= 1 || Boolean(query)
+      );
       projectPrevious.disabled = activeIndex === 0;
       projectPrevious.title = projectPrevious.disabled
         ? '已经是第一条航程'
@@ -682,20 +814,56 @@ export class ExperienceMapPanel implements vscode.Disposable {
       const preserveViewport =
         viewportSignature === nextViewportSignature && !fitAllRequested;
       graph.selectAll('*').remove();
-      const width = Math.max(420, document.getElementById('graph').clientWidth);
+      const viewportWidth = Math.max(
+        1,
+        document.getElementById('graph').clientWidth
+      );
+      const width = Math.max(420, viewportWidth);
       const height = Math.max(340, document.getElementById('graph').clientHeight);
+      graphBounds = graph.node().getBoundingClientRect();
       const nodeById = new Map(state.nodes.map((node) => [node.id, node]));
-      const scopedTrees = activeTree ? [activeTree] : [];
+      currentNodeById = nodeById;
+      const cardContentBySessionId = new Map();
+      const contentForCard = (session) => {
+        if (!cardContentBySessionId.has(session.id)) {
+          cardContentBySessionId.set(
+            session.id,
+            cardContentFor(session, nodeById)
+          );
+        }
+        return cardContentBySessionId.get(session.id);
+      };
+      const scopedTrees = query
+        ? forest.trees
+        : activeTree
+          ? [activeTree]
+          : [];
       const trees = query
         ? scopedTrees
             .map((tree) => filterTreeForQuery(tree, nodeById, query))
             .filter(Boolean)
         : scopedTrees;
       canvasTitle.textContent = query
-        ? (activeTree?.title || '航海图') + ' · 搜索结果'
+        ? '搜索结果'
         : activeTree?.title || '航海图';
-      canvasMeta.textContent = activeTree
-        ? '航程 ' +
+      canvasMeta.textContent = query
+        ? trees.length +
+          ' 条航程 · ' +
+          forest.trees.reduce(
+            (total, tree) =>
+              total +
+              (
+                tree.title.toLocaleLowerCase('zh-CN').includes(query)
+                  ? tree.sessions
+                  : tree.sessions.filter((session) =>
+                      sessionMatches(session, nodeById, query)
+                    )
+              ).length,
+            0
+          ) +
+          ' 个航点'
+        : activeTree
+          ? '航程 ' +
           (activeIndex + 1) +
           ' / ' +
           forest.trees.length +
@@ -704,7 +872,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
           ' 个航点 · ' +
           activeTree.nodeCount +
           ' 轮'
-        : '';
+          : '';
       if (trees.length === 0) {
         graph.append('text')
           .attr('class', 'node-meta')
@@ -851,7 +1019,10 @@ export class ExperienceMapPanel implements vscode.Disposable {
                 .translate(clampedX, transform.y)
                 .scale(transform.k);
         })
-        .on('zoom', (event) => graphLayer.attr('transform', event.transform));
+        .on('zoom', (event) => {
+          graphLayer.attr('transform', event.transform);
+          scheduleVisibleCardTabStops();
+        });
       graph
         .call(zoomBehavior)
         .on('dblclick.zoom', null)
@@ -860,34 +1031,53 @@ export class ExperienceMapPanel implements vscode.Disposable {
           'wheel.wayfinder',
           (event) => {
             event.preventDefault();
-            const current = d3.zoomTransform(graph.node());
+            const pageSize = graphBounds?.height || graph.node().clientHeight;
             if (event.ctrlKey || event.metaKey) {
-              const delta = Math.max(-12, Math.min(12, event.deltaY));
-              const rect = graph.node().getBoundingClientRect();
-              graph.call(
-                zoomBehavior.scaleBy,
-                Math.pow(2, -delta * .01),
-                [event.clientX - rect.left, event.clientY - rect.top]
+              const delta = Math.max(
+                -12,
+                Math.min(
+                  12,
+                  normalizedWheelDelta(event.deltaY, event.deltaMode, pageSize)
+                )
               );
+              pendingScale *= Math.pow(2, -delta * .01);
+              pendingZoomPoint = [
+                event.clientX - (graphBounds?.left || 0),
+                event.clientY - (graphBounds?.top || 0)
+              ];
+              scheduleViewportFrame();
               return;
             }
             const horizontalDelta =
               Math.abs(event.deltaX) > .1
-                ? event.deltaX
+                ? normalizedWheelDelta(
+                    event.deltaX,
+                    event.deltaMode,
+                    pageSize
+                  )
                 : event.shiftKey
-                  ? event.deltaY
+                  ? normalizedWheelDelta(
+                      event.deltaY,
+                      event.deltaMode,
+                      pageSize
+                    )
                   : 0;
-            const verticalDelta = event.shiftKey ? 0 : event.deltaY;
-            const next = d3.zoomIdentity
-              .translate(
-                Math.min(0, current.x - horizontalDelta),
-                current.y - verticalDelta
-              )
-              .scale(current.k);
-            graph.call(
-              zoomBehavior.transform,
-              next
-            );
+            const verticalDelta = event.shiftKey
+              ? 0
+              : normalizedWheelDelta(
+                  event.deltaY,
+                  event.deltaMode,
+                  pageSize
+                );
+            if (pendingPanX < 0 && horizontalDelta > 0) {
+              const currentX = d3.zoomTransform(graph.node()).x;
+              if (currentX - pendingPanX >= 0) {
+                pendingPanX = currentX;
+              }
+            }
+            pendingPanX += horizontalDelta;
+            pendingPanY += verticalDelta;
+            scheduleViewportFrame();
           },
           { passive: false }
         );
@@ -920,6 +1110,13 @@ export class ExperienceMapPanel implements vscode.Disposable {
           routeIndexById
         }))
       );
+      const narrowFocusNode = allNodes
+        .filter(({ node }) => Boolean(node.data.session))
+        .sort((left, right) => left.node.screenY - right.node.screenY)[0]
+        ?.node;
+      const narrowFocusRight = narrowFocusNode
+        ? narrowFocusNode.screenX + nodeCardWidth / 2
+        : contentBounds.right;
       const selectedTree = selectedSessionId
         ? trees.find((tree) =>
             tree.sessions.some((session) => session.id === selectedSessionId)
@@ -1193,8 +1390,12 @@ export class ExperienceMapPanel implements vscode.Disposable {
           if (!session) {
             return '共同港口，' + tree.title + ' 从这里出发';
           }
+          const content = contentForCard(session);
           return (
-            (session.shortTitle || session.title) +
+            content.title +
+            (content.summary ? '，' + content.summary : '') +
+            '，' +
+            content.meta +
             (
               session.verdict === 'success'
                 ? '，正确路线'
@@ -1268,11 +1469,12 @@ export class ExperienceMapPanel implements vscode.Disposable {
         selection.append('rect')
           .attr('class', 'node-card-accent')
           .attr('x', -nodeCardWidth / 2 + 7)
-          .attr('y', nodeCardTop + 10)
+          .attr('y', nodeCardTop + 12)
           .attr('width', 5)
-          .attr('height', nodeCardHeight - 20)
+          .attr('height', nodeCardHeight - 24)
           .attr('rx', 2.5);
-        const lines = cardTitleLines(session.shortTitle || session.title);
+        const content = contentForCard(session);
+        const lines = cardTextLines(content.title, 27, 2);
         const title = selection.append('text')
           .attr('class', 'node-title');
         lines.forEach((line, index) => {
@@ -1281,36 +1483,72 @@ export class ExperienceMapPanel implements vscode.Disposable {
             .attr(
               'y',
               nodeCardTop +
-              (lines.length === 1 ? 34 : 24 + index * 17)
+              24 +
+              index * 15
             )
             .text(line);
         });
-        selection.append('title').text(session.title);
+        const summaryLines = cardTextLines(content.summary, 32, 2);
+        const summary = selection.append('text')
+          .attr('class', 'node-summary');
+        summaryLines.forEach((line, index) => {
+          summary.append('tspan')
+            .attr('x', -nodeCardWidth / 2 + 19)
+            .attr('y', nodeCardTop + 59 + index * 13)
+            .text(line);
+        });
+        selection.append('text')
+          .attr('class', 'node-card-meta')
+          .attr('x', -nodeCardWidth / 2 + 19)
+          .attr('y', nodeCardTop + nodeCardHeight - 10)
+          .text(content.meta);
+        selection.append('title').text(
+          [content.title, content.summary, content.meta]
+            .filter(Boolean)
+            .join('\\n')
+        );
       });
 
       if (query) {
         const applySearchDimming = (selection) =>
           selection.classed('dimmed', ({ tree, node }) => {
+          const treeMatches =
+            tree.title.toLocaleLowerCase('zh-CN').includes(query);
           if (!node.data.session) {
-            return !tree.title.toLocaleLowerCase('zh-CN').includes(query);
+            return !treeMatches;
           }
-          return !sessionMatches(node.data.session, nodeById, query);
+          return (
+            !treeMatches &&
+            !sessionMatches(node.data.session, nodeById, query)
+          );
         });
         applySearchDimming(nodes);
         applySearchDimming(cards);
+        cards.attr('tabindex', ({ tree, node }) => {
+          if (!node.data.session) return -1;
+          return (
+            tree.title.toLocaleLowerCase('zh-CN').includes(query) ||
+            sessionMatches(node.data.session, nodeById, query)
+          )
+            ? 0
+            : -1;
+        });
       }
       if (preserveViewport) {
         graph.call(zoomBehavior.transform, previousTransform);
       } else {
         fitGraph(
-          width,
+          viewportWidth,
           height,
           contentBounds,
-          minimumReadableScale
+          minimumReadableScale,
+          narrowFocusRight
         );
       }
       viewportSignature = nextViewportSignature;
       fitAllRequested = false;
+      if (resumePendingWheel) scheduleViewportFrame();
+      scheduleVisibleCardTabStops();
     }
 
     function filterTreeForQuery(tree, nodeById, query) {
@@ -1542,9 +1780,15 @@ export class ExperienceMapPanel implements vscode.Disposable {
       title.textContent = session.title;
       const meta = document.createElement('div');
       meta.className = 'detail-session-meta';
+      const sessionNodes = session.nodeIds
+        .map((id) => nodeById.get(id))
+        .filter(Boolean);
+      const importedFolder = sessionNodes.every(
+        (node) => node.source?.type === 'folder-import'
+      );
       meta.textContent =
         session.nodeIds.length +
-        ' 轮对话 · ' +
+        (importedFolder ? ' 个导入条目 · ' : ' 轮对话 · ') +
         dateRange(session.startedAt, session.completedAt);
       inspector.append(close, kicker, title, meta);
       session.nodeIds
@@ -1600,7 +1844,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
         note.textContent = node.note;
         section.append(note);
       }
-      if (node.kind === 'collected' && node.files?.length) {
+      if (node.files?.length) {
         const files = document.createElement('div');
         files.className = 'detail-files';
         node.files.forEach((file) => {
@@ -1718,7 +1962,14 @@ export class ExperienceMapPanel implements vscode.Disposable {
         session.preview,
         ...session.nodeIds.flatMap((id) => {
           const node = nodeById.get(id);
-          return node ? [node.prompt, node.response, node.note] : [];
+          return node
+            ? [
+                node.prompt,
+                node.response,
+                node.note,
+                ...(node.files || []).map((file) => file.path)
+              ]
+            : [];
         })
       ].join(' ').toLocaleLowerCase('zh-CN').includes(query);
     }
@@ -1807,14 +2058,68 @@ export class ExperienceMapPanel implements vscode.Disposable {
       return first === last ? first : first + '–' + last;
     }
 
-    function cardTitleLines(value) {
+    function cardContentFor(session, nodeById) {
+      const nodes = session.nodeIds
+        .map((id) => nodeById.get(id))
+        .filter(Boolean);
+      const latest = nodes.at(-1);
+      const folderImport = latest?.source?.type === 'folder-import';
+      const summary = compactCardSummary(
+        latest?.response ||
+        session.preview ||
+        ''
+      );
+      if (folderImport) {
+        const lineCount = (latest.files || []).reduce(
+          (total, file) => total + (file.additions || 0),
+          0
+        );
+        const fileLabel = latest.source.relativePath === '.'
+          ? (latest.files?.length || 0) + ' 个 SKILL.md'
+          : latest.source.relativePath.split('/').at(-1) || 'SKILL.md';
+        return {
+          title: session.title,
+          summary,
+          meta:
+            '目录导入 · ' +
+            fileLabel +
+            (lineCount ? ' · ' + lineCount + ' 行' : '')
+        };
+      }
+      const source = session.sourceHosts?.length
+        ? session.sourceHosts
+            .map((host) => host === 'codex' ? 'Codex' : host === 'claude'
+              ? 'Claude'
+              : 'TRAE')
+            .join(' + ')
+        : '本地记录';
+      return {
+        title: session.shortTitle || session.title,
+        summary: summary === session.title ? '' : summary,
+        meta:
+          source +
+          ' · ' +
+          session.nodeIds.length +
+          ' 轮 · ' +
+          shortDate(session.completedAt)
+      };
+    }
+
+    function compactCardSummary(value) {
+      return String(value || '')
+        .slice(0, 240)
+        .replace(/[#>*_()]/g, ' ')
+        .replace(/\\s+/g, ' ')
+        .trim();
+    }
+
+    function cardTextLines(value, maxUnits, maxLines) {
       const characters = Array.from(
         String(value || '').trim().split(' ').filter(Boolean).join(' ')
       );
-      const maxUnits = 20;
       const lines = [];
       let cursor = 0;
-      while (cursor < characters.length && lines.length < 2) {
+      while (cursor < characters.length && lines.length < maxLines) {
         let units = 0;
         let end = cursor;
         let lastSpace = -1;
@@ -1846,7 +2151,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
         }
         lines[lines.length - 1] = last.join('').trimEnd() + '…';
       }
-      return lines.length ? lines : ['未命名航点'];
+      return lines;
     }
 
     function visualUnits(value) {
@@ -1884,7 +2189,13 @@ export class ExperienceMapPanel implements vscode.Disposable {
       };
     }
 
-    function fitGraph(width, height, bounds, minimumScale) {
+    function fitGraph(
+      width,
+      height,
+      bounds,
+      minimumScale,
+      narrowFocusRight
+    ) {
       const sideInset = 28;
       const topInset = 86;
       const bottomInset = 28;
@@ -1901,6 +2212,11 @@ export class ExperienceMapPanel implements vscode.Disposable {
         )
       );
       const x = sideInset - bounds.left * scale;
+      const narrowX = width <= 520
+        ? width -
+          20 -
+          narrowFocusRight * scale
+        : x;
       const y = contentHeight * scale > availableHeight
         ? topInset - bounds.top * scale
         : topInset +
@@ -1908,7 +2224,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
           bounds.top * scale;
       graph.call(
         zoomBehavior.transform,
-        d3.zoomIdentity.translate(x, y).scale(scale)
+        d3.zoomIdentity.translate(narrowX, y).scale(scale)
       );
     }
 

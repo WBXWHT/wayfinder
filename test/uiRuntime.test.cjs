@@ -570,6 +570,7 @@ test(
         cdp,
         "document.querySelectorAll('.session-node').length === 9"
       );
+      await delay(180);
       const map = await evaluateJson(
         cdp,
         `({
@@ -583,6 +584,19 @@ test(
           currentCards: document.querySelectorAll(
             '.session-card.current'
           ).length,
+          keyboardCards: document.querySelectorAll(
+            '.session-card[tabindex="0"]'
+          ).length,
+          visibleCards: [...document.querySelectorAll('.session-card')]
+            .filter((element) => {
+              const rect = element.getBoundingClientRect();
+              return (
+                rect.right > 0 &&
+                rect.left < innerWidth &&
+                rect.bottom > 0 &&
+                rect.top < innerHeight
+              );
+            }).length,
           cardWidth: document.querySelector(
             '.session-card .node-card-bg'
           )?.getAttribute('width'),
@@ -627,6 +641,12 @@ test(
           })(),
           cardMetadata: document.querySelectorAll(
             '.node-kicker, .node-foot'
+          ).length,
+          cardSummaries: document.querySelectorAll(
+            '.node-summary'
+          ).length,
+          cardFooters: document.querySelectorAll(
+            '.node-card-meta'
           ).length,
           routeChannels: document.querySelectorAll(
             '.forest-edge.route-0, .forest-edge.route-1, ' +
@@ -708,12 +728,16 @@ test(
       assert.equal(map.ships, 1);
       assert.equal(map.cards, 9);
       assert.equal(map.currentCards, 1);
-      assert.equal(map.cardWidth, "164");
-      assert.equal(map.cardHeight, "58");
+      assert.ok(map.keyboardCards >= 1);
+      assert.ok(map.visibleCards >= 1);
+      assert.equal(map.cardWidth, "240");
+      assert.equal(map.cardHeight, "120");
       assert.equal(map.foreignObjects, 0);
       assert.equal(map.cardCollisions, 0);
       assert.equal(map.coastCoversCanvas, true);
       assert.equal(map.cardMetadata, 0);
+      assert.equal(map.cardSummaries, 9);
+      assert.equal(map.cardFooters, 9);
       assert.equal(map.routeChannels, 8);
       assert.equal(new Set(map.routeColors).size, 3);
       assert.equal(map.routeColors[0], map.routeColors[3]);
@@ -732,15 +756,57 @@ test(
       assert.equal(map.allRoutesDirectCubic, true);
       assert.ok(map.maxForkAngle >= 20);
 
-      const gestures = await evaluateJson(
+      await cdp.send("Runtime.evaluate", {
+        expression: `(() => {
+          const input = document.querySelector('#search');
+          input.value = 'Wayfinder 产品';
+          input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        })()`
+      });
+      await delay(180);
+      assert.equal(
+        await evaluate(cdp, "document.querySelector('#canvasTitle')?.textContent"),
+        "搜索结果"
+      );
+      assert.equal(
+        await evaluate(
+          cdp,
+          "document.querySelectorAll('.session-card').length > 0"
+        ),
+        true
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression: `(() => {
+          const input = document.querySelector('#search');
+          input.value = '';
+          input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+        })()`
+      });
+      await delay(180);
+
+      const gestures = JSON.parse(await evaluate(
         cdp,
-        `(() => {
+        `(async () => {
           const target = document.querySelector('#graph');
           const rect = target.getBoundingClientRect();
-          const wheel = (deltaX, deltaY, ctrlKey = false) =>
+          const nextFrame = () => new Promise((resolve) =>
+            requestAnimationFrame(() => resolve())
+          );
+          const settleFrames = async (count) => {
+            for (let index = 0; index < count; index += 1) {
+              await nextFrame();
+            }
+          };
+          const wheel = (
+            deltaX,
+            deltaY,
+            ctrlKey = false,
+            deltaMode = 0
+          ) =>
             target.dispatchEvent(new WheelEvent('wheel', {
               deltaX,
               deltaY,
+              deltaMode,
               ctrlKey,
               bubbles: true,
               cancelable: true,
@@ -748,43 +814,219 @@ test(
               clientY: rect.top + rect.height / 2
             }));
           const initial = d3.zoomTransform(target);
+          let transformWrites = 0;
+          const observer = new MutationObserver((records) => {
+            transformWrites += records.filter(
+              (record) => record.attributeName === 'transform'
+            ).length;
+          });
+          observer.observe(target.firstElementChild, {
+            attributes: true,
+            attributeFilter: ['transform']
+          });
           for (let index = 0; index < 30; index += 1) {
             wheel(-80, 0);
           }
+          await settleFrames(2);
+          await Promise.resolve();
+          const writesForFirstTwoFrames = transformWrites;
+          await settleFrames(10);
+          const writesForBurst = transformWrites;
+          observer.disconnect();
           const atCoast = d3.zoomTransform(target);
+          wheel(-160, 0);
+          wheel(40, 0);
+          await settleFrames(2);
+          const reversedAtCoast = d3.zoomTransform(target);
+          for (let index = 0; index < 30; index += 1) {
+            wheel(-80, 0);
+          }
+          await settleFrames(2);
           for (let index = 0; index < 30; index += 1) {
             wheel(80, 0);
           }
+          await settleFrames(12);
           const explored = d3.zoomTransform(target);
           for (let index = 0; index < 3; index += 1) {
             wheel(0, 80);
           }
+          await nextFrame();
           const panned = d3.zoomTransform(target);
           document.querySelector('#fit').click();
           const reset = d3.zoomTransform(target);
+          for (let index = 0; index < 30; index += 1) {
+            wheel(80, 0);
+          }
+          window.dispatchEvent(new MessageEvent('message', {
+            data: { type: 'render', state, forest, projectName }
+          }));
+          await settleFrames(12);
+          const afterRenderDuringPan = d3.zoomTransform(target);
+          document.querySelector('#fit').click();
+          for (let index = 0; index < 3; index += 1) {
+            wheel(160, 0);
+          }
+          await settleFrames(3);
+          const beforeAwayReversal = d3.zoomTransform(target);
+          wheel(160, 0);
+          wheel(-40, 0);
+          await settleFrames(2);
+          const afterAwayReversal = d3.zoomTransform(target);
+          document.querySelector('#fit').click();
+          const largePacketReset = d3.zoomTransform(target);
+          wheel(1458, 0);
+          await nextFrame();
+          const largePacket = d3.zoomTransform(target);
+          document.querySelector('#fit').click();
+          const lineModeReset = d3.zoomTransform(target);
+          wheel(2, 0, false, 1);
+          await nextFrame();
+          const lineModePan = d3.zoomTransform(target);
+          document.querySelector('#fit').click();
+          const pageModeReset = d3.zoomTransform(target);
+          wheel(1, 0, false, 2);
+          await nextFrame();
+          const pageModePan = d3.zoomTransform(target);
+          document.querySelector('#fit').click();
+          const zoomReset = d3.zoomTransform(target);
           for (let index = 0; index < 3; index += 1) {
             wheel(0, -40, true);
           }
+          await nextFrame();
           const pinched = d3.zoomTransform(target);
-          return {
+          for (let index = 0; index < 100; index += 1) {
+            wheel(0, -40, true);
+          }
+          await settleFrames(12);
+          const maxZoom = d3.zoomTransform(target);
+          for (let index = 0; index < 100; index += 1) {
+            wheel(0, 40, true);
+          }
+          await settleFrames(12);
+          const minZoom = d3.zoomTransform(target);
+          wheel(0, -40, true);
+          await settleFrames(2);
+          const reversedZoom = d3.zoomTransform(target);
+          return JSON.stringify({
             initial: { x: initial.x, y: initial.y, k: initial.k },
             atCoast: { x: atCoast.x, y: atCoast.y, k: atCoast.k },
+            reversedAtCoast: {
+              x: reversedAtCoast.x,
+              y: reversedAtCoast.y,
+              k: reversedAtCoast.k
+            },
             explored: { x: explored.x, y: explored.y, k: explored.k },
             panned: { x: panned.x, y: panned.y, k: panned.k },
             reset: { x: reset.x, y: reset.y, k: reset.k },
-            pinched: { x: pinched.x, y: pinched.y, k: pinched.k }
-          };
+            afterRenderDuringPan: {
+              x: afterRenderDuringPan.x,
+              y: afterRenderDuringPan.y,
+              k: afterRenderDuringPan.k
+            },
+            beforeAwayReversal: {
+              x: beforeAwayReversal.x,
+              y: beforeAwayReversal.y,
+              k: beforeAwayReversal.k
+            },
+            afterAwayReversal: {
+              x: afterAwayReversal.x,
+              y: afterAwayReversal.y,
+              k: afterAwayReversal.k
+            },
+            largePacketReset: {
+              x: largePacketReset.x,
+              y: largePacketReset.y,
+              k: largePacketReset.k
+            },
+            largePacket: {
+              x: largePacket.x,
+              y: largePacket.y,
+              k: largePacket.k
+            },
+            lineModeReset: {
+              x: lineModeReset.x,
+              y: lineModeReset.y,
+              k: lineModeReset.k
+            },
+            lineModePan: {
+              x: lineModePan.x,
+              y: lineModePan.y,
+              k: lineModePan.k
+            },
+            pageModeReset: {
+              x: pageModeReset.x,
+              y: pageModeReset.y,
+              k: pageModeReset.k
+            },
+            pageModePan: {
+              x: pageModePan.x,
+              y: pageModePan.y,
+              k: pageModePan.k
+            },
+            zoomReset: { x: zoomReset.x, y: zoomReset.y, k: zoomReset.k },
+            writesForFirstTwoFrames,
+            writesForBurst,
+            pinched: { x: pinched.x, y: pinched.y, k: pinched.k },
+            maxZoom: { x: maxZoom.x, y: maxZoom.y, k: maxZoom.k },
+            minZoom: { x: minZoom.x, y: minZoom.y, k: minZoom.k },
+            reversedZoom: {
+              x: reversedZoom.x,
+              y: reversedZoom.y,
+              k: reversedZoom.k
+            }
+          });
         })()`
-      );
+      ));
       assert.ok(gestures.atCoast.x <= 0.001);
       assert.ok(gestures.atCoast.x >= -0.001);
       assert.equal(gestures.atCoast.k, gestures.initial.k);
+      assert.ok(
+        Math.abs(gestures.reversedAtCoast.x + 40) < .001
+      );
       assert.ok(gestures.explored.x < gestures.atCoast.x);
+      assert.ok(
+        Math.abs(
+          gestures.explored.x - (gestures.atCoast.x - 2_400)
+        ) < .001
+      );
       assert.equal(gestures.explored.k, gestures.atCoast.k);
       assert.ok(gestures.panned.y < gestures.explored.y);
       assert.equal(gestures.panned.k, gestures.explored.k);
-      assert.ok(gestures.pinched.k / gestures.reset.k > 1.25);
-      assert.ok(gestures.pinched.k / gestures.reset.k < 1.32);
+      assert.ok(gestures.writesForFirstTwoFrames <= 2);
+      assert.ok(gestures.writesForBurst < 30);
+      assert.ok(
+        Math.abs(
+          gestures.afterRenderDuringPan.x - (gestures.reset.x - 2_400)
+        ) < .001
+      );
+      assert.ok(
+        Math.abs(
+          gestures.afterAwayReversal.x -
+          (gestures.beforeAwayReversal.x - 120)
+        ) < .001
+      );
+      assert.ok(
+        gestures.largePacketReset.x - gestures.largePacket.x >= 159.999
+      );
+      assert.ok(
+        gestures.largePacketReset.x - gestures.largePacket.x <= 160.001
+      );
+      assert.ok(
+        Math.abs(
+          gestures.lineModeReset.x - gestures.lineModePan.x - 32
+        ) < .001
+      );
+      assert.ok(
+        Math.abs(
+          gestures.pageModeReset.x - gestures.pageModePan.x - 160
+        ) < .001
+      );
+      assert.equal(gestures.largePacket.k, gestures.reset.k);
+      assert.ok(gestures.pinched.k / gestures.zoomReset.k > 1.25);
+      assert.ok(gestures.pinched.k / gestures.zoomReset.k < 1.32);
+      assert.equal(gestures.maxZoom.k, 3.2);
+      assert.equal(gestures.minZoom.k, 0.4);
+      assert.ok(gestures.reversedZoom.k > gestures.minZoom.k);
 
       const dragTarget = await evaluateJson(
         cdp,
@@ -966,11 +1208,119 @@ test(
       assert.equal(desktopCompanion.hasLegacyHostButtons, false);
 
       await cdp.send("Runtime.evaluate", {
+        expression: `(() => {
+          const graph = document.querySelector('#graph');
+          const rect = graph.getBoundingClientRect();
+          for (let index = 0; index < 4; index += 1) {
+            graph.dispatchEvent(new WheelEvent('wheel', {
+              deltaX: 80,
+              bubbles: true,
+              cancelable: true,
+              clientX: rect.left + rect.width / 2,
+              clientY: rect.top + rect.height / 2
+            }));
+          }
+        })()`
+      });
+      await delay(120);
+      const beforeUnrelatedRefresh = await evaluateJson(
+        cdp,
+        `(() => {
+          const transform = d3.zoomTransform(
+            document.querySelector('#graph')
+          );
+          return {
+            x: transform.x,
+            y: transform.y,
+            k: transform.k,
+            reads: globalThis.__WAYFINDER_PREVIEW_READ_COUNT__
+          };
+        })()`
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression:
+          "globalThis.__WAYFINDER_PREVIEW_PROJECTS__[1].nodeCount += 1"
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelectorAll('.project-meta')[1]?.textContent" +
+          ".startsWith('12 轮')"
+      );
+      const afterUnrelatedRefresh = await evaluateJson(
+        cdp,
+        `(() => {
+          const transform = d3.zoomTransform(
+            document.querySelector('#graph')
+          );
+          return {
+            x: transform.x,
+            y: transform.y,
+            k: transform.k,
+            reads: globalThis.__WAYFINDER_PREVIEW_READ_COUNT__,
+            project: document.querySelector(
+              '#currentProjectLabel'
+            )?.textContent
+          };
+        })()`
+      );
+      assert.deepEqual(
+        {
+          x: afterUnrelatedRefresh.x,
+          y: afterUnrelatedRefresh.y,
+          k: afterUnrelatedRefresh.k
+        },
+        {
+          x: beforeUnrelatedRefresh.x,
+          y: beforeUnrelatedRefresh.y,
+          k: beforeUnrelatedRefresh.k
+        }
+      );
+      assert.equal(
+        afterUnrelatedRefresh.reads,
+        beforeUnrelatedRefresh.reads
+      );
+      assert.equal(afterUnrelatedRefresh.project, "ui-test");
+
+      await cdp.send("Runtime.evaluate", {
         expression: "document.querySelectorAll('.project-item')[1]?.click()"
       });
       await waitForExpression(
         cdp,
         "document.querySelector('#currentProjectLabel')?.textContent === 'ui-test 2'"
+      );
+      const readsBeforeTransientMiss = await evaluate(
+        cdp,
+        "globalThis.__WAYFINDER_PREVIEW_READ_COUNT__"
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression:
+          "globalThis.__WAYFINDER_PREVIEW_MISSING_PROJECT__ = " +
+          "globalThis.__WAYFINDER_PREVIEW_PROJECTS__.pop()"
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelectorAll('.project-item').length === 1"
+      );
+      assert.equal(
+        await evaluate(cdp, "document.querySelector('#currentProjectLabel')?.textContent"),
+        "ui-test 2"
+      );
+      assert.equal(
+        await evaluate(cdp, "globalThis.__WAYFINDER_PREVIEW_READ_COUNT__"),
+        readsBeforeTransientMiss
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression:
+          "globalThis.__WAYFINDER_PREVIEW_PROJECTS__.push(" +
+          "globalThis.__WAYFINDER_PREVIEW_MISSING_PROJECT__)"
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelectorAll('.project-item').length === 2"
+      );
+      assert.equal(
+        await evaluate(cdp, "document.querySelector('#currentProjectLabel')?.textContent"),
+        "ui-test 2"
       );
 
       await cdp.send("Emulation.setDeviceMetricsOverride", {
@@ -1007,7 +1357,16 @@ test(
           )?.getBoundingClientRect().width,
           sidebarRight: document.querySelector(
             '.project-sidebar'
-          )?.getBoundingClientRect().right
+          )?.getBoundingClientRect().right,
+          sidebarInert: document.querySelector(
+            '.project-sidebar'
+          )?.hasAttribute('inert'),
+          sidebarHidden: document.querySelector(
+            '.project-sidebar'
+          )?.getAttribute('aria-hidden'),
+          toggleExpanded: document.querySelector(
+            '#toggleProjects'
+          )?.getAttribute('aria-expanded')
         })`
       );
       assert.equal(narrowCompanion.width, 320);
@@ -1016,6 +1375,9 @@ test(
       assert.equal(narrowCompanion.topbarChildrenFit, true);
       assert.equal(narrowCompanion.sidebarWidth, 278);
       assert.ok(narrowCompanion.sidebarRight <= 0);
+      assert.equal(narrowCompanion.sidebarInert, true);
+      assert.equal(narrowCompanion.sidebarHidden, "true");
+      assert.equal(narrowCompanion.toggleExpanded, "false");
 
       await cdp.send("Runtime.evaluate", {
         expression: "document.querySelector('#toggleProjects')?.click()"
@@ -1024,6 +1386,10 @@ test(
         cdp,
         "Math.abs(document.querySelector('.project-sidebar')" +
           "?.getBoundingClientRect().left || 0) < 1"
+      );
+      await waitForExpression(
+        cdp,
+        "document.activeElement?.classList.contains('project-item')"
       );
       const openDrawer = await evaluateJson(
         cdp,
@@ -1036,12 +1402,39 @@ test(
           )?.getBoundingClientRect().right,
           scrimPointerEvents: getComputedStyle(
             document.querySelector('#sidebarScrim')
-          ).pointerEvents
+          ).pointerEvents,
+          sidebarInert: document.querySelector(
+            '.project-sidebar'
+          )?.hasAttribute('inert'),
+          toggleExpanded: document.querySelector(
+            '#toggleProjects'
+          )?.getAttribute('aria-expanded'),
+          activeProject: document.activeElement?.classList.contains(
+            'project-item'
+          )
         })`
       );
       assert.equal(openDrawer.left, 0);
       assert.ok(openDrawer.right <= 320);
       assert.equal(openDrawer.scrimPointerEvents, "auto");
+      assert.equal(openDrawer.sidebarInert, false);
+      assert.equal(openDrawer.toggleExpanded, "true");
+      assert.equal(openDrawer.activeProject, true);
+
+      await cdp.send("Runtime.evaluate", {
+        expression: `(() => {
+          const openData = document.querySelector('#openData');
+          openData.focus();
+          window.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'Tab',
+            bubbles: true
+          }));
+        })()`
+      });
+      assert.equal(
+        await evaluate(cdp, "document.activeElement?.id"),
+        "closeProjects"
+      );
 
       await cdp.send("Runtime.evaluate", {
         expression: "document.querySelectorAll('.project-item')[1]?.click()"
@@ -1053,6 +1446,10 @@ test(
       await waitForExpression(
         cdp,
         "document.querySelector('#currentProjectLabel')?.textContent === 'ui-test 2'"
+      );
+      assert.equal(
+        await evaluate(cdp, "document.activeElement?.id"),
+        "toggleProjects"
       );
 
       await cdp.send("Runtime.evaluate", {

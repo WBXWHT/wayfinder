@@ -1,6 +1,9 @@
 # Research Notes
 
 Research date: 2026-09-07
+Status: historical design and implementation research. Current product
+contracts live in [README.md](README.md), [docs/COMPANION.md](docs/COMPANION.md),
+and [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 ## Open-Water Navigation Map Art Direction
 

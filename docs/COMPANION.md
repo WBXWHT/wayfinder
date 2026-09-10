@@ -4,14 +4,9 @@ Wayfinder Companion is the macOS desktop surface for local Claude Code and
 Codex work. It watches the hosts' local JSONL session files, stores normalized
 turns under `~/.wayfinder`, and renders the complete visual voyage map.
 
-The desktop application is the only supported Wayfinder product surface.
-Extensions, host plugins, Skills, command-line packages, and MCP packages are
-not distributed for new versions.
-
-Users do not connect hosts or manage Hooks in the Companion UI. The bundled
-collector runs once at launch and then reacts to transcript changes in the
-background. It reads local session files rather than scraping another
-application's interface.
+The desktop application is the supported Wayfinder product. Its collector runs
+at launch and then reacts to local session changes in the background without
+scraping another application's interface.
 
 ## Download Website
 

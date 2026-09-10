@@ -97,9 +97,13 @@ test("full map scopes layout to one project and removes legacy project list", ()
 
   assert.match(html, /id="projectPrevious"/);
   assert.match(html, /id="projectNext"/);
-  assert.match(html, /const scopedTrees = activeTree \? \[activeTree\] : \[\]/);
+  assert.match(
+    html,
+    /const scopedTrees = query[\s\S]*?\? forest\.trees[\s\S]*?: activeTree/
+  );
   assert.match(html, /共同港口，' \+ tree\.title \+ ' 从这里出发/);
   assert.match(html, /grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(html, /classList\.toggle\(\s*'single-voyage'/);
   assert.match(html, /aria-label="航点详情"/);
   assert.match(html, /showEmptyInspector\(true\)/);
   assert.match(html, /routeIndexesFor\(tree\)/);
@@ -109,11 +113,11 @@ test("full map scopes layout to one project and removes legacy project list", ()
     /\.forest-edge\.route-0,[\s\S]*?\.forest-edge\.route-3,[\s\S]*?--route-accent: var\(--route-blue\)/
   );
   assert.match(html, /routeClass\(routeIndexById\.get\(session\.id\) \?\? -1\)/);
-  assert.match(html, /const nodeCardWidth = 164/);
-  assert.match(html, /const nodeCardHeight = 58/);
-  assert.match(html, /const nodeVerticalPitch = 176/);
-  assert.match(html, /const nodeHorizontalPitch = 236/);
-  assert.match(html, /const minimumReadableScale = \.7935/);
+  assert.match(html, /const nodeCardWidth = 240/);
+  assert.match(html, /const nodeCardHeight = 120/);
+  assert.match(html, /const nodeVerticalPitch = 216/);
+  assert.match(html, /const nodeHorizontalPitch = 324/);
+  assert.match(html, /const minimumReadableScale = \.86/);
   assert.match(html, /\.scaleExtent\(\[\.4, 3\.2\]\)/);
   assert.match(
     html,
@@ -124,16 +128,23 @@ test("full map scopes layout to one project and removes legacy project list", ()
   assert.match(html, /'wheel\.zoom', null/);
   assert.match(html, /'wheel\.wayfinder'/);
   assert.match(html, /\.constrain\(\(transform\) => \{/);
-  assert.match(html, /Math\.min\(0, current\.x - horizontalDelta\)/);
+  assert.match(html, /function normalizedWheelDelta/);
+  assert.match(html, /function scheduleViewportFrame/);
+  assert.match(html, /function scheduleVisibleCardTabStops/);
+  assert.match(html, /requestAnimationFrame/);
+  assert.match(html, /Math\.max\(-160, Math\.min\(160, value \* unit\)\)/);
+  assert.match(html, /const changed =/);
   assert.match(html, /zoomBehavior\.transform/);
-  assert.match(html, /zoomBehavior\.scaleBy/);
   assert.match(html, /Math\.pow\(2, -delta \* \.01\)/);
   assert.match(html, /const firstControlX = sx \+ span \* \.32/);
   assert.match(html, /const secondControlX = sx \+ span \* \.62/);
   assert.match(html, /coastlineGeometry\(shoreTop, shoreBottom\)/);
+  assert.match(html, /const narrowX = width <= 520/);
   assert.match(html, /attr\('class', 'card-layer'\)/);
   assert.match(html, /attr\('class', 'marker-layer'\)/);
   assert.match(html, /attr\('class', 'node-card-bg'\)/);
+  assert.match(html, /attr\('class', 'node-summary'\)/);
+  assert.match(html, /attr\('class', 'node-card-meta'\)/);
   assert.doesNotMatch(html, /foreignObject/);
   assert.doesNotMatch(html, /stageTone|stage-(sun|leaf|sky|bloom)/);
   assert.doesNotMatch(html, /node-kicker|node-foot/);

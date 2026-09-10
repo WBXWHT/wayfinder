@@ -5,8 +5,9 @@ one visual voyage map. It preserves prompts, responses, tool activity, file
 changes, branches, failures, and decisions so the path behind a result remains
 reviewable.
 
-**Early access, v0.3.4.** MIT licensed. No account, telemetry, cloud sync, Node
-installation, IDE extension, host plugin, or MCP setup is required.
+**Current public release: v0.3.4 early access.** The next source version is
+v0.3.5, which is not yet published. MIT licensed. Your complete history stays
+on your Mac.
 
 [Website](https://wayfinder-ai.pages.dev) |
 [macOS Download](https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.4) |
@@ -18,8 +19,7 @@ installation, IDE extension, host plugin, or MCP setup is required.
 
 1. Install and open Wayfinder.
 2. Continue working normally in Codex or Claude Code.
-3. Wayfinder watches their local JSONL session files and updates the matching
-   project in the background.
+3. Wayfinder updates the matching project in the background.
 4. Open Wayfinder to browse the complete visual voyage map.
 
 Codex and Claude Code activity from the same project appears in one map. Each
@@ -28,12 +28,7 @@ overwriting raw history.
 
 ## Product Surface
 
-Wayfinder is distributed only as a desktop application. Earlier VSIX, host
-plugin, Agent Skill, CLI package, Homebrew, Scoop, and MCP releases are legacy
-artifacts and are no longer supported product surfaces.
-
-The repository still contains internal collection and compatibility modules
-used by the app. They are not separate installation options.
+Wayfinder is a standalone macOS application.
 
 ## Local Data
 

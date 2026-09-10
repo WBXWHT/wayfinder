@@ -39,11 +39,7 @@ also match the local state evidence. Provider choice, retention guarantees,
 transport security, and the consent screen must be completed before this
 feature can ship.
 
-## Installation And Removal
-
-The current product is a standalone macOS application. It does not install an
-IDE extension, host plugin, MCP server, or project Hook. It watches local Codex
-and Claude JSONL transcripts and requires no host connection screen.
+## Removal
 
 Removing the application leaves `~/.wayfinder` intact. You may delete the
 corresponding directory under `~/.wayfinder/projects/` to erase one project, or

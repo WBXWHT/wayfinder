@@ -1,6 +1,7 @@
 # Publication Status
 
-Version: **0.3.4 early access**. Product model updated 2026-09-10.
+Public release: **0.3.4 early access**. Local next version: **0.3.5
+(unreleased)**. Product model updated 2026-09-10.
 
 ## Current Product
 

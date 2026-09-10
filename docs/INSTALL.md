@@ -1,6 +1,7 @@
 # Install Wayfinder
 
-Version: **0.3.4 early access**.
+Current public version: **0.3.4 early access**. Local source in this repository
+may be newer than the published downloads.
 
 Wayfinder is distributed only as a macOS desktop application:
 
@@ -20,20 +21,15 @@ first launch, open **System Settings → Privacy & Security** and choose
 ## Start Recording
 
 Keep Wayfinder running, then continue working normally in Codex or Claude Code.
-No extension, plugin, MCP server, terminal command, Node installation, or host
-connection screen is required.
 
-Wayfinder watches supported local JSONL session files and updates the matching
-project map in the background. Workspace-backed plain chat and coding turns can
-both be collected. Codex and Claude Code activity from the same project appears
-in one map while retaining its source.
+Wayfinder updates the matching project map in the background. Workspace-backed
+plain chat and coding turns can both be collected. Codex and Claude Code
+activity from the same project appears in one map while retaining its source.
 
 ## Local Requirements
 
 - macOS 12 or newer.
 - Git, used by the current local snapshot backend.
-
-The app embeds its own runtime. Users do not install Node.js.
 
 ## Data And Removal
 
@@ -44,9 +40,3 @@ To erase all Wayfinder data, quit the app and delete `~/.wayfinder`. This
 permanently removes recorded history and restore points.
 
 Read [PRIVACY.md](../PRIVACY.md) before deleting or sharing local data.
-
-## Legacy Packages
-
-Earlier VSIX, Claude/Codex plugin, Agent Skill, CLI, Homebrew, Scoop, and MCP
-artifacts remain attached to historical releases for reproducibility. They are
-not current installation paths and receive no new releases.

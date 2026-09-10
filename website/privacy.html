@@ -11,13 +11,7 @@
 <body class="document-page">
   <header class="site-header document-header">
     <a class="brand" href="./">
-      <span class="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24">
-          <path d="M4 5.5 7.2 18 12 9.3 16.8 18 20 5.5"/>
-          <path class="branch" d="M12 9.3 17.5 6.8"/>
-          <circle cx="12" cy="9.3" r="1.5"/>
-        </svg>
-      </span>
+      <img class="brand-mark" src="./wayfinder-icon.svg" alt="">
       <span>Wayfinder</span>
     </a>
     <a class="header-link" href="./">返回下载页</a>
@@ -32,12 +26,21 @@
     </section>
     <section>
       <h2>自动采集</h2>
-      <p>Companion 在本机读取 Codex 与 Claude Code 的 JSONL 会话文件，并以增量方式更新航海图。它不抓取应用窗口，也不会把会话发送给 Wayfinder 服务。</p>
+      <p>Wayfinder 在本机读取 Codex 与 Claude Code 保存的会话记录，并以增量方式更新航海图。它不抓取应用窗口，也不会把会话发送给 Wayfinder 服务。</p>
     </section>
     <section>
       <h2>规则分析</h2>
       <p>当前版本只在本地根据测试失败、工具失败、用户否决和回滚等明确证据整理失败候选，不调用云端模型。</p>
     </section>
+    <section>
+      <h2>网络访问</h2>
+      <p>应用仅在你主动查看版本信息时打开 GitHub Releases。会话内容、代码快照和航迹不会随该操作上传。</p>
+    </section>
+    <section>
+      <h2>删除数据</h2>
+      <p>卸载应用不会删除历史。需要清除时，请先退出 Wayfinder，再删除 <code>~/.wayfinder</code> 中对应项目或全部数据。</p>
+    </section>
+    <p class="document-updated">更新日期：2026 年 9 月 10 日</p>
   </main>
   <footer>
     <span>Wayfinder</span>

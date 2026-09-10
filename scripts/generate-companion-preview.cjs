@@ -29,18 +29,28 @@ const previewProjects = Array.from(
     name: index === 0 ? projectName : `${projectName} ${index + 1}`,
     root: state.root || "",
     updatedAt: state.updatedAt || "",
-    nodeCount: Array.isArray(state.nodes) ? state.nodes.length : 0
+    nodeCount: Array.isArray(state.nodes) ? state.nodes.length : 0,
+    pendingCount:
+      state.pending && typeof state.pending === "object"
+        ? Object.keys(state.pending).length
+        : 0
   })
 );
 const mock = `<script>
+globalThis.__WAYFINDER_PREVIEW_PROJECTS__ = ${JSON.stringify(previewProjects)};
+globalThis.__WAYFINDER_PREVIEW_STATE__ = ${JSON.stringify(state)};
+globalThis.__WAYFINDER_PREVIEW_READ_COUNT__ = 0;
 globalThis.__TAURI__ = {
   core: {
     invoke: async (command) => {
       if (command === "list_projects") {
-        return ${JSON.stringify(previewProjects)};
+        return globalThis.__WAYFINDER_PREVIEW_PROJECTS__.map(
+          (project) => ({ ...project })
+        );
       }
       if (command === "read_project_state") {
-        return ${JSON.stringify(state)};
+        globalThis.__WAYFINDER_PREVIEW_READ_COUNT__ += 1;
+        return globalThis.__WAYFINDER_PREVIEW_STATE__;
       }
       if (command === "host_status") {
         return {
@@ -93,5 +103,10 @@ const fontSource = path.join(root, "companion", "dist", "codicon.ttf");
 const fontTarget = path.join(path.dirname(resolvedOutput), "codicon.ttf");
 if (fontSource !== fontTarget) {
   fs.copyFileSync(fontSource, fontTarget);
+}
+const iconSource = path.join(root, "companion", "dist", "wayfinder-icon.png");
+const iconTarget = path.join(path.dirname(resolvedOutput), "wayfinder-icon.png");
+if (iconSource !== iconTarget) {
+  fs.copyFileSync(iconSource, iconTarget);
 }
 process.stdout.write(`Generated ${resolvedOutput}\n`);

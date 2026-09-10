@@ -12,13 +12,7 @@
 <body>
   <header class="site-header">
     <a class="brand" href="#top" aria-label="Wayfinder 首页">
-      <span class="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24">
-          <path d="M4 5.5 7.2 18 12 9.3 16.8 18 20 5.5"/>
-          <path class="branch" d="M12 9.3 17.5 6.8"/>
-          <circle cx="12" cy="9.3" r="1.5"/>
-        </svg>
-      </span>
+      <img class="brand-mark" src="./wayfinder-icon.svg" alt="">
       <span>Wayfinder</span>
     </a>
     <a class="header-link" href="https://github.com/WBXWHT/wayfinder">GitHub ↗</a>
@@ -27,21 +21,38 @@
   <main id="top">
     <section class="hero">
       <canvas id="voyageCanvas" aria-hidden="true"></canvas>
+      <div class="hero-waypoints">
+        <div class="hero-waypoint waypoint-start">
+          <i></i><strong>明确目标</strong><span>统一整理跨工具协作</span>
+        </div>
+        <div class="hero-waypoint waypoint-branch">
+          <i></i><strong>保留分叉</strong><span>方案与证据不再丢失</span>
+        </div>
+        <div class="hero-waypoint waypoint-failed">
+          <i></i><strong>标记失败</strong><span>回滚与冲突保持可见</span>
+        </div>
+      </div>
       <div class="hero-copy">
-        <p class="eyebrow">FOR CODEX · CLAUDE CODE</p>
+        <p class="eyebrow">CODEX + CLAUDE CODE</p>
         <h1>Wayfinder</h1>
         <p class="hero-line">把散落在不同 AI 工具里的尝试、分叉与证据，留在一张本地航海图里。</p>
         <div class="download-row" aria-label="下载 Wayfinder">
-          <a class="download primary" data-download="arm64" href="#">
+          <a class="download primary" data-download="arm64"
+            href="https://github.com/WBXWHT/wayfinder/releases">
             <span>下载 Apple Silicon 版</span>
-            <small data-version>macOS · Early Access</small>
+            <small data-version="macos">macOS · Early Access</small>
           </a>
-          <a class="download secondary" data-download="x64" href="#">
+          <a class="download secondary" data-download="x64"
+            href="https://github.com/WBXWHT/wayfinder/releases">
             <span>Intel Mac</span>
             <small>单独构建</small>
           </a>
+          <a class="download secondary" data-download="windowsX64" hidden
+            href="https://github.com/WBXWHT/wayfinder/releases">
+            <span>下载 Windows 版</span>
+            <small data-version="windows">Windows x64 · Early Access</small>
+          </a>
         </div>
-        <p class="download-note">只需安装这一个软件。无需 Node、插件或 MCP。当前内测版首次打开需在系统设置中允许。</p>
       </div>
       <div class="hero-status" aria-label="产品状态">
         <span><i class="status-dot"></i> 本地记录</span>
@@ -58,7 +69,7 @@
       <ol class="flow-list">
         <li>
           <span>01</span>
-          <div><strong>安装并打开</strong><p>只安装 Wayfinder，无需额外插件、Node 或采集配置。</p></div>
+          <div><strong>打开 Wayfinder</strong><p>应用在后台等待新的协作记录。</p></div>
         </li>
         <li>
           <span>02</span>
@@ -73,9 +84,14 @@
 
     <section class="local-band reveal" aria-labelledby="local-title">
       <div class="local-visual" aria-hidden="true">
-        <span class="local-core"></span>
-        <span class="local-ring ring-one"></span>
-        <span class="local-ring ring-two"></span>
+        <span class="local-coast"></span>
+        <span class="local-route route-a"></span>
+        <span class="local-route route-b"></span>
+        <span class="local-node node-a"></span>
+        <span class="local-node node-b"></span>
+        <span class="local-node node-c"></span>
+        <span class="local-card card-a"><strong>原始对话</strong><small>完整保存在本机</small></span>
+        <span class="local-card card-b"><strong>失败证据</strong><small>关联到对应航点</small></span>
       </div>
       <div class="local-copy">
         <p class="eyebrow">LOCAL FIRST</p>
@@ -101,8 +117,9 @@
       <p class="eyebrow">EARLY ACCESS</p>
       <h2>从下一次会话开始记录。</h2>
       <a class="download primary compact" data-download="arm64"
-        data-default-download href="#">下载 macOS 版</a>
-      <p>MIT Licensed · 数据默认保存在本地</p>
+        data-default-download
+        href="https://github.com/WBXWHT/wayfinder/releases">下载桌面版</a>
+      <p>Early Access · 数据默认保存在本地</p>
     </section>
   </main>
 

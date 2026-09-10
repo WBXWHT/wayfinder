@@ -14,8 +14,8 @@ Turn scattered AI work into experience you can reuse.
 
 Wayfinder is a local macOS app that turns Codex and Claude Code work into one
 visual voyage map. It records prompts, responses, tool activity, file changes,
-branches, failures, and decisions from local session files. No account,
-telemetry, IDE extension, host plugin, or MCP setup is required.
+branches, failures, and decisions while keeping the complete history on your
+Mac.
 
 Install Wayfinder once, continue working normally in your AI tools, then return
 to the app to inspect how a project evolved across tools and attempts.
@@ -26,7 +26,6 @@ https://wayfinder-ai.pages.dev
 
 ## Listing Status
 
-The public listing URL and description were updated to the desktop-only
-positioning on 2026-09-10. Existing launch media remains valid where it shows
-the final voyage map; host, plugin, or terminal graphics should be replaced
-before a future relaunch.
+The public listing URL and description use the standalone desktop positioning.
+The prepared launch media now shows the current desktop app, final voyage map,
+and current download-site workflow.
