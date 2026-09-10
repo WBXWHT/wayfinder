@@ -2,25 +2,20 @@
 
 Current public version: **0.3.6 early access**.
 
-Wayfinder is distributed as a desktop application for macOS and Windows:
+Wayfinder is distributed only as a macOS desktop application:
 
 https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.6
 
-## Choose Your Installer
+## Choose Your Mac
 
 - `Wayfinder-Alpha-<version>-macOS-aarch64.dmg`: Apple Silicon.
 - `Wayfinder-Alpha-<version>-macOS-x86_64.dmg`: Intel.
-- `Wayfinder-Alpha-<version>-Windows-x86_64.exe`: Windows 10/11 x64.
 
-On macOS, download the matching DMG, move Wayfinder to Applications, and open
-it. On Windows, download and run the x64 installer.
+Download the matching DMG, move Wayfinder to Applications, and open it.
 
 The current zero-cost Alpha is ad-hoc signed rather than Apple-notarized. On
 first launch, open **System Settings → Privacy & Security** and choose
 **Open Anyway**.
-
-The Windows Alpha is not code-signed. Microsoft Defender SmartScreen may
-require **More info → Run anyway** after you verify the checksum.
 
 ## Start Recording
 
@@ -32,7 +27,7 @@ activity from the same project appears in one map while retaining its source.
 
 ## Local Requirements
 
-- macOS 12 or newer, or Windows 10/11 x64.
+- macOS 12 or newer.
 - Git, used by the current local snapshot backend.
 
 ## Data And Removal

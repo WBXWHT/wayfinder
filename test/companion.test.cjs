@@ -50,7 +50,7 @@ test("companion web bundle reuses the final map and project navigation", () => {
   }
 });
 
-test("desktop companion bundles one native sidecar and platform icons", () => {
+test("macOS companion bundles one native sidecar and app icons", () => {
   const config = JSON.parse(fs.readFileSync(
     path.join(root, "companion", "src-tauri", "tauri.conf.json"),
     "utf8"
@@ -62,10 +62,6 @@ test("desktop companion bundles one native sidecar and platform icons", () => {
   assert.deepEqual(config.bundle.externalBin, ["binaries/wayfinder"]);
   assert.equal(config.bundle.macOS.signingIdentity, null);
   assert.equal(config.bundle.macOS.entitlements, "Entitlements.plist");
-  assert.ok(config.bundle.icon.includes("icons/icon.ico"));
-  assert.ok(fs.existsSync(
-    path.join(root, "companion", "src-tauri", "icons", "icon.ico")
-  ));
   assert.doesNotMatch(config.app.security.csp, /127\.0\.0\.1|connect-src/);
   const entitlements = fs.readFileSync(
     path.join(root, "companion", "src-tauri", "Entitlements.plist"),
@@ -162,7 +158,7 @@ test("zero-cost alpha workflow uses ad-hoc signing and a prerelease tag", () => 
   assert.match(workflow, /APPLE_SIGNING_IDENTITY: "-"/);
   assert.match(workflow, /verify-companion-version\.cjs --prefix alpha-v/);
   assert.match(workflow, /RELEASE_ID: \$\{\{ needs\.prepare\.outputs\.release_id \}\}/);
-  assert.match(workflow, /group: release-desktop-alpha\b/);
+  assert.match(workflow, /group: release-macos-alpha\b/);
   assert.match(workflow, /Release tag points to/);
   assert.match(workflow, /if \(!release\?\.draft\)/);
   assert.match(workflow, /github\.rest\.git\.updateRef/);
@@ -187,12 +183,6 @@ test("zero-cost alpha workflow uses ad-hoc signing and a prerelease tag", () => 
   assert.match(workflow, /CFBundleShortVersionString/);
   assert.match(workflow, /Contents\/MacOS\/wayfinder-companion/);
   assert.match(workflow, /Contents\/MacOS\/wayfinder"/);
-  assert.match(workflow, /build_windows:/);
-  assert.match(workflow, /runs-on: windows-latest/);
-  assert.match(workflow, /x86_64-pc-windows-msvc/);
-  assert.match(workflow, /--bundles nsis/);
-  assert.match(workflow, /Windows-x86_64\.exe/);
-  assert.match(workflow, /WAYFINDER_NODE_LICENSE_PATH/);
   assert.ok(
     workflow.indexOf("npm run build:companion:sidecar") <
       workflow.indexOf("cargo test --manifest-path"),
@@ -202,11 +192,6 @@ test("zero-cost alpha workflow uses ad-hoc signing and a prerelease tag", () => 
     workflow.indexOf("Verify the packaged app") <
       workflow.indexOf("Publish verified release assets"),
     "alpha workflow must verify both DMGs before mutating the draft release"
-  );
-  assert.ok(
-    workflow.indexOf("Verify the packaged installer") <
-      workflow.indexOf("Publish verified release assets"),
-    "alpha workflow must verify Windows before mutating the draft release"
   );
 });
 
