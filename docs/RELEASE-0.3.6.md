@@ -1,10 +1,9 @@
-# Wayfinder 0.3.6 Alpha (Unreleased)
+# Wayfinder 0.3.6 Alpha
 
 This macOS release completes the voyage-map interaction and accessibility
 work started in 0.3.5.
 
-Status: local development. The current public release remains
-`alpha-v0.3.5`.
+Status: published as `alpha-v0.3.6`.
 
 ## Highlights
 

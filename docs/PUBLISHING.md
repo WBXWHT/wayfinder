@@ -1,7 +1,6 @@
 # Publication Status
 
-Public release: **0.3.5 early access**. Local next version: **0.3.6
-(unreleased)**. Product model updated 2026-09-11.
+Public release: **0.3.6 early access**. Product model updated 2026-09-11.
 
 ## Current Product
 
@@ -10,7 +9,7 @@ Wayfinder is distributed only as a macOS desktop application.
 | Channel | Public entry | Status |
 | --- | --- | --- |
 | Official website | https://wayfinder-ai.pages.dev | Live download site |
-| macOS app | https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.5 | Apple Silicon and Intel DMGs |
+| macOS app | https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.6 | Apple Silicon and Intel DMGs |
 | Source | https://github.com/WBXWHT/wayfinder | Public repository and CI |
 | Product Hunt | https://www.producthunt.com/products/wayfinder-5?launch=wayfinder-6 | Public listing updated to the desktop-only positioning |
 | Issues | https://github.com/WBXWHT/wayfinder/issues | Public support channel |

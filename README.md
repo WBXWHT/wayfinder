@@ -5,12 +5,11 @@ one visual voyage map. It preserves prompts, responses, tool activity, file
 changes, branches, failures, and decisions so the path behind a result remains
 reviewable.
 
-**Current public release: v0.3.5 early access.** The next source version is
-v0.3.6, which is not yet published. MIT licensed. Your complete history stays
-on your Mac.
+**Current public release: v0.3.6 early access.** MIT licensed. Your complete
+history stays on your Mac.
 
 [Website](https://wayfinder-ai.pages.dev) |
-[macOS Download](https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.5) |
+[macOS Download](https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.6) |
 [Install Guide](https://github.com/WBXWHT/wayfinder/blob/main/docs/INSTALL.md) |
 [Privacy](https://github.com/WBXWHT/wayfinder/blob/main/PRIVACY.md) |
 [Report a Bug](https://github.com/WBXWHT/wayfinder/issues)

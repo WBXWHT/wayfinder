@@ -39,7 +39,7 @@ Code sessions into one visual voyage map. The complete history stays under
 
 ## Current State
 
-- Public/live release: `0.3.5` early access.
+- Public/live release: `0.3.6` early access.
 - Public artifacts used by the current product: Apple Silicon and Intel macOS
   DMGs. The Windows artifact in `0.3.5` is historical and unsupported.
-- Local source version: `0.3.6`, not yet released.
+- Local source version: `0.3.6`.

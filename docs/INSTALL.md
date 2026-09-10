@@ -1,10 +1,10 @@
 # Install Wayfinder
 
-Current public version: **0.3.5 early access**.
+Current public version: **0.3.6 early access**.
 
 Wayfinder is distributed only as a macOS desktop application:
 
-https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.5
+https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.6
 
 ## Choose Your Mac
 
