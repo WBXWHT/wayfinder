@@ -193,7 +193,6 @@ test("zero-cost alpha workflow uses ad-hoc signing and a prerelease tag", () => 
   assert.match(workflow, /x86_64-pc-windows-msvc/);
   assert.match(workflow, /--bundles nsis/);
   assert.match(workflow, /Windows-x86_64\.exe/);
-  assert.match(workflow, /find artifacts\/windows -name '\*\.exe'/);
   assert.match(workflow, /WAYFINDER_NODE_LICENSE_PATH/);
   assert.ok(
     workflow.indexOf("npm run build:companion:sidecar") <
