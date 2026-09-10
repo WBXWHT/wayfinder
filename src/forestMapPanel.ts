@@ -779,7 +779,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
     }
 
     function renderGraph() {
-      const resumePendingWheel = Boolean(wheelFrame);
+      const hadPendingWheel = Boolean(wheelFrame);
       if (wheelFrame) {
         cancelAnimationFrame(wheelFrame);
         wheelFrame = 0;
@@ -813,6 +813,13 @@ export class ExperienceMapPanel implements vscode.Disposable {
       const nextViewportSignature = activeTreeId + '|' + query;
       const preserveViewport =
         viewportSignature === nextViewportSignature && !fitAllRequested;
+      const resumePendingWheel = hadPendingWheel && preserveViewport;
+      if (!preserveViewport) {
+        pendingPanX = 0;
+        pendingPanY = 0;
+        pendingScale = 1;
+        pendingZoomPoint = null;
+      }
       graph.selectAll('*').remove();
       const viewportWidth = Math.max(
         1,
@@ -1020,6 +1027,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
                 .scale(transform.k);
         })
         .on('zoom', (event) => {
+          globalThis.__WAYFINDER_VIEWPORT_ACTIVE_UNTIL__ = Date.now() + 320;
           graphLayer.attr('transform', event.transform);
           scheduleVisibleCardTabStops();
         });
@@ -1031,6 +1039,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
           'wheel.wayfinder',
           (event) => {
             event.preventDefault();
+            globalThis.__WAYFINDER_VIEWPORT_ACTIVE_UNTIL__ = Date.now() + 320;
             const pageSize = graphBounds?.height || graph.node().clientHeight;
             if (event.ctrlKey || event.metaKey) {
               const delta = Math.max(

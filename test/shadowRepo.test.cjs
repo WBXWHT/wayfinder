@@ -65,7 +65,9 @@ test("diff paths preserve unicode and special characters", async () => {
   const root = path.join(sandbox, "project");
   process.env.WAYFINDER_HOME = path.join(sandbox, "data");
   fs.mkdirSync(root, { recursive: true });
-  const names = ["中文.txt", "tab\tname.txt", 'quote"name.txt'];
+  const names = process.platform === "win32"
+    ? ["中文.txt", "space name.txt", "bracket[name].txt"]
+    : ["中文.txt", "tab\tname.txt", 'quote"name.txt'];
   for (const name of names) {
     fs.writeFileSync(path.join(root, name), "before\n");
   }

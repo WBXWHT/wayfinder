@@ -8,6 +8,7 @@ const { setTimeout: delay } = require("node:timers/promises");
 const { processHookEvent } = require("../out/hook.js");
 const { ShadowRepo } = require("../out/shadowRepo.js");
 const {
+  normalizeRoot,
   readProjectState,
   writeProjectConfig
 } = require("../out/storage.js");
@@ -184,7 +185,7 @@ test("session lifecycle writes only local companion activity", async () => {
     "utf8"
   ));
   assert.equal(activity.status, "ended");
-  assert.equal(activity.root, fs.realpathSync(root));
+  assert.equal(activity.root, normalizeRoot(root));
 });
 
 test("a failed command becomes a failed validation node", async () => {

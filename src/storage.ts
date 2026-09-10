@@ -108,7 +108,7 @@ export async function writeProjectState(
   state.updatedAt = new Date().toISOString();
   const temp = `${file}.${process.pid}.${randomUUID()}.tmp`;
   await fs.promises.writeFile(temp, `${JSON.stringify(state, null, 2)}\n`, "utf8");
-  await fs.promises.rename(temp, file);
+  await commitTempFile(temp, file);
 }
 
 export async function mutateProjectState<T>(
@@ -151,7 +151,7 @@ export async function writeProjectConfig(
   await fs.promises.mkdir(path.dirname(file), { recursive: true });
   const temp = `${file}.${process.pid}.${randomUUID()}.tmp`;
   await fs.promises.writeFile(temp, `${JSON.stringify(config, null, 2)}\n`, "utf8");
-  await fs.promises.rename(temp, file);
+  await commitTempFile(temp, file);
 }
 
 export function latestNodeOnBranch(
@@ -198,6 +198,18 @@ function isMissingFile(error: unknown): boolean {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+async function commitTempFile(temp: string, target: string): Promise<void> {
+  if (process.platform === "win32") {
+    try {
+      await fs.promises.copyFile(temp, target);
+    } finally {
+      await fs.promises.rm(temp, { force: true }).catch(() => undefined);
+    }
+    return;
+  }
+  await fs.promises.rename(temp, target);
 }
 
 async function withProjectLock<T>(
