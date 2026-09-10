@@ -232,6 +232,12 @@ async function refreshIfChanged() {
     activeProjectMisses = 0;
     if (projectSetChanged) renderProjectList();
     if (active.updatedAt && active.updatedAt !== lastUpdatedAt) {
+      if (
+        Number(globalThis.__WAYFINDER_VIEWPORT_ACTIVE_UNTIL__ || 0) >
+        Date.now()
+      ) {
+        return;
+      }
       await loadActiveProject();
     }
   } finally {

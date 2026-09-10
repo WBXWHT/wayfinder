@@ -36,13 +36,22 @@ const previewProjects = Array.from(
         : 0
   })
 );
+const previewStates = Object.fromEntries(
+  previewProjects.map((project) => [
+    project.id,
+    {
+      ...state,
+      projectId: project.id
+    }
+  ])
+);
 const mock = `<script>
 globalThis.__WAYFINDER_PREVIEW_PROJECTS__ = ${JSON.stringify(previewProjects)};
-globalThis.__WAYFINDER_PREVIEW_STATE__ = ${JSON.stringify(state)};
+globalThis.__WAYFINDER_PREVIEW_STATES__ = ${JSON.stringify(previewStates)};
 globalThis.__WAYFINDER_PREVIEW_READ_COUNT__ = 0;
 globalThis.__TAURI__ = {
   core: {
-    invoke: async (command) => {
+    invoke: async (command, payload) => {
       if (command === "list_projects") {
         return globalThis.__WAYFINDER_PREVIEW_PROJECTS__.map(
           (project) => ({ ...project })
@@ -50,7 +59,7 @@ globalThis.__TAURI__ = {
       }
       if (command === "read_project_state") {
         globalThis.__WAYFINDER_PREVIEW_READ_COUNT__ += 1;
-        return globalThis.__WAYFINDER_PREVIEW_STATE__;
+        return globalThis.__WAYFINDER_PREVIEW_STATES__[payload?.projectId];
       }
       if (command === "host_status") {
         return {

@@ -863,6 +863,31 @@ test(
           await settleFrames(12);
           const afterRenderDuringPan = d3.zoomTransform(target);
           document.querySelector('#fit').click();
+          for (let index = 0; index < 30; index += 1) {
+            wheel(80, 0);
+          }
+          const switchedForest = {
+            ...forest,
+            trees: forest.trees.map((tree) => ({
+              ...tree,
+              id: 'switched-' + tree.id
+            }))
+          };
+          window.dispatchEvent(new MessageEvent('message', {
+            data: {
+              type: 'render',
+              state,
+              forest: switchedForest,
+              projectName: 'another-project'
+            }
+          }));
+          const afterContextSwitch = d3.zoomTransform(target);
+          await settleFrames(12);
+          const afterContextSettle = d3.zoomTransform(target);
+          window.dispatchEvent(new MessageEvent('message', {
+            data: { type: 'render', state, forest, projectName }
+          }));
+          document.querySelector('#fit').click();
           for (let index = 0; index < 3; index += 1) {
             wheel(160, 0);
           }
@@ -922,6 +947,16 @@ test(
               x: afterRenderDuringPan.x,
               y: afterRenderDuringPan.y,
               k: afterRenderDuringPan.k
+            },
+            afterContextSwitch: {
+              x: afterContextSwitch.x,
+              y: afterContextSwitch.y,
+              k: afterContextSwitch.k
+            },
+            afterContextSettle: {
+              x: afterContextSettle.x,
+              y: afterContextSettle.y,
+              k: afterContextSettle.k
             },
             beforeAwayReversal: {
               x: beforeAwayReversal.x,
@@ -998,6 +1033,10 @@ test(
         Math.abs(
           gestures.afterRenderDuringPan.x - (gestures.reset.x - 2_400)
         ) < .001
+      );
+      assert.deepEqual(
+        gestures.afterContextSettle,
+        gestures.afterContextSwitch
       );
       assert.ok(
         Math.abs(
@@ -1281,12 +1320,46 @@ test(
       );
       assert.equal(afterUnrelatedRefresh.project, "ui-test");
 
+      const readsBeforeDeferredRefresh =
+        afterUnrelatedRefresh.reads;
+      await cdp.send("Runtime.evaluate", {
+        expression: `(() => {
+          const active = globalThis.__WAYFINDER_PREVIEW_PROJECTS__[0];
+          active.updatedAt = '2026-09-11T02:00:00.000Z';
+          globalThis.__WAYFINDER_PREVIEW_STATES__[
+            active.id
+          ].updatedAt = active.updatedAt;
+          globalThis.__WAYFINDER_VIEWPORT_ACTIVE_UNTIL__ =
+            Date.now() + 2_200;
+        })()`
+      });
+      await delay(1_700);
+      assert.equal(
+        await evaluate(cdp, "globalThis.__WAYFINDER_PREVIEW_READ_COUNT__"),
+        readsBeforeDeferredRefresh
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression: "globalThis.__WAYFINDER_VIEWPORT_ACTIVE_UNTIL__ = 0"
+      });
+      await waitForExpression(
+        cdp,
+        `globalThis.__WAYFINDER_PREVIEW_READ_COUNT__ >
+          ${readsBeforeDeferredRefresh}`
+      );
+
       await cdp.send("Runtime.evaluate", {
         expression: "document.querySelectorAll('.project-item')[1]?.click()"
       });
       await waitForExpression(
         cdp,
         "document.querySelector('#currentProjectLabel')?.textContent === 'ui-test 2'"
+      );
+      assert.equal(
+        await evaluate(cdp, "state.projectId"),
+        await evaluate(
+          cdp,
+          "globalThis.__WAYFINDER_PREVIEW_PROJECTS__[1].id"
+        )
       );
       const readsBeforeTransientMiss = await evaluate(
         cdp,
@@ -1309,6 +1382,23 @@ test(
         await evaluate(cdp, "globalThis.__WAYFINDER_PREVIEW_READ_COUNT__"),
         readsBeforeTransientMiss
       );
+      await delay(1_700);
+      assert.equal(
+        await evaluate(cdp, "document.querySelector('#currentProjectLabel')?.textContent"),
+        "ui-test 2"
+      );
+      assert.equal(
+        await evaluate(cdp, "globalThis.__WAYFINDER_PREVIEW_READ_COUNT__"),
+        readsBeforeTransientMiss
+      );
+      await waitForExpression(
+        cdp,
+        "document.querySelector('#currentProjectLabel')?.textContent === 'ui-test'"
+      );
+      assert.ok(
+        await evaluate(cdp, "globalThis.__WAYFINDER_PREVIEW_READ_COUNT__") >
+        readsBeforeTransientMiss
+      );
       await cdp.send("Runtime.evaluate", {
         expression:
           "globalThis.__WAYFINDER_PREVIEW_PROJECTS__.push(" +
@@ -1320,7 +1410,7 @@ test(
       );
       assert.equal(
         await evaluate(cdp, "document.querySelector('#currentProjectLabel')?.textContent"),
-        "ui-test 2"
+        "ui-test"
       );
 
       await cdp.send("Emulation.setDeviceMetricsOverride", {
