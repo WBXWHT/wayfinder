@@ -25,10 +25,12 @@ platform awards carry more weight than broad directory counts.
 - Submission: https://github.com/microsoft/winget-pkgs/pull/432783
 - Value: inclusion makes `winget install WBXWHT.Wayfinder` available from
   Microsoft's official Windows Package Manager community source.
-- Current status: pull request, manifest, URL, domain, policy, catalog, and
-  installer-scan checks pass. Installation and metadata validation are still
-  pending. Merge is blocked until the repository owner personally confirms
-  Microsoft's CLA; that legal confirmation must not be automated or delegated.
+- Current status: the pull request now targets the public 0.3.7 installer.
+  All three manifests pass Microsoft's 1.12.0 schemas locally; upstream
+  validation is rerunning. The previous 0.3.5 revision passed all ten WinGet
+  validation stages. Merge remains blocked until the repository owner
+  personally confirms Microsoft's CLA; that legal confirmation must not be
+  automated or delegated.
 
 ### awesome-mac
 
