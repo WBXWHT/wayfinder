@@ -119,7 +119,7 @@ jobs:
       - run: npm run check
         env:
           WAYFINDER_SKIP_UI_TEST: "1"
-      - run: npm run build:agent-plugins
+      - run: npm run build:companion:runtime
       - run: node scripts/build-sea.cjs
       - run: npm run generate:companion-licenses
       - run: npm run build:companion:sidecar

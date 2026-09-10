@@ -2,7 +2,7 @@
 //
 // Steps (Node official SEA flow):
 //   1. esbuild-bundle out/seaEntry.js -> build/sea/wayfinder-sea.cjs
-//   2. write sea-config.json (points at the bundle, embeds the map HTML asset)
+//   2. write sea-config.json for the internal collector runtime
 //   3. node --experimental-sea-config -> build/sea/wayfinder.blob
 //   4. copy the running node binary -> build/sea/<binary name>
 //   5. postject the blob into the copied binary
@@ -28,8 +28,6 @@ const configPath = path.join(outDir, "sea-config.json");
 const blobPath = path.join(outDir, "wayfinder.blob");
 const binaryPath = path.join(outDir, binaryName);
 const nodeLicensePath = path.join(outDir, "NODE_LICENSE.txt");
-const mapHtml = path.join(root, "plugins", "wayfinder", "mcp", "wayfinder-app.html");
-
 // 1. Bundle the unified entry into a single CommonJS file.
 esbuild.buildSync({
   entryPoints: [path.join(root, "out", "seaEntry.js")],
@@ -42,21 +40,13 @@ esbuild.buildSync({
   external: ["node:sea"]
 });
 
-// 2. SEA config. Embed the interactive map so the MCP role has no disk deps.
-if (!fs.existsSync(mapHtml)) {
-  throw new Error(
-    `Missing ${mapHtml}. Run \`npm run build:agent-plugins\` first.`
-  );
-}
+// 2. SEA config. The sidecar exposes collection only and needs no disk assets.
 fs.writeFileSync(configPath, `${JSON.stringify({
   main: bundlePath,
   output: blobPath,
   disableExperimentalSEAWarning: true,
   useSnapshot: false,
-  useCodeCache: false,
-  assets: {
-    "wayfinder-app.html": mapHtml
-  }
+  useCodeCache: false
 }, null, 2)}\n`);
 
 // 3. Generate the SEA blob.

@@ -343,91 +343,6 @@ impl Drop for ProjectLock {
     }
 }
 
-#[tauri::command]
-async fn connect_host(app: AppHandle, host: String) -> Result<String, String> {
-    validate_host(&host)?;
-    ensure_stable_install_location()?;
-    let output = app
-        .shell()
-        .sidecar("wayfinder")
-        .map_err(|error| error.to_string())?
-        .args(["connect", host.as_str()])
-        .output()
-        .await
-        .map_err(|error| error.to_string())?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
-    }
-    let name = if host == "claude" {
-        "Claude Code"
-    } else {
-        "Codex"
-    };
-    Ok(format!(
-        "{name} Hook 已配置。请重启宿主并批准 Wayfinder Hook。"
-    ))
-}
-
-#[tauri::command]
-async fn disconnect_host(app: AppHandle, host: String) -> Result<String, String> {
-    validate_host(&host)?;
-    let output = app
-        .shell()
-        .sidecar("wayfinder")
-        .map_err(|error| error.to_string())?
-        .args(["disconnect", host.as_str()])
-        .output()
-        .await
-        .map_err(|error| error.to_string())?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
-    }
-    let name = if host == "claude" {
-        "Claude Code"
-    } else {
-        "Codex"
-    };
-    Ok(format!("{name} 已断开。"))
-}
-
-#[tauri::command]
-async fn host_status(app: AppHandle) -> Result<Value, String> {
-    let output = app
-        .shell()
-        .sidecar("wayfinder")
-        .map_err(|error| error.to_string())?
-        .args(["doctor", "--global"])
-        .output()
-        .await
-        .map_err(|error| error.to_string())?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
-    }
-    serde_json::from_slice(&output.stdout)
-        .map_err(|error| format!("Invalid Wayfinder status: {error}"))
-}
-
-fn validate_host(host: &str) -> Result<(), String> {
-    if host == "claude" || host == "codex" {
-        Ok(())
-    } else {
-        Err("Wayfinder supports Claude Code and Codex".to_string())
-    }
-}
-
-fn ensure_stable_install_location() -> Result<(), String> {
-    let executable = env::current_exe().map_err(|error| error.to_string())?;
-    validate_install_path(&executable)
-}
-
-fn validate_install_path(executable: &Path) -> Result<(), String> {
-    let path = executable.to_string_lossy();
-    if executable.starts_with("/Volumes/") || path.contains("/AppTranslocation/") {
-        return Err("请先把 Wayfinder 拖入“应用程序”文件夹，再连接 AI 工具。".to_string());
-    }
-    Ok(())
-}
-
 /// Transcript directories every comparable local tool watches: Codex rollouts
 /// and Claude Code project logs. Desktop clients write here even when no
 /// lifecycle hook fires, so watching them is what makes background capture work.
@@ -557,10 +472,7 @@ fn main() {
             read_project_state,
             open_data_folder,
             open_release_page,
-            archive_project,
-            connect_host,
-            disconnect_host,
-            host_status
+            archive_project
         ])
         .run(tauri::generate_context!())
         .expect("error while running Wayfinder Companion");
@@ -569,10 +481,9 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use std::fs;
-    use std::path::Path;
     use std::time::{SystemTime, UNIX_EPOCH};
 
-    use super::{state_path, validate_install_path, ProjectLock};
+    use super::{state_path, ProjectLock};
 
     #[test]
     fn project_ids_cannot_escape_the_wayfinder_directory() {
@@ -608,21 +519,6 @@ mod tests {
             PathBuf::from("/custom/sessions"),
             PathBuf::from("/custom/claude/projects"),
         ]);
-    }
-
-    #[test]
-    fn mounted_dmg_cannot_install_persistent_hooks() {
-        assert!(validate_install_path(Path::new(
-            "/Volumes/Wayfinder/Wayfinder.app/Contents/MacOS/wayfinder-companion"
-        ))
-        .is_err());
-        assert!(validate_install_path(Path::new(
-            "/Applications/Wayfinder.app/Contents/MacOS/wayfinder-companion"
-        ))
-        .is_ok());
-        assert!(validate_install_path(Path::new(
-            "/private/var/folders/ab/cd/T/AppTranslocation/ABC/d/Wayfinder.app/Contents/MacOS/wayfinder-companion"
-        )).is_err());
     }
 
     #[test]

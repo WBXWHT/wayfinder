@@ -1,6 +1,6 @@
 [package]
 name = "wayfinder-companion"
-version = "0.3.3"
+version = "0.3.4"
 description = "Local companion map for Wayfinder AI coding voyages"
 authors = ["WBXWHT"]
 license = "MIT"

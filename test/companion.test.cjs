@@ -61,20 +61,19 @@ test("macOS companion bundle is a DMG with one native sidecar", () => {
   );
   for (const license of [
     "../../build/sea/NODE_LICENSE.txt",
-    "../../plugins/wayfinder/THIRD_PARTY_LICENSES.txt",
+    "../../build/companion-runtime/THIRD_PARTY_LICENSES.txt",
     "../generated/RUST_THIRD_PARTY_LICENSES.txt"
   ]) {
     assert.ok(config.bundle.resources.includes(license));
   }
 });
 
-test("companion rejects transient app paths and uses a stale-aware archive lock", () => {
+test("companion uses a stale-aware archive lock", () => {
   const source = fs.readFileSync(
     path.join(root, "companion", "src-tauri", "src", "main.rs"),
     "utf8"
   );
 
-  assert.match(source, /AppTranslocation/);
   assert.match(source, /PROJECT_LOCK_STALE/);
   assert.match(source, /impl Drop for ProjectLock/);
   assert.match(source, /lock_is_stale/);

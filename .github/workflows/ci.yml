@@ -16,5 +16,4 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - run: npm run release:build
-      - run: npm run release:verify
+      - run: npm run companion:prepare

@@ -18,7 +18,6 @@ Module._load = function load(request, parent, isMain) {
 
 const { ExperienceMapPanel } = require("../out/experienceMapPanel.js");
 const { TimelineViewProvider } = require("../out/timelineView.js");
-const extensionManifest = require("../package.json");
 
 const webview = {
   cspSource: "https://preview.invalid",
@@ -90,23 +89,6 @@ test("sidebar renders one active project with accessible voyage paging", () => {
   assert.doesNotMatch(html, /stageTone|stage-(sun|leaf|sky|bloom)/);
   assert.doesNotMatch(html, /lineage-node-meta/);
   assert.doesNotMatch(html, /section\.append\(detail\)/);
-});
-
-test("sidebar title bar keeps secondary commands in the overflow menu", () => {
-  const items = extensionManifest.contributes.menus["view/title"];
-  const visible = items
-    .filter((item) => item.group.startsWith("navigation"))
-    .map((item) => item.command);
-  const overflow = items
-    .filter((item) => !item.group.startsWith("navigation"))
-    .map((item) => item.command);
-
-  assert.deepEqual(visible, ["wayfinder.openMap", "wayfinder.refresh"]);
-  assert.deepEqual(overflow, [
-    "wayfinder.captureCheckpoint",
-    "wayfinder.installHooks",
-    "wayfinder.configureValidation"
-  ]);
 });
 
 test("full map scopes layout to one project and removes legacy project list", () => {

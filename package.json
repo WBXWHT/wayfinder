@@ -1,34 +1,10 @@
 {
   "name": "wayfinder",
   "displayName": "Wayfinder",
-  "description": "A local voyage map of AI coding paths, decisions, branches, evidence, and lessons.",
-  "version": "0.3.3",
+  "description": "A local macOS app that turns Codex and Claude Code work into one visual voyage map.",
+  "version": "0.3.4",
   "private": true,
-  "publisher": "wayfinder",
-  "icon": "media/wayfinder-marketplace.png",
   "license": "MIT",
-  "engines": {
-    "vscode": "^1.93.0"
-  },
-  "categories": [
-    "Visualization",
-    "SCM Providers",
-    "AI"
-  ],
-  "keywords": [
-    "ai coding",
-    "vibe coding",
-    "wayfinder",
-    "voyage map",
-    "checkpoint",
-    "timeline",
-    "rewind",
-    "decision"
-  ],
-  "activationEvents": [
-    "onStartupFinished"
-  ],
-  "main": "./out/extension.js",
   "repository": {
     "type": "git",
     "url": "https://github.com/WBXWHT/wayfinder"
@@ -37,136 +13,21 @@
   "bugs": {
     "url": "https://github.com/WBXWHT/wayfinder/issues"
   },
-  "contributes": {
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "wayfinder",
-          "title": "Wayfinder",
-          "icon": "media/wayfinder.svg"
-        }
-      ]
-    },
-    "views": {
-      "wayfinder": [
-        {
-          "id": "wayfinder.timeline",
-          "name": "航海图",
-          "type": "webview",
-          "icon": "media/wayfinder.svg"
-        }
-      ]
-    },
-    "commands": [
-      {
-        "command": "wayfinder.installHooks",
-        "title": "连接 AI 工具",
-        "category": "Wayfinder",
-        "icon": "$(plug)"
-      },
-      {
-        "command": "wayfinder.openMap",
-        "title": "打开航海图",
-        "category": "Wayfinder",
-        "icon": "$(type-hierarchy-sub)"
-      },
-      {
-        "command": "wayfinder.captureCheckpoint",
-        "title": "保存当前状态",
-        "category": "Wayfinder",
-        "icon": "$(archive)"
-      },
-      {
-        "command": "wayfinder.configureValidation",
-        "title": "设置验证命令",
-        "category": "Wayfinder",
-        "icon": "$(beaker)"
-      },
-      {
-        "command": "wayfinder.refresh",
-        "title": "刷新航海图",
-        "category": "Wayfinder",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "wayfinder.openDataFolder",
-        "title": "打开本地数据目录",
-        "category": "Wayfinder",
-        "icon": "$(folder-opened)"
-      }
-    ],
-    "menus": {
-      "view/title": [
-        {
-          "command": "wayfinder.openMap",
-          "when": "view == wayfinder.timeline",
-          "group": "navigation@1"
-        },
-        {
-          "command": "wayfinder.captureCheckpoint",
-          "when": "view == wayfinder.timeline",
-          "group": "wayfinder@1"
-        },
-        {
-          "command": "wayfinder.refresh",
-          "when": "view == wayfinder.timeline",
-          "group": "navigation@2"
-        },
-        {
-          "command": "wayfinder.installHooks",
-          "when": "view == wayfinder.timeline",
-          "group": "wayfinder@2"
-        },
-        {
-          "command": "wayfinder.configureValidation",
-          "when": "view == wayfinder.timeline",
-          "group": "wayfinder@3"
-        }
-      ]
-    },
-    "configuration": {
-      "title": "Wayfinder",
-      "properties": {
-        "wayfinder.validationCommand": {
-          "type": "string",
-          "default": "",
-          "description": "Command run after an AI coding turn. Empty disables validation after the initial project setup."
-        },
-        "wayfinder.validationTimeoutSeconds": {
-          "type": "number",
-          "default": 60,
-          "minimum": 5,
-          "maximum": 600,
-          "description": "Maximum duration for the validation command."
-        },
-        "wayfinder.maxFileSizeMB": {
-          "type": "number",
-          "default": 20,
-          "minimum": 1,
-          "maximum": 200,
-          "description": "Files larger than this are excluded from snapshots."
-        }
-      }
-    }
-  },
   "scripts": {
     "clean": "rimraf out",
     "compile": "tsc -p .",
-    "build:agent-plugins": "npm run compile && node scripts/build-agent-plugins.cjs",
+    "build:companion:runtime": "npm run compile && node scripts/build-companion-runtime.cjs",
     "build:companion:web": "npm run compile && node scripts/build-companion-web.cjs",
     "build:companion:sidecar": "node scripts/stage-companion-sidecar.cjs",
     "generate:companion-licenses": "node scripts/generate-companion-licenses.cjs",
-    "companion:prepare": "npm run build:agent-plugins && node scripts/build-sea.cjs && npm run generate:companion-licenses && npm run build:companion:sidecar && npm run build:companion:web",
+    "companion:prepare": "npm run build:companion:runtime && node scripts/build-sea.cjs && npm run generate:companion-licenses && npm run build:companion:sidecar && npm run build:companion:web",
     "companion:dev": "npm run companion:prepare && tauri dev --config companion/src-tauri/tauri.conf.json",
     "companion:build": "npm run companion:prepare && cargo test --manifest-path companion/src-tauri/Cargo.toml && tauri build --config companion/src-tauri/tauri.conf.json",
     "watch": "tsc -w -p .",
     "import:history": "npm run compile && node scripts/import-memory-history.cjs",
     "lint": "eslint src test",
-    "test": "npm run build:agent-plugins && node --test test/*.test.cjs",
-    "package": "npm run build:agent-plugins && vsce package",
-    "check": "npm run lint && npm test",
-    "release:build": "npm run package && node scripts/build-release.cjs",
-    "release:verify": "node scripts/verify-release.cjs"
+    "test": "npm run compile && node --test test/*.test.cjs",
+    "check": "npm run lint && npm test"
   },
   "dependencies": {
     "@vscode/codicons": "^0.0.36",
@@ -174,14 +35,11 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",
-    "@modelcontextprotocol/ext-apps": "^1.7.5",
-    "@modelcontextprotocol/sdk": "^1.30.0",
     "@tauri-apps/cli": "^2.11.4",
     "@types/d3": "^7.4.3",
     "@types/node": "^22.15.0",
     "@types/proper-lockfile": "^4.1.4",
     "@types/vscode": "^1.93.0",
-    "@vscode/vsce": "^3.6.0",
     "d3": "^7.9.0",
     "esbuild": "^0.28.2",
     "eslint": "^9.35.0",

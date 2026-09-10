@@ -24,18 +24,6 @@ dependencies, common build output, and files over the configured size limit.
 Exclusion rules are not secret detection: unignored source files can contain
 credentials. Review the files you allow to be captured.
 
-## What An MCP Host Can See
-
-Calling `wayfinder_show_map` returns the selected project's timeline and forest
-to the calling MCP host, including prompts, replies, notes, and file metadata.
-That host may send tool results to its model provider or retain them under its
-own policies. Wayfinder's local storage does not make that host interaction
-offline. Do not connect confidential projects without appropriate permission.
-
-The local MCP bundle is read-only at the tool interface. It can read Wayfinder
-history for a root explicitly provided by the caller; the project selector is
-a default, not a filesystem access sandbox.
-
 ## Future Opt-In Analysis
 
 Cloud analysis must remain disabled until the user explicitly enables it for a
@@ -53,16 +41,14 @@ feature can ship.
 
 ## Installation And Removal
 
-Project adapter setup writes `.trae/hooks.json`, `.claude/settings.json`, or
-`.codex/hooks.json` and preserves unrelated Hooks. Companion collection is
-separate: it watches local Codex and Claude JSONL transcripts and requires no
-Hook approval or host connection screen. If both paths observe the same turn,
-Wayfinder deduplicates it before writing the project timeline.
+The current product is a standalone macOS application. It does not install an
+IDE extension, host plugin, MCP server, or project Hook. It watches local Codex
+and Claude JSONL transcripts and requires no host connection screen.
 
-`wayfinder uninstall <host> --root <project>` removes project Hooks, not history.
-Remove the Plugin in your host to disable Plugin-supplied Hooks. You may delete
-the corresponding directory under `~/.wayfinder/projects/` to erase history,
-but doing so permanently removes that project's restore points.
+Removing the application leaves `~/.wayfinder` intact. You may delete the
+corresponding directory under `~/.wayfinder/projects/` to erase one project, or
+delete `~/.wayfinder` to erase all Wayfinder data. Both actions permanently
+remove the affected history and restore points.
 
 ## Reports
 

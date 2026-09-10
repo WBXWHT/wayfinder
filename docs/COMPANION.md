@@ -2,8 +2,11 @@
 
 Wayfinder Companion is the macOS desktop surface for local Claude Code and
 Codex work. It watches the hosts' local JSONL session files, stores normalized
-turns under `~/.wayfinder`, and renders the same final voyage map used by the
-IDE extension.
+turns under `~/.wayfinder`, and renders the complete visual voyage map.
+
+The desktop application is the only supported Wayfinder product surface.
+Extensions, host plugins, Skills, command-line packages, and MCP packages are
+not distributed for new versions.
 
 Users do not connect hosts or manage Hooks in the Companion UI. The bundled
 collector runs once at launch and then reacts to transcript changes in the
@@ -51,9 +54,6 @@ Claude Code / Codex local JSONL transcripts
 - File-change summaries are reconstructed only from recorded edit operations
   such as `apply_patch`, `Write`, `Edit`, and `MultiEdit`. Wayfinder does not
   fabricate a historical Diff when the transcript lacks file content.
-- Existing lifecycle-Hook installations remain supported for richer live
-  snapshots. Collector deduplication prevents a turn from appearing twice when
-  both paths observe it.
 - Local rules mark only evidence-backed failure candidates or conflicts. Cloud
   model analysis remains disabled.
 
@@ -101,8 +101,7 @@ Developer ID signing and notarization flow. A `companion-v*` tag or manual
 dispatch runs `.github/workflows/release-macos-companion.yml` for Apple Silicon
 and Intel macOS. A prepare job validates every application version declaration
 and creates one draft GitHub Release; both architecture builds upload only to
-that release. The separate tag namespace avoids colliding with the existing
-Core, Plugin, VSIX, and MCP release channel.
+that release.
 
 Configure these GitHub Actions secrets:
 

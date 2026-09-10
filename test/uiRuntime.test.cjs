@@ -24,7 +24,6 @@ test(
     const statePath = path.join(temp, "timeline.json");
     const sidebarPath = path.join(temp, "sidebar.html");
     const mapPath = path.join(temp, "map.html");
-    const mcpPath = path.join(temp, "mcp.html");
     const companionStatePath = path.join(temp, "companion-timeline.json");
     const companionPath = path.join(temp, "companion.html");
     const userDataDir = path.join(temp, "chrome");
@@ -61,9 +60,7 @@ test(
           ? sidebarPath
           : pathname === "/map.html"
             ? mapPath
-            : pathname === "/mcp.html"
-              ? mcpPath
-              : pathname === "/companion.html"
+            : pathname === "/companion.html"
                 ? companionPath
                 : pathname === "/codicon.ttf"
                   ? path.join(temp, "codicon.ttf")
@@ -94,8 +91,7 @@ test(
 
     for (const [script, output] of [
       ["scripts/generate-preview.cjs", sidebarPath],
-      ["scripts/generate-map-preview.cjs", mapPath],
-      ["scripts/generate-mcp-preview.cjs", mcpPath]
+      ["scripts/generate-map-preview.cjs", mapPath]
     ]) {
       childProcess.execFileSync(
         process.execPath,
@@ -708,158 +704,6 @@ test(
       assert.equal(
         await evaluate(cdp, "document.body.getAttribute('aria-busy')"),
         "true"
-      );
-
-      await cdp.send("Page.navigate", { url: `${origin}/mcp.html` });
-      await waitForExpression(
-        cdp,
-        "document.querySelectorAll('.node').length === 9"
-      );
-      const mcp = await evaluateJson(
-        cdp,
-        `({
-          innerWidth,
-          scrollWidth: document.body.scrollWidth,
-          nodes: document.querySelectorAll('.node').length,
-          routes: document.querySelectorAll('.route').length,
-          smoothRoutes: [...document.querySelectorAll('.route')]
-            .every((element) => element.getAttribute('d').includes(' C')),
-          grids: document.querySelectorAll('#wayfinder-grid').length,
-          roots: document.querySelectorAll('.root-core').length,
-          currentRings: document.querySelectorAll('.current-ring').length,
-          errorMarks: document.querySelectorAll('.error-mark').length,
-          cardWidth: document.querySelector('.node rect')?.getAttribute('width'),
-          cardHeight: document.querySelector('.node rect')?.getAttribute('height'),
-          renderedCardWidth: document.querySelector(
-            '.node rect'
-          )?.getBoundingClientRect().width,
-          minSiblingCardGap: (() => {
-            const cards = [...document.querySelectorAll('.node')].map((node) => ({
-              top: Math.round(node.getBoundingClientRect().top),
-              rect: node.querySelector('rect').getBoundingClientRect()
-            }));
-            const scale = cards[0]?.rect.width / 128 || 1;
-            const rows = new Map();
-            cards.forEach((card) => {
-              const row = rows.get(card.top) || [];
-              row.push(card.rect);
-              rows.set(card.top, row);
-            });
-            const gaps = [];
-            rows.forEach((row) => {
-              row.sort((a, b) => a.left - b.left);
-              for (let index = 1; index < row.length; index += 1) {
-                gaps.push((row[index].left - row[index - 1].right) / scale);
-              }
-            });
-            return gaps.length ? Math.min(...gaps) : null;
-          })()
-        })`
-      );
-      assert.equal(mcp.innerWidth, 320);
-      assert.equal(mcp.scrollWidth, 320);
-      assert.equal(mcp.nodes, 9);
-      assert.equal(mcp.routes, 9);
-      assert.equal(mcp.smoothRoutes, true);
-      assert.equal(mcp.grids, 1);
-      assert.equal(mcp.roots, 1);
-      assert.equal(mcp.currentRings, 1);
-      assert.equal(mcp.errorMarks, 1);
-      assert.equal(mcp.cardWidth, "128");
-      assert.equal(mcp.cardHeight, "48");
-      assert.ok(mcp.renderedCardWidth >= 95);
-      assert.ok(mcp.minSiblingCardGap >= 13.9);
-
-      await cdp.send("Runtime.evaluate", {
-        expression:
-          "document.querySelector('.node.bad')?.dispatchEvent(" +
-          "new MouseEvent('click', { bubbles: true }))"
-      });
-      await waitForExpression(
-        cdp,
-        "document.querySelector('#detail')?.hidden === false"
-      );
-      assert.match(
-        await evaluate(cdp, "document.querySelector('#detail p')?.textContent"),
-        /AI 助手/
-      );
-      const beforeZoom = await evaluate(
-        cdp,
-        "document.querySelector('.stage')?.style.transform"
-      );
-      await cdp.send("Runtime.evaluate", {
-        expression: `document.querySelector('.viewport')?.dispatchEvent(
-          new WheelEvent('wheel', {
-            deltaY: -8,
-            ctrlKey: true,
-            clientX: 160,
-            clientY: 220,
-            bubbles: true,
-            cancelable: true
-          })
-        )`
-      });
-      assert.notEqual(
-        await evaluate(cdp, "document.querySelector('.stage')?.style.transform"),
-        beforeZoom
-      );
-      const beforeTouchPan = await evaluate(
-        cdp,
-        "document.querySelector('.stage')?.style.transform"
-      );
-      await cdp.send("Input.dispatchTouchEvent", {
-        type: "touchStart",
-        touchPoints: [{ x: 160, y: 600 }]
-      });
-      await cdp.send("Input.dispatchTouchEvent", {
-        type: "touchMove",
-        touchPoints: [{ x: 160, y: 420 }]
-      });
-      await cdp.send("Input.dispatchTouchEvent", {
-        type: "touchEnd",
-        touchPoints: []
-      });
-      assert.notEqual(
-        await evaluate(cdp, "document.querySelector('.stage')?.style.transform"),
-        beforeTouchPan
-      );
-
-      await cdp.send("Runtime.evaluate", {
-        expression: `(() => {
-          const session = (id, title) => ({
-            id,
-            parentId: undefined,
-            shortTitle: title,
-            preview: title,
-            stage: '实现',
-            verdict: undefined,
-            nodeIds: [id],
-            startedAt: '2026-09-10T00:00:00.000Z',
-            completedAt: '2026-09-10T00:00:01.000Z'
-          });
-          const payload = {
-            project: 'selection-test',
-            state: { root: '/tmp/selection-test', nodes: [] },
-            forest: {
-              trees: [
-                { id: 'tree-a', title: 'A', sessions: [session('a', 'A')] },
-                { id: 'tree-b', title: 'B', sessions: [session('b', 'B')] }
-              ]
-            }
-          };
-          globalThis.__WAYFINDER_SET_PAYLOAD__(payload);
-          document.querySelector('#next').click();
-          globalThis.__WAYFINDER_SET_PAYLOAD__({
-            ...payload,
-            forest: {
-              trees: payload.forest.trees.map((tree) => ({ ...tree }))
-            }
-          });
-        })()`
-      });
-      assert.equal(
-        await evaluate(cdp, "document.querySelector('#treeCount')?.textContent"),
-        "2 / 2"
       );
 
       await cdp.send("Emulation.setDeviceMetricsOverride", {
