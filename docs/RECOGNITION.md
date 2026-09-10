@@ -20,16 +20,6 @@ platform awards carry more weight than broad directory counts.
 
 ## Primary Targets
 
-### Microsoft WinGet
-
-- Submission: https://github.com/microsoft/winget-pkgs/pull/432783
-- Value: inclusion makes `winget install WBXWHT.Wayfinder` available from
-  Microsoft's official Windows Package Manager community source.
-- Current status: pull request, manifest, URL, domain, policy, catalog, and
-  installer-scan checks pass. Installation and metadata validation are still
-  pending. Merge is blocked until the repository owner personally confirms
-  Microsoft's CLA; that legal confirmation must not be automated or delegated.
-
 ### awesome-mac
 
 - Submission: https://github.com/jaywcjlove/awesome-mac/pull/2828
@@ -58,6 +48,9 @@ platform awards carry more weight than broad directory counts.
 
 ## Excluded Channels
 
+- The WinGet submission was withdrawn on 2026-09-11 after Wayfinder returned
+  to a macOS-only product scope:
+  https://github.com/microsoft/winget-pkgs/pull/432783
 - `tauri-apps/awesome-tauri` stopped accepting application submissions and
   removed its application section on 2026-08-20. Do not open an application
   pull request there.
@@ -86,6 +79,7 @@ remain external decisions.
 
 ## Resume Rule
 
-Do not add WinGet, awesome-mac, or Made with Tauri as an achieved distinction
-until the corresponding listing is publicly live. Community posts may be
-linked as launch activity, but must not be called awards or curated features.
+Do not add awesome-mac or Made with Tauri as an achieved distinction until the
+corresponding listing is publicly live. Do not present the withdrawn WinGet
+submission as a supported distribution channel. Community posts may be linked
+as launch activity, but must not be called awards or curated features.
