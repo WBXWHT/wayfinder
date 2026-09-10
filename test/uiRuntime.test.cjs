@@ -831,7 +831,12 @@ test(
       };
       killBrowser("SIGTERM");
       await Promise.race([exited, delay(2_000)]);
-      killBrowser("SIGKILL");
+      if (browser.exitCode === null && browser.signalCode === null) {
+        killBrowser("SIGKILL");
+        await Promise.race([exited, delay(2_000)]);
+      }
+      server.closeIdleConnections?.();
+      server.closeAllConnections?.();
       await new Promise((resolve) => server.close(resolve));
       await fs.promises.rm(temp, {
         recursive: true,
