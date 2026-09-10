@@ -671,8 +671,6 @@ export class ExperienceMapPanel implements vscode.Disposable {
     let pendingScale = 1;
     let pendingZoomPoint = null;
     let graphBounds = null;
-    let viewportTabTimer = 0;
-    let currentNodeById = new Map();
     const nodeCardWidth = 240;
     const nodeCardHeight = 120;
     const nodeCardTop = 24;
@@ -693,31 +691,41 @@ export class ExperienceMapPanel implements vscode.Disposable {
       wheelFrame = requestAnimationFrame(flushViewportFrame);
     }
 
-    function scheduleVisibleCardTabStops() {
-      clearTimeout(viewportTabTimer);
-      viewportTabTimer = setTimeout(() => {
-        if (!graphLayer) return;
-        const viewport = graph.node().getBoundingClientRect();
-        const query = searchInput.value.trim().toLocaleLowerCase('zh-CN');
-        graphLayer.selectAll('.session-card').attr(
-          'tabindex',
-          function({ tree, node }) {
-            if (!node.data.session) return -1;
-            const matches =
-              !query ||
-              tree.title.toLocaleLowerCase('zh-CN').includes(query) ||
-              sessionMatches(node.data.session, currentNodeById, query);
-            if (!matches) return -1;
-            const rect = this.getBoundingClientRect();
-            const visible =
-              rect.right > viewport.left &&
-              rect.left < viewport.right &&
-              rect.bottom > viewport.top &&
-              rect.top < viewport.bottom;
-            return visible ? 0 : -1;
-          }
+    function revealCardInViewport(node) {
+      const current = d3.zoomTransform(graph.node());
+      const viewportWidth = graph.node().clientWidth;
+      const viewportHeight = graph.node().clientHeight;
+      const padding = 24;
+      const topPadding = 84;
+      const left =
+        current.x + (node.screenX - nodeCardWidth / 2) * current.k;
+      const right =
+        current.x + (node.screenX + nodeCardWidth / 2) * current.k;
+      const top =
+        current.y + (node.screenY + nodeCardTop) * current.k;
+      const bottom =
+        current.y +
+        (node.screenY + nodeCardTop + nodeCardHeight) * current.k;
+      let nextX = current.x;
+      let nextY = current.y;
+      if (left < padding) nextX += padding - left;
+      else if (right > viewportWidth - padding) {
+        nextX -= right - (viewportWidth - padding);
+      }
+      if (top < topPadding) nextY += topPadding - top;
+      else if (bottom > viewportHeight - padding) {
+        nextY -= bottom - (viewportHeight - padding);
+      }
+      nextX = Math.min(0, nextX);
+      if (
+        Math.abs(nextX - current.x) > .001 ||
+        Math.abs(nextY - current.y) > .001
+      ) {
+        graph.call(
+          zoomBehavior.transform,
+          d3.zoomIdentity.translate(nextX, nextY).scale(current.k)
         );
-      }, 140);
+      }
     }
 
     function flushViewportFrame() {
@@ -784,7 +792,6 @@ export class ExperienceMapPanel implements vscode.Disposable {
         cancelAnimationFrame(wheelFrame);
         wheelFrame = 0;
       }
-      clearTimeout(viewportTabTimer);
       const previousTransform = d3.zoomTransform(graph.node());
       const query = searchInput.value.trim().toLocaleLowerCase('zh-CN');
       if (!forest.trees.some((tree) => tree.id === activeTreeId)) {
@@ -810,7 +817,8 @@ export class ExperienceMapPanel implements vscode.Disposable {
         ? '已经是最后一条航程'
         : '下一条航程：' + forest.trees[activeIndex + 1].title;
       projectNext.setAttribute('aria-label', projectNext.title);
-      const nextViewportSignature = activeTreeId + '|' + query;
+      const nextViewportSignature =
+        (state.projectId || projectName) + '|' + activeTreeId + '|' + query;
       const preserveViewport =
         viewportSignature === nextViewportSignature && !fitAllRequested;
       const resumePendingWheel = hadPendingWheel && preserveViewport;
@@ -829,7 +837,6 @@ export class ExperienceMapPanel implements vscode.Disposable {
       const height = Math.max(340, document.getElementById('graph').clientHeight);
       graphBounds = graph.node().getBoundingClientRect();
       const nodeById = new Map(state.nodes.map((node) => [node.id, node]));
-      currentNodeById = nodeById;
       const cardContentBySessionId = new Map();
       const contentForCard = (session) => {
         if (!cardContentBySessionId.has(session.id)) {
@@ -1029,7 +1036,6 @@ export class ExperienceMapPanel implements vscode.Disposable {
         .on('zoom', (event) => {
           globalThis.__WAYFINDER_VIEWPORT_ACTIVE_UNTIL__ = Date.now() + 320;
           graphLayer.attr('transform', event.transform);
-          scheduleVisibleCardTabStops();
         });
       graph
         .call(zoomBehavior)
@@ -1436,6 +1442,9 @@ export class ExperienceMapPanel implements vscode.Disposable {
           event.stopPropagation();
           selectSession(session, nodeById);
         })
+        .on('focus', (event, item) => {
+          if (item.node.data.session) revealCardInViewport(item.node);
+        })
         .on('keydown', (event, item) => {
           const session = item.node.data.session;
           if (!session || (event.key !== 'Enter' && event.key !== ' ')) {
@@ -1557,7 +1566,6 @@ export class ExperienceMapPanel implements vscode.Disposable {
       viewportSignature = nextViewportSignature;
       fitAllRequested = false;
       if (resumePendingWheel) scheduleViewportFrame();
-      scheduleVisibleCardTabStops();
     }
 
     function filterTreeForQuery(tree, nodeById, query) {

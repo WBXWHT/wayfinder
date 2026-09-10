@@ -416,56 +416,69 @@ fn run_collect(app: &AppHandle) {
 
 /// Start a debounced filesystem watcher over the transcript roots. On any
 /// change (new session, appended turn) it triggers a collect after a short
-/// debounce. This mirrors the file-watch approach used by claude-code-watch,
-/// claude-log-viewer, cchv, etc. — event-driven, not polling.
+/// debounce. Content collection remains event-driven; a lightweight existence
+/// check attaches watchers to roots created after Wayfinder starts.
 fn start_transcript_watcher(app: AppHandle) {
     // Use the notify re-exported by the debouncer to avoid version skew.
     use notify_debouncer_mini::notify::RecursiveMode;
     use notify_debouncer_mini::{new_debouncer, DebounceEventResult};
 
     thread::spawn(move || {
-        let roots: Vec<PathBuf> = transcript_watch_roots()
-            .into_iter()
-            .filter(|root| root.exists())
-            .collect();
-
         // Collect once at startup so sessions written while the app was closed
         // are captured immediately.
         run_collect(&app);
 
-        if roots.is_empty() {
-            return;
-        }
+        loop {
+            let roots: Vec<PathBuf> = transcript_watch_roots()
+                .into_iter()
+                .filter(|root| root.exists())
+                .collect();
+            if roots.is_empty() {
+                thread::sleep(Duration::from_secs(2));
+                continue;
+            }
 
-        let handler_app = app.clone();
-        let debouncer = new_debouncer(
-            COLLECT_DEBOUNCE,
-            move |result: DebounceEventResult| {
+            let handler_app = app.clone();
+            let debouncer = new_debouncer(COLLECT_DEBOUNCE, move |result: DebounceEventResult| {
                 if let Ok(events) = result {
                     if !events.is_empty() {
                         run_collect(&handler_app);
                     }
                 }
-            },
-        );
-        let mut debouncer = match debouncer {
-            Ok(value) => value,
-            Err(error) => {
-                eprintln!("wayfinder watcher: failed to start: {error}");
-                return;
+            });
+            let mut debouncer = match debouncer {
+                Ok(value) => value,
+                Err(error) => {
+                    eprintln!("wayfinder watcher: failed to start: {error}");
+                    thread::sleep(Duration::from_secs(2));
+                    continue;
+                }
+            };
+            let mut all_roots_watched = true;
+            for root in &roots {
+                if let Err(error) = debouncer.watcher().watch(root, RecursiveMode::Recursive) {
+                    eprintln!("wayfinder watcher: cannot watch {root:?}: {error}");
+                    all_roots_watched = false;
+                }
             }
-        };
-        for root in &roots {
-            if let Err(error) = debouncer
-                .watcher()
-                .watch(root, RecursiveMode::Recursive)
-            {
-                eprintln!("wayfinder watcher: cannot watch {root:?}: {error}");
+            if !all_roots_watched {
+                thread::sleep(Duration::from_secs(2));
+                continue;
             }
-        }
-        // Keep the debouncer (and its watch threads) alive for the app lifetime.
-        loop {
-            thread::sleep(Duration::from_secs(3600));
+            // Capture files created before the watcher was attached.
+            run_collect(&app);
+
+            loop {
+                thread::sleep(Duration::from_secs(2));
+                let current: Vec<PathBuf> = transcript_watch_roots()
+                    .into_iter()
+                    .filter(|root| root.exists())
+                    .collect();
+                if current != roots {
+                    run_collect(&app);
+                    break;
+                }
+            }
         }
     });
 }
@@ -507,16 +520,14 @@ mod tests {
         use std::path::PathBuf;
 
         // Defaults from home when no overrides are set.
-        let roots = resolve_transcript_roots(
-            None,
-            None,
-            None,
-            Some(PathBuf::from("/Users/x")),
+        let roots = resolve_transcript_roots(None, None, None, Some(PathBuf::from("/Users/x")));
+        assert_eq!(
+            roots,
+            vec![
+                PathBuf::from("/Users/x/.codex/sessions"),
+                PathBuf::from("/Users/x/.claude/projects"),
+            ]
         );
-        assert_eq!(roots, vec![
-            PathBuf::from("/Users/x/.codex/sessions"),
-            PathBuf::from("/Users/x/.claude/projects"),
-        ]);
 
         // Explicit overrides win, and CODEX_SESSIONS_ROOT beats CODEX_HOME.
         let roots = resolve_transcript_roots(
@@ -525,10 +536,13 @@ mod tests {
             Some(PathBuf::from("/custom/claude")),
             Some(PathBuf::from("/Users/x")),
         );
-        assert_eq!(roots, vec![
-            PathBuf::from("/custom/sessions"),
-            PathBuf::from("/custom/claude/projects"),
-        ]);
+        assert_eq!(
+            roots,
+            vec![
+                PathBuf::from("/custom/sessions"),
+                PathBuf::from("/custom/claude/projects"),
+            ]
+        );
     }
 
     #[test]

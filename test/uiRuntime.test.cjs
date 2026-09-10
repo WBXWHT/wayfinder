@@ -728,7 +728,7 @@ test(
       assert.equal(map.ships, 1);
       assert.equal(map.cards, 9);
       assert.equal(map.currentCards, 1);
-      assert.ok(map.keyboardCards >= 1);
+      assert.equal(map.keyboardCards, map.cards);
       assert.ok(map.visibleCards >= 1);
       assert.equal(map.cardWidth, "240");
       assert.equal(map.cardHeight, "120");
@@ -755,6 +755,43 @@ test(
       assert.equal(map.decorations, 9);
       assert.equal(map.allRoutesDirectCubic, true);
       assert.ok(map.maxForkAngle >= 20);
+
+      const keyboardReveal = await evaluateJson(
+        cdp,
+        `(() => {
+          const cards = [...document.querySelectorAll('.session-card')];
+          const viewport = document.querySelector('#graph').getBoundingClientRect();
+          const visible = (rect) =>
+            rect.right > viewport.left &&
+            rect.left < viewport.right &&
+            rect.bottom > viewport.top &&
+            rect.top < viewport.bottom;
+          const target = cards.find(
+            (card) => !visible(card.getBoundingClientRect())
+          );
+          if (!target) {
+            return {
+              foundOffscreen: false,
+              beforeVisible: true,
+              afterVisible: true,
+              focused: false
+            };
+          }
+          const before = target?.getBoundingClientRect();
+          target.focus();
+          const after = target.getBoundingClientRect();
+          return {
+            foundOffscreen: Boolean(target),
+            beforeVisible: before ? visible(before) : true,
+            afterVisible: visible(after),
+            focused: document.activeElement === target
+          };
+        })()`
+      );
+      assert.equal(keyboardReveal.foundOffscreen, true);
+      assert.equal(keyboardReveal.beforeVisible, false);
+      assert.equal(keyboardReveal.afterVisible, true);
+      assert.equal(keyboardReveal.focused, true);
 
       await cdp.send("Runtime.evaluate", {
         expression: `(() => {
@@ -866,18 +903,15 @@ test(
           for (let index = 0; index < 30; index += 1) {
             wheel(80, 0);
           }
-          const switchedForest = {
-            ...forest,
-            trees: forest.trees.map((tree) => ({
-              ...tree,
-              id: 'switched-' + tree.id
-            }))
+          const switchedState = {
+            ...state,
+            projectId: (state.projectId || 'project') + '-other'
           };
           window.dispatchEvent(new MessageEvent('message', {
             data: {
               type: 'render',
-              state,
-              forest: switchedForest,
+              state: switchedState,
+              forest,
               projectName: 'another-project'
             }
           }));
@@ -1512,6 +1546,55 @@ test(
       assert.equal(openDrawer.activeProject, true);
 
       await cdp.send("Runtime.evaluate", {
+        expression:
+          "globalThis.__WAYFINDER_PREVIEW_MISSING_PROJECT__ = " +
+          "globalThis.__WAYFINDER_PREVIEW_PROJECTS__.shift()"
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelectorAll('.project-item').length === 1"
+      );
+      assert.equal(
+        await evaluate(cdp, "document.activeElement?.id"),
+        "closeProjects"
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression:
+          "globalThis.__WAYFINDER_PREVIEW_PROJECTS__.unshift(" +
+          "globalThis.__WAYFINDER_PREVIEW_MISSING_PROJECT__)"
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelectorAll('.project-item').length === 2"
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression: `(() => {
+          document.querySelector('.project-item')?.focus();
+          globalThis.__WAYFINDER_PREVIEW_SAVED_PROJECTS__ = [
+            ...globalThis.__WAYFINDER_PREVIEW_PROJECTS__
+          ];
+          globalThis.__WAYFINDER_PREVIEW_PROJECTS__.splice(0);
+        })()`
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelector('.project-empty') !== null"
+      );
+      assert.equal(
+        await evaluate(cdp, "document.activeElement?.id"),
+        "closeProjects"
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression:
+          "globalThis.__WAYFINDER_PREVIEW_PROJECTS__.push(" +
+          "...globalThis.__WAYFINDER_PREVIEW_SAVED_PROJECTS__)"
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelectorAll('.project-item').length === 2"
+      );
+
+      await cdp.send("Runtime.evaluate", {
         expression: `(() => {
           const openData = document.querySelector('#openData');
           openData.focus();
@@ -1640,6 +1723,94 @@ test(
       assert.equal(singleVoyage.foreignObjects, 0);
       assert.ok(singleVoyage.label.length > 0);
       assert.equal(singleVoyage.coastCoversCanvas, true);
+
+      for (const viewport of [
+        { width: 320, height: 568 },
+        { width: 812, height: 375 }
+      ]) {
+        await cdp.send("Emulation.setDeviceMetricsOverride", {
+          ...viewport,
+          deviceScaleFactor: 1,
+          mobile: false
+        });
+        await cdp.send("Page.navigate", {
+          url: `${origin}/website/index.html?viewport=${viewport.width}`
+        });
+        await waitForExpression(
+          cdp,
+          "document.querySelectorAll('.download-row .download').length === 2"
+        );
+        const layout = await evaluateJson(
+          cdp,
+          `(() => {
+            const hero = document.querySelector('.hero').getBoundingClientRect();
+            const downloads = [...document.querySelectorAll(
+              '.download-row .download'
+            )].map((element) => {
+              const rect = element.getBoundingClientRect();
+              return { top: rect.top, bottom: rect.bottom };
+            });
+            return {
+              width: innerWidth,
+              scrollWidth: document.documentElement.scrollWidth,
+              heroBottom: hero.bottom,
+              downloads
+            };
+          })()`
+        );
+        assert.equal(layout.width, viewport.width);
+        assert.equal(layout.scrollWidth, viewport.width);
+        assert.ok(
+          layout.downloads.every(
+            (download) =>
+              download.top >= 0 &&
+              download.bottom <= layout.heroBottom + .5
+          )
+        );
+      }
+
+      await delay(1_600);
+      const canvasBeforeResize = await evaluate(
+        cdp,
+        `(() => {
+          const canvas = document.querySelector('#voyageCanvas');
+          const pixels = canvas.getContext('2d').getImageData(
+            0,
+            0,
+            canvas.width,
+            canvas.height
+          ).data;
+          for (let index = 3; index < pixels.length; index += 64) {
+            if (pixels[index] > 0) return true;
+          }
+          return false;
+        })()`
+      );
+      await cdp.send("Emulation.setDeviceMetricsOverride", {
+        width: 1_000,
+        height: 700,
+        deviceScaleFactor: 1,
+        mobile: false
+      });
+      await delay(160);
+      const canvasAfterResize = await evaluate(
+        cdp,
+        `(() => {
+          const canvas = document.querySelector('#voyageCanvas');
+          const pixels = canvas.getContext('2d').getImageData(
+            0,
+            0,
+            canvas.width,
+            canvas.height
+          ).data;
+          for (let index = 3; index < pixels.length; index += 64) {
+            if (pixels[index] > 0) return true;
+          }
+          return false;
+        })()`
+      );
+      assert.equal(canvasBeforeResize, true);
+      assert.equal(canvasAfterResize, true);
 
       assert.deepEqual(exceptions, []);
       cdp.close();

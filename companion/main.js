@@ -61,6 +61,9 @@ async function loadProjects(preferredId) {
 function renderProjectList() {
   const focusedProjectId =
     document.activeElement?.closest(".project-item")?.dataset.projectId || "";
+  const drawerOpen =
+    narrowProjects.matches &&
+    document.body.classList.contains("projects-open");
   projectList.replaceChildren();
   if (projects.length === 0) {
     const empty = document.createElement("div");
@@ -68,6 +71,13 @@ function renderProjectList() {
     empty.textContent = "开始一次 AI 协作后，项目会自动出现在这里。";
     projectList.append(empty);
     projectSummary.textContent = "尚无项目";
+    syncProjectsAccessibility();
+    if (
+      drawerOpen &&
+      !projectSidebar.contains(document.activeElement)
+    ) {
+      closeProjectsButton.focus();
+    }
     return;
   }
 
@@ -117,16 +127,19 @@ function renderProjectList() {
 
   projectSummary.textContent = `${projects.length} 个项目`;
   syncProjectsAccessibility();
-  if (
-    focusedProjectId &&
-    (
-      !narrowProjects.matches ||
-      document.body.classList.contains("projects-open")
-    )
+  const restoredProject = focusedProjectId
+    ? projectList.querySelector(`[data-project-id="${focusedProjectId}"]`)
+    : undefined;
+  if (restoredProject) {
+    restoredProject.focus();
+  } else if (
+    drawerOpen &&
+    !projectSidebar.contains(document.activeElement)
   ) {
-    projectList
-      .querySelector(`[data-project-id="${focusedProjectId}"]`)
-      ?.focus();
+    (
+      projectList.querySelector('[aria-current="true"]') ||
+      closeProjectsButton
+    ).focus();
   }
 }
 
@@ -315,7 +328,10 @@ globalThis.addEventListener("keydown", (event) => {
   ].filter((element) => !element.disabled);
   const first = focusable[0];
   const last = focusable.at(-1);
-  if (event.shiftKey && document.activeElement === first) {
+  if (!projectSidebar.contains(document.activeElement)) {
+    event.preventDefault();
+    (event.shiftKey ? last : first)?.focus();
+  } else if (event.shiftKey && document.activeElement === first) {
     event.preventDefault();
     last?.focus();
   } else if (!event.shiftKey && document.activeElement === last) {

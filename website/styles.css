@@ -518,6 +518,7 @@ footer a { padding: 10px 0; }
     width: min(100%, 360px);
     flex-direction: column;
   }
+  .download { flex: none; }
   .hero-waypoint {
     display: grid;
     width: 138px;
@@ -563,6 +564,32 @@ footer a { padding: 10px 0; }
   .document-lead { margin-bottom: 50px; font-size: 17px; }
   .document section { grid-template-columns: 1fr; gap: 10px; }
   footer { padding: 0 20px; }
+}
+
+@media (min-width: 560px) and (max-width: 820px) and (max-height: 600px) {
+  .hero {
+    padding-top: 78px;
+    padding-bottom: 40px;
+  }
+  h1 { font-size: 48px; }
+  .hero-line {
+    max-width: 520px;
+    margin-top: 16px;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+  .download-row {
+    width: min(100%, 440px);
+    margin-top: 20px;
+    flex-direction: row;
+  }
+  .download {
+    flex: 1 1 0;
+    min-height: 52px;
+    padding: 8px 12px;
+  }
+  .hero-waypoint { display: none; }
+  .hero-status { bottom: 10px; }
 }
 
 @media (max-width: 420px) {

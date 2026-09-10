@@ -36,13 +36,6 @@ jobs:
             ["arm64", release.downloads?.arm64, ".dmg"],
             ["x64", release.downloads?.x64, ".dmg"]
           ];
-          if (release.downloads?.windowsX64) {
-            downloads.push([
-              "windowsX64",
-              release.downloads.windowsX64,
-              ".exe"
-            ]);
-          }
           for (const [architecture, raw, extension] of downloads) {
             const url = new URL(raw);
             if (

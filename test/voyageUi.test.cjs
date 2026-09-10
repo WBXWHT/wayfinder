@@ -130,7 +130,8 @@ test("full map scopes layout to one project and removes legacy project list", ()
   assert.match(html, /\.constrain\(\(transform\) => \{/);
   assert.match(html, /function normalizedWheelDelta/);
   assert.match(html, /function scheduleViewportFrame/);
-  assert.match(html, /function scheduleVisibleCardTabStops/);
+  assert.match(html, /function revealCardInViewport/);
+  assert.match(html, /\.on\('focus'/);
   assert.match(html, /requestAnimationFrame/);
   assert.match(html, /Math\.max\(-160, Math\.min\(160, value \* unit\)\)/);
   assert.match(html, /const changed =/);

@@ -1,7 +1,7 @@
 {
   "name": "wayfinder",
   "displayName": "Wayfinder",
-  "description": "A local desktop app that turns Codex and Claude Code work into one visual voyage map.",
+  "description": "A local macOS app that turns Codex and Claude Code work into one visual voyage map.",
   "version": "0.3.5",
   "private": true,
   "license": "MIT",
