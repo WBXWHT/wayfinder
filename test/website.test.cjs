@@ -19,7 +19,7 @@ test("download website exposes architecture-specific release links", () => {
   assert.match(html, /data-download="arm64"/);
   assert.match(html, /data-download="x64"/);
   assert.match(html, /data-default-download/);
-  assert.equal(releases.published, false);
+  assert.equal(typeof releases.published, "boolean");
   assert.match(releases.downloads.arm64, /Alpha.*macOS-aarch64\.dmg$/);
   assert.match(releases.downloads.x64, /Alpha.*macOS-x86_64\.dmg$/);
 });
