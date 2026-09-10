@@ -1787,7 +1787,7 @@ test(
         });
         await waitForExpression(
           cdp,
-          "document.querySelectorAll('.download-row .download').length === 2"
+          "document.querySelectorAll('.download-row .download').length === 3"
         );
         const layout = await evaluateJson(
           cdp,

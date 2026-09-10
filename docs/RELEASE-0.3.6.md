@@ -1,7 +1,7 @@
 # Wayfinder 0.3.6 Alpha (Unreleased)
 
-This macOS release completes the voyage-map interaction and accessibility
-work started in 0.3.5.
+This desktop release completes the voyage-map interaction and accessibility
+work started in 0.3.5 across macOS and Windows.
 
 Status: local development. The current public release remains
 `alpha-v0.3.5`.
@@ -30,6 +30,7 @@ Status: local development. The current public release remains
 - Uses an architecture-neutral download chooser when a Mac architecture cannot
   be detected reliably.
 - Keeps both Mac download controls visible on short mobile viewports.
+- Keeps the Windows x64 installer available as a first-class download.
 - Publishes verified release assets as one recoverable set and rejects website
   downloads that do not match the declared release version and architecture.
 - Builds the desktop web bundle through a locked staging directory so parallel
@@ -42,5 +43,6 @@ Before publication, verify:
 - the complete Node and Rust test suites;
 - Chromium desktop, 320px portrait, and short landscape rendering;
 - a signed Apple Silicon DMG installed in `/Applications`;
-- both Apple Silicon and Intel DMGs and `SHA256SUMS`;
+- a Windows x64 NSIS build on a native Windows runner;
+- both Apple Silicon and Intel DMGs, the Windows installer, and `SHA256SUMS`;
 - the live download URLs before updating `website/releases.json`.
