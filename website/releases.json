@@ -1,6 +1,6 @@
 {
   "version": "0.3.4",
-  "published": false,
+  "published": true,
   "releasePage": "https://github.com/WBXWHT/wayfinder/releases",
   "downloads": {
     "arm64": "https://github.com/WBXWHT/wayfinder/releases/download/alpha-v0.3.4/Wayfinder-Alpha-0.3.4-macOS-aarch64.dmg",
