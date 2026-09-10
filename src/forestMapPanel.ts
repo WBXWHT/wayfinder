@@ -1378,7 +1378,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
         .filter(Boolean)
         .forEach((node) => inspector.append(renderTurn(node)));
       if (focusTitle) {
-        requestAnimationFrame(() => title.focus());
+        title.focus();
       }
     }
 
