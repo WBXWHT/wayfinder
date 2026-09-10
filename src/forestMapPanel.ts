@@ -351,19 +351,25 @@ export class ExperienceMapPanel implements vscode.Disposable {
     .forest-edge.route-0,
     .forest-edge.route-3,
     .session-node.route-0,
-    .session-node.route-3 {
+    .session-node.route-3,
+    .session-card.route-0,
+    .session-card.route-3 {
       --route-accent: var(--route-blue);
     }
     .forest-edge.route-1,
     .forest-edge.route-4,
     .session-node.route-1,
-    .session-node.route-4 {
+    .session-node.route-4,
+    .session-card.route-1,
+    .session-card.route-4 {
       --route-accent: var(--route-violet);
     }
     .forest-edge.route-2,
     .forest-edge.route-5,
     .session-node.route-2,
-    .session-node.route-5 {
+    .session-node.route-5,
+    .session-card.route-2,
+    .session-card.route-5 {
       --route-accent: var(--route-gold);
     }
     .forest-edge.good {
@@ -394,59 +400,56 @@ export class ExperienceMapPanel implements vscode.Disposable {
     }
     .forest-path-bed.dimmed,
     .forest-edge.dimmed { opacity: .12; }
-    .forest-node { cursor: pointer; transition: opacity 150ms ease; }
-    .forest-node foreignObject.node-content { pointer-events: none; }
-    .node-hit {
-      position: relative;
-      display: grid;
-      width: 100%;
-      height: 100%;
-      padding: 7px 8px;
-      align-items: center;
-      border: 2px solid white;
-      outline: 0;
-      border-radius: 5px;
-      color: var(--ink);
-      text-align: left;
-      background: color-mix(in srgb, var(--paper) 94%, transparent);
-      box-shadow: 2px 3px 0 var(--sticker-shadow);
-      cursor: pointer;
-      transition: background 130ms ease, color 130ms ease;
+    .forest-node,
+    .forest-card { transition: opacity 150ms ease; }
+    .forest-node { pointer-events: none; }
+    .forest-card { cursor: pointer; outline: 0; }
+    .forest-node.dimmed,
+    .forest-card.dimmed { opacity: .18; }
+    .node-card-shadow {
+      fill: var(--sticker-shadow);
     }
-    .node-hit::before {
-      position: absolute;
-      top: 13px;
-      left: 1px;
-      width: 5px;
-      height: 18px;
-      border: 1px solid white;
-      border-radius: 2px;
-      background: color-mix(
+    .node-card-bg {
+      fill: color-mix(in srgb, var(--paper) 96%, transparent);
+      stroke: white;
+      stroke-width: 2;
+      transition: fill 130ms ease, stroke 130ms ease;
+    }
+    .node-card-accent {
+      fill: color-mix(
         in srgb,
         var(--node-accent, var(--route-accent, var(--route))) 78%,
         white
       );
-      box-shadow: 1px 1px 0 var(--sticker-shadow);
-      content: "";
+      stroke: white;
+      stroke-width: 1;
     }
-    .session-node.good { --node-accent: var(--good); }
-    .session-node.bad { --node-accent: var(--coral); }
-    .node-hit:hover { background: var(--paper); }
-    .session-node.selected .node-hit {
-      color: var(--ink);
-      background: color-mix(
+    .session-card.good { --node-accent: var(--good); }
+    .session-card.bad { --node-accent: var(--coral); }
+    .session-card:hover .node-card-bg { fill: var(--paper); }
+    .session-card.selected .node-card-bg {
+      fill: color-mix(
         in srgb,
         var(--route-accent, var(--route)) 12%,
         var(--paper)
       );
+      stroke: color-mix(
+        in srgb,
+        var(--route-accent, var(--route)) 46%,
+        white
+      );
     }
-    .node-hit:focus-visible {
-      outline: 2px solid var(--vscode-focusBorder, var(--accent));
-      outline-offset: 1px;
+    .forest-card:focus-visible .node-card-bg {
+      stroke: var(--vscode-focusBorder, var(--accent));
+      stroke-width: 3;
     }
-    .forest-node.dimmed { opacity: .18; }
-    .node-html { width: 100%; height: 100%; padding: 7px 8px; color: var(--text); pointer-events: none; }
-    .node-title { display: block; margin: 0; font-size: 12px; font-weight: 700; line-height: 15px; white-space: normal; }
+    .node-title {
+      fill: var(--ink);
+      font-family: var(--vscode-font-family);
+      font-size: 12px;
+      font-weight: 700;
+      pointer-events: none;
+    }
     .journey-disc {
       fill: color-mix(
         in srgb,
@@ -514,18 +517,21 @@ export class ExperienceMapPanel implements vscode.Disposable {
     .current-status-badge { stroke: white; stroke-width: 1; }
     .session-node.good .current-status-badge { fill: var(--good); }
     .session-node.bad .current-status-badge { fill: var(--coral); }
-    .tree-node .node-html {
-      display: grid;
-      place-content: center;
-      border: 2px solid white;
-      border-radius: 8px;
-      color: var(--ink);
-      background: var(--paper);
-      box-shadow: 2px 3px 0 var(--sticker-shadow);
-      text-align: center;
+    .tree-card { pointer-events: none; }
+    .tree-card .node-card-bg { fill: var(--paper); }
+    .tree-node-title {
+      fill: var(--ink);
+      font-family: var(--vscode-font-family);
+      font-size: 12px;
+      font-weight: 700;
+      text-anchor: middle;
     }
-    .tree-node-title { font-size: 12px; font-weight: 700; }
-    .tree-node-meta { margin-top: 4px; color: var(--muted); font-size: 9px; }
+    .tree-node-meta {
+      fill: var(--sticker-muted);
+      font-family: var(--vscode-font-family);
+      font-size: 9px;
+      text-anchor: middle;
+    }
     .inspector { position: absolute; z-index: 5; top: 0; right: 0; bottom: 0; display: none; width: min(350px, 42vw); overflow: auto; padding: 18px; border-left: 1px solid var(--line); background: var(--surface-2); box-shadow: -8px 0 22px color-mix(in srgb, var(--text) 8%, transparent); animation: inspector-in 150ms ease-out; }
     .inspector.open { display: block; }
     .inspector-close { float: right; margin: -6px -6px 3px 8px; }
@@ -640,6 +646,14 @@ export class ExperienceMapPanel implements vscode.Disposable {
     let fitAllRequested = false;
     let composingSearch = false;
     let viewportSignature = '';
+    const nodeCardWidth = 164;
+    const nodeCardHeight = 58;
+    const nodeCardTop = 24;
+    const nodeVerticalPitch = 128;
+    const nodeHorizontalPitch = 236;
+    const mapStartX = 142;
+    const mapTopInset = 112;
+    const minimumReadableScale = .7935;
 
     function renderGraph() {
       const previousTransform = d3.zoomTransform(graph.node());
@@ -705,18 +719,35 @@ export class ExperienceMapPanel implements vscode.Disposable {
       }
 
       const layouts = [];
-      let offsetY = 70;
-      let graphWidth = width;
+      let offsetY = mapTopInset;
+      let contentLeft = Infinity;
+      let contentTop = Infinity;
+      let contentRight = -Infinity;
+      let contentBottom = -Infinity;
       for (const tree of trees) {
         const root = d3.hierarchy(hierarchyFor(tree));
-        d3.tree().nodeSize([102, 190])(root);
+        d3.tree()
+          .nodeSize([nodeVerticalPitch, nodeHorizontalPitch])
+          .separation(() => 1)(root);
         const minX = d3.min(root.descendants(), (node) => node.x) || 0;
         const maxX = d3.max(root.descendants(), (node) => node.x) || 0;
-        const maxY = d3.max(root.descendants(), (node) => node.y) || 0;
         const baseY = offsetY - minX;
         root.each((node) => {
-          node.screenX = node.y + 110;
+          node.screenX = node.y + mapStartX;
           node.screenY = node.x + baseY;
+          contentLeft = Math.min(
+            contentLeft,
+            node.screenX - nodeCardWidth / 2 - 5
+          );
+          contentTop = Math.min(contentTop, node.screenY - 24);
+          contentRight = Math.max(
+            contentRight,
+            node.screenX + nodeCardWidth / 2 + 5
+          );
+          contentBottom = Math.max(
+            contentBottom,
+            node.screenY + nodeCardTop + nodeCardHeight + 5
+          );
         });
         const mainPath = mainPathFor(tree);
         const current = currentSessionFor(tree);
@@ -728,50 +759,44 @@ export class ExperienceMapPanel implements vscode.Disposable {
           routeIndexById,
           currentId: current?.id || ''
         });
-        offsetY += maxX - minX + 150;
-        graphWidth = Math.max(graphWidth, maxY + 300);
+        offsetY += maxX - minX + nodeVerticalPitch + nodeCardHeight;
       }
-      const graphHeight = Math.max(height, offsetY + 30);
+      const contentBounds = {
+        left: contentLeft,
+        top: contentTop,
+        right: contentRight,
+        bottom: contentBottom
+      };
+      const worldWidth = Math.max(
+        width / minimumReadableScale,
+        contentRight + 140
+      );
+      const worldHeight = Math.max(
+        height / minimumReadableScale,
+        contentBottom + 100
+      );
+      const shoreOverscan = Math.max(worldHeight, height) * 1.6;
+      const shoreTop = contentTop - shoreOverscan;
+      const shoreBottom = contentBottom + shoreOverscan;
+      const shore = coastlineGeometry(shoreTop, shoreBottom);
 
       graphLayer = graph.append('g');
       const terrain = graphLayer.append('g').attr('aria-hidden', 'true');
       terrain.append('path')
         .attr('class', 'shore-fill')
-        .attr(
-          'd',
-          'M 0 0 H 82 C 103 ' + (graphHeight * .18) +
-          ', 76 ' + (graphHeight * .35) +
-          ', 96 ' + (graphHeight * .52) +
-          ' C 112 ' + (graphHeight * .68) +
-          ', 83 ' + (graphHeight * .84) +
-          ', 96 ' + graphHeight +
-          ' H 0 Z'
-        );
+        .attr('d', shore.fill);
       terrain.append('path')
         .attr('class', 'shore-line')
-        .attr(
-          'd',
-          'M 82 0 C 103 ' + (graphHeight * .18) +
-          ', 76 ' + (graphHeight * .35) +
-          ', 96 ' + (graphHeight * .52) +
-          ' C 112 ' + (graphHeight * .68) +
-          ', 83 ' + (graphHeight * .84) +
-          ', 96 ' + graphHeight
-        );
+        .attr('d', shore.line);
       terrain.append('path')
         .attr('class', 'shore-ink')
-        .attr(
-          'd',
-          'M 82 0 C 103 ' + (graphHeight * .18) +
-          ', 76 ' + (graphHeight * .35) +
-          ', 96 ' + (graphHeight * .52) +
-          ' C 112 ' + (graphHeight * .68) +
-          ', 83 ' + (graphHeight * .84) +
-          ', 96 ' + graphHeight
-        );
+        .attr('d', shore.line);
       const port = terrain.append('g')
         .attr('class', 'port-sticker')
-        .attr('transform', 'translate(55,34) scale(1.25)');
+        .attr(
+          'transform',
+          'translate(58,' + (contentTop - 8) + ') scale(1.25)'
+        );
       port.append('path')
         .attr('class', 'port-outline')
         .attr('d', 'M 2 21 L 4 9 L 7 6 L 7 2 L 12 2 L 12 6 L 15 9 L 17 21 Z');
@@ -790,22 +815,26 @@ export class ExperienceMapPanel implements vscode.Disposable {
         .attr('class', 'ocean-current')
         .attr(
           'd',
-          'M 25 ' + (graphHeight * .22) +
-          ' C ' + (graphWidth * .28) + ' ' + (graphHeight * .08) +
-          ', ' + (graphWidth * .68) + ' ' + (graphHeight * .3) +
-          ', ' + (graphWidth - 30) + ' ' + (graphHeight * .16)
+          'M 28 ' + (contentTop + 18) +
+          ' C ' + (worldWidth * .28) + ' ' + (contentTop - 54) +
+          ', ' + (worldWidth * .68) + ' ' + (contentTop + 62) +
+          ', ' + (worldWidth - 30) + ' ' + (contentTop - 6)
         );
       terrain.append('path')
         .attr('class', 'ocean-current')
         .attr(
           'd',
-          'M 20 ' + (graphHeight * .76) +
-          ' C ' + (graphWidth * .34) + ' ' + (graphHeight * .9) +
-          ', ' + (graphWidth * .7) + ' ' + (graphHeight * .58) +
-          ', ' + (graphWidth - 25) + ' ' + (graphHeight * .72)
+          'M 24 ' + (contentBottom + 54) +
+          ' C ' + (worldWidth * .34) + ' ' + (contentBottom + 118) +
+          ', ' + (worldWidth * .7) + ' ' + (contentBottom + 8) +
+          ', ' + (worldWidth - 25) + ' ' + (contentBottom + 72)
         );
       zoomBehavior = d3.zoom()
-        .scaleExtent([.8, 2.4])
+        .scaleExtent([minimumReadableScale, 2.4])
+        .translateExtent([
+          [-220, shoreTop],
+          [worldWidth + 320, shoreBottom]
+        ])
         .on('zoom', (event) => graphLayer.attr('transform', event.transform));
       graph.call(zoomBehavior).on('dblclick.zoom', null);
 
@@ -845,6 +874,32 @@ export class ExperienceMapPanel implements vscode.Disposable {
       const selectedFocus = selectedTree
         ? lineageFocusForTree(selectedTree, selectedSessionId)
         : new Set();
+      const nodeClasses = ({
+        tree,
+        node,
+        mainPath,
+        routeIndexById,
+        currentId
+      }, baseClass, sessionClass, rootClass) => {
+        if (!node.data.session) {
+          return baseClass + ' ' + rootClass;
+        }
+        const session = node.data.session;
+        return (
+          baseClass + ' ' + sessionClass + ' ' +
+          routeClass(routeIndexById.get(session.id) ?? -1) + ' ' +
+          tone(session.verdict) +
+          (mainPath.has(session.id) ? ' main' : '') +
+          (session.id === currentId ? ' current' : '') +
+          (session.id === selectedSessionId ? ' selected' : '') +
+          (
+            selectedTree?.id === tree.id &&
+            !selectedFocus.has(session.id)
+              ? ' dimmed'
+              : ''
+          )
+        );
+      };
       const branchPath = ({ link }) => {
         const sx = link.source.screenX;
         const sy = link.source.screenY;
@@ -882,7 +937,8 @@ export class ExperienceMapPanel implements vscode.Disposable {
           (isDimmed ? ' dimmed' : '')
         );
       };
-      graphLayer.selectAll('.forest-path-bed')
+      const routeLayer = graphLayer.append('g').attr('class', 'route-layer');
+      routeLayer.selectAll('.forest-path-bed')
         .data(allLinks)
         .join('path')
         .attr('class', (item) =>
@@ -891,13 +947,15 @@ export class ExperienceMapPanel implements vscode.Disposable {
           (linkClass(item).includes('dimmed') ? ' dimmed' : '')
         )
         .attr('d', branchPath);
-      graphLayer.selectAll('.forest-edge')
+      routeLayer.selectAll('.forest-edge')
         .data(allLinks)
         .join('path')
         .attr('class', (item) => 'forest-edge ' + linkClass(item))
         .attr('pathLength', 1)
         .attr('d', branchPath);
-      graphLayer.selectAll('.channel-decoration')
+      const decorationLayer = graphLayer.append('g')
+        .attr('class', 'decoration-layer');
+      decorationLayer.selectAll('.channel-decoration')
         .data(allLinks)
         .join('g')
         .attr('aria-hidden', 'true')
@@ -932,33 +990,13 @@ export class ExperienceMapPanel implements vscode.Disposable {
           );
         });
 
-      const nodes = graphLayer.selectAll('.forest-node')
+      const markerLayer = graphLayer.append('g').attr('class', 'marker-layer');
+      const nodes = markerLayer.selectAll('.forest-node')
         .data(allNodes)
         .join('g')
-        .attr('class', ({
-          tree,
-          node,
-          mainPath,
-          routeIndexById,
-          currentId
-        }) => {
-          if (!node.data.session) return 'forest-node tree-node';
-          const session = node.data.session;
-          return (
-            'forest-node session-node ' +
-            routeClass(routeIndexById.get(session.id) ?? -1) + ' ' +
-            tone(session.verdict) +
-            (mainPath.has(session.id) ? ' main' : '') +
-            (session.id === currentId ? ' current' : '') +
-            (session.id === selectedSessionId ? ' selected' : '') +
-            (
-              selectedTree?.id === tree.id &&
-              !selectedFocus.has(session.id)
-                ? ' dimmed'
-                : ''
-            )
-          );
-        })
+        .attr('class', (item) =>
+          nodeClasses(item, 'forest-node', 'session-node', 'tree-node')
+        )
         .attr('transform', ({ node }) =>
           'translate(' + node.screenX + ',' + node.screenY + ')'
         )
@@ -968,7 +1006,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
             ? null
             : '共同港口，' + tree.title + ' 从这里出发'
         );
-      nodes.each(function({ tree, node, routeIndexById, currentId }) {
+      nodes.each(function({ tree, node, currentId }) {
         const selection = d3.select(this);
         if (!node.data.session) {
           selection.append('path')
@@ -977,20 +1015,6 @@ export class ExperienceMapPanel implements vscode.Disposable {
           selection.append('path')
             .attr('class', 'trail-start-flag')
             .attr('d', 'M 0 -39 L 20 -32 L 0 -23 Z');
-          const body = selection.append('foreignObject')
-            .attr('class', 'node-content')
-            .attr('x', -75)
-            .attr('y', -27)
-            .attr('width', 150)
-            .attr('height', 54)
-            .append('xhtml:div')
-            .attr('class', 'node-html');
-          body.append('div')
-            .attr('class', 'tree-node-title')
-            .text('共同港口');
-          body.append('div')
-            .attr('class', 'tree-node-meta')
-            .text(tree.title + ' · ' + tree.sessions.length + ' 航点');
           return;
         }
         const session = node.data.session;
@@ -1007,15 +1031,38 @@ export class ExperienceMapPanel implements vscode.Disposable {
         if (isCurrent) {
           selection.append('circle')
             .attr('class', 'journey-current-ring')
-            .attr('r', 16);
+            .attr('r', 18);
         }
-        if (isBlockedEnd) {
-          appendReef(selection, false);
-        } else if (isCurrent) {
+        selection.append('circle')
+          .attr('class', 'journey-sticker-shadow')
+          .attr('cx', 2.5)
+          .attr('cy', 3.5)
+          .attr('r', 15);
+        selection.append('circle')
+          .attr('class', 'journey-sticker-outline')
+          .attr('r', 15);
+        selection.append('circle')
+          .attr('class', 'journey-disc')
+          .attr('r', 11);
+        if (session.verdict === 'success') {
+          selection.append('path')
+            .attr('class', 'journey-status')
+            .attr('d', 'M -5 0 L -1 4 L 6 -5');
+        } else if (session.verdict === 'failure') {
+          selection.append('path')
+            .attr('class', 'journey-status')
+            .attr('d', 'M -5 -5 L 5 5 M 5 -5 L -5 5');
+        } else {
+          selection.append('circle')
+            .attr('class', 'journey-status')
+            .attr('r', 2.8);
+        }
+        if (isCurrent && !isBlockedEnd) {
           const boat = selection.append('g')
-            .attr('class', 'sailboat project-ship');
+            .attr('class', 'sailboat project-ship')
+            .attr('transform', 'translate(0,-2) scale(.9)');
           boat.append('title')
-            .text(tree.title + ' 项目船：当前位置');
+            .text(tree.title + ' 当前航点');
           boat.append('path')
             .attr('class', 'sailboat-sticker-outline')
             .attr('d', 'M -13 11 Q -6 7, 0 11 T 13 11');
@@ -1059,44 +1106,38 @@ export class ExperienceMapPanel implements vscode.Disposable {
                   : 'M -5 -5 L 5 5 M 5 -5 L -5 5'
               );
           }
-        } else {
-          selection.append('circle')
-            .attr('class', 'journey-sticker-shadow')
-            .attr('cx', 2.5)
-            .attr('cy', 3.5)
-            .attr('r', 15);
-          selection.append('circle')
-            .attr('class', 'journey-sticker-outline')
-            .attr('r', 15);
-          selection.append('circle')
-            .attr('class', 'journey-disc')
-            .attr('r', 11);
-          if (session.verdict === 'success') {
-            selection.append('path')
-              .attr('class', 'journey-status')
-              .attr('d', 'M -5 0 L -1 4 L 6 -5');
-          } else if (session.verdict === 'failure') {
-            selection.append('path')
-              .attr('class', 'journey-status')
-              .attr('d', 'M -5 -5 L 5 5 M 5 -5 L -5 5');
-          } else {
-            selection.append('circle')
-              .attr('class', 'journey-status')
-              .attr('r', 2.8);
-          }
-          if (isFailure) {
-            appendReef(selection, true);
-          }
         }
-        const body = selection.append('foreignObject')
-          .attr('x', -74)
-          .attr('y', 16)
-          .attr('width', 148)
-          .attr('height', 46)
-          .append('xhtml:button')
-          .attr('class', 'node-hit')
-          .attr(
-            'aria-label',
+        if (isBlockedEnd) {
+          appendReef(selection, false);
+        } else if (isFailure) {
+          appendReef(selection, true);
+        }
+        selection.append('title').text(session.title);
+      });
+
+      const cardLayer = graphLayer.append('g').attr('class', 'card-layer');
+      const cards = cardLayer.selectAll('.forest-card')
+        .data(allNodes)
+        .join('g')
+        .attr('class', (item) =>
+          nodeClasses(
+            item,
+            'forest-card',
+            'session-card',
+            'tree-card'
+          )
+        )
+        .attr('transform', ({ node }) =>
+          'translate(' + node.screenX + ',' + node.screenY + ')'
+        )
+        .attr('role', ({ node }) => node.data.session ? 'button' : 'img')
+        .attr('tabindex', ({ node }) => node.data.session ? 0 : null)
+        .attr('aria-label', ({ tree, node }) => {
+          const session = node.data.session;
+          if (!session) {
+            return '共同港口，' + tree.title + ' 从这里出发';
+          }
+          return (
             (session.shortTitle || session.title) +
             (
               session.verdict === 'success'
@@ -1105,31 +1146,102 @@ export class ExperienceMapPanel implements vscode.Disposable {
                   ? '，错误路线，此路不通'
                   : '，尚未评价'
             )
-          )
-          .attr('aria-pressed', String(session.id === selectedSessionId))
-          .attr('data-session-id', session.id)
-          .attr('data-focus-key', 'session:' + session.id)
-          .attr(
-            'data-route-index',
-            String(routeIndexById.get(session.id))
-          )
-          .on('click', (event) => {
-            event.stopPropagation();
-            selectSession(session, nodeById);
-          });
-        body.append('div')
-          .attr('class', 'node-title')
-          .text(session.shortTitle || session.title);
+          );
+        })
+        .attr('aria-pressed', ({ node }) =>
+          node.data.session
+            ? String(node.data.session.id === selectedSessionId)
+            : null
+        )
+        .attr('data-session-id', ({ node }) =>
+          node.data.session?.id || null
+        )
+        .attr('data-focus-key', ({ node }) =>
+          node.data.session ? 'session:' + node.data.session.id : null
+        )
+        .attr('data-route-index', ({ node, routeIndexById }) =>
+          node.data.session
+            ? String(routeIndexById.get(node.data.session.id))
+            : null
+        )
+        .on('click', (event, item) => {
+          const session = item.node.data.session;
+          if (!session) return;
+          event.stopPropagation();
+          selectSession(session, nodeById);
+        })
+        .on('keydown', (event, item) => {
+          const session = item.node.data.session;
+          if (!session || (event.key !== 'Enter' && event.key !== ' ')) {
+            return;
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          selectSession(session, nodeById);
+        });
+      cards.each(function({ tree, node }) {
+        const selection = d3.select(this);
+        selection.append('rect')
+          .attr('class', 'node-card-shadow')
+          .attr('x', -nodeCardWidth / 2 + 3)
+          .attr('y', nodeCardTop + 4)
+          .attr('width', nodeCardWidth)
+          .attr('height', nodeCardHeight)
+          .attr('rx', 7);
+        selection.append('rect')
+          .attr('class', 'node-card-bg')
+          .attr('x', -nodeCardWidth / 2)
+          .attr('y', nodeCardTop)
+          .attr('width', nodeCardWidth)
+          .attr('height', nodeCardHeight)
+          .attr('rx', 7);
+        const session = node.data.session;
+        if (!session) {
+          selection.append('text')
+            .attr('class', 'tree-node-title')
+            .attr('x', 0)
+            .attr('y', nodeCardTop + 24)
+            .text('共同港口');
+          selection.append('text')
+            .attr('class', 'tree-node-meta')
+            .attr('x', 0)
+            .attr('y', nodeCardTop + 43)
+            .text(tree.title + ' · ' + tree.sessions.length + ' 航点');
+          return;
+        }
+        selection.append('rect')
+          .attr('class', 'node-card-accent')
+          .attr('x', -nodeCardWidth / 2 + 7)
+          .attr('y', nodeCardTop + 10)
+          .attr('width', 5)
+          .attr('height', nodeCardHeight - 20)
+          .attr('rx', 2.5);
+        const lines = cardTitleLines(session.shortTitle || session.title);
+        const title = selection.append('text')
+          .attr('class', 'node-title');
+        lines.forEach((line, index) => {
+          title.append('tspan')
+            .attr('x', -nodeCardWidth / 2 + 19)
+            .attr(
+              'y',
+              nodeCardTop +
+              (lines.length === 1 ? 34 : 24 + index * 17)
+            )
+            .text(line);
+        });
         selection.append('title').text(session.title);
       });
 
       if (query) {
-        nodes.classed('dimmed', ({ tree, node }) => {
+        const applySearchDimming = (selection) =>
+          selection.classed('dimmed', ({ tree, node }) => {
           if (!node.data.session) {
             return !tree.title.toLocaleLowerCase('zh-CN').includes(query);
           }
           return !sessionMatches(node.data.session, nodeById, query);
         });
+        applySearchDimming(nodes);
+        applySearchDimming(cards);
       }
       if (preserveViewport) {
         graph.call(zoomBehavior.transform, previousTransform);
@@ -1137,9 +1249,8 @@ export class ExperienceMapPanel implements vscode.Disposable {
         fitGraph(
           width,
           height,
-          graphWidth,
-          graphHeight,
-          .8
+          contentBounds,
+          minimumReadableScale
         );
       }
       viewportSignature = nextViewportSignature;
@@ -1520,13 +1631,13 @@ export class ExperienceMapPanel implements vscode.Disposable {
       selectedSessionId = '';
       inspector.classList.remove('open');
       inspector.innerHTML = '<div class="inspector-empty">选择一个航点<br>查看按时间排列的全部对话</div>';
-      graphLayer?.selectAll('.forest-node')
+      graphLayer?.selectAll('.forest-node, .forest-card')
         .classed('selected', false)
         .classed('dimmed', false);
       graphLayer?.selectAll('.journey-selected-ring').remove();
       graphLayer?.selectAll('.forest-path-bed, .forest-edge')
         .classed('dimmed', false);
-      graphLayer?.selectAll('.node-hit')
+      graphLayer?.selectAll('.forest-card[data-session-id]')
         .attr('aria-pressed', 'false');
       if (restoreFocus && lastFocusedSessionId) {
         const target = document.querySelector(
@@ -1634,15 +1745,106 @@ export class ExperienceMapPanel implements vscode.Disposable {
       const last = shortDate(end);
       return first === last ? first : first + '–' + last;
     }
-    function fitGraph(width, height, graphWidth, graphHeight, minimumScale) {
+
+    function cardTitleLines(value) {
+      const characters = Array.from(
+        String(value || '').trim().split(' ').filter(Boolean).join(' ')
+      );
+      const maxUnits = 20;
+      const lines = [];
+      let cursor = 0;
+      while (cursor < characters.length && lines.length < 2) {
+        let units = 0;
+        let end = cursor;
+        let lastSpace = -1;
+        while (end < characters.length) {
+          const character = characters[end];
+          const nextUnits = units + (
+            /[\u3400-\u9fff\uff00-\uffef]/.test(character) ? 2 : 1
+          );
+          if (nextUnits > maxUnits) break;
+          units = nextUnits;
+          if (character === ' ') lastSpace = end;
+          end += 1;
+        }
+        if (
+          end < characters.length &&
+          lastSpace >= cursor + Math.floor((end - cursor) * .55)
+        ) {
+          end = lastSpace;
+        }
+        if (end <= cursor) end = cursor + 1;
+        lines.push(characters.slice(cursor, end).join('').trim());
+        cursor = end;
+        while (characters[cursor] === ' ') cursor += 1;
+      }
+      if (cursor < characters.length && lines.length) {
+        const last = Array.from(lines[lines.length - 1]);
+        while (last.length > 1 && visualUnits(last.join('') + '…') > maxUnits) {
+          last.pop();
+        }
+        lines[lines.length - 1] = last.join('').trimEnd() + '…';
+      }
+      return lines.length ? lines : ['未命名航点'];
+    }
+
+    function visualUnits(value) {
+      return Array.from(value).reduce(
+        (sum, character) =>
+          sum + (/[\u3400-\u9fff\uff00-\uffef]/.test(character) ? 2 : 1),
+        0
+      );
+    }
+
+    function coastlineGeometry(top, bottom) {
+      const step = 180;
+      const shoreX = (y) =>
+        92 + Math.sin(y / 205) * 7 + Math.sin(y / 79) * 3;
+      let y = top;
+      let x = shoreX(y);
+      let line = 'M ' + x + ' ' + y;
+      let fill = 'M 0 ' + top + ' L ' + x + ' ' + y;
+      while (y < bottom) {
+        const nextY = Math.min(bottom, y + step);
+        const nextX = shoreX(nextY);
+        const delta = nextY - y;
+        const segment =
+          ' C ' + (x + 5) + ' ' + (y + delta * .34) +
+          ', ' + (nextX - 5) + ' ' + (y + delta * .66) +
+          ', ' + nextX + ' ' + nextY;
+        line += segment;
+        fill += segment;
+        y = nextY;
+        x = nextX;
+      }
+      return {
+        line,
+        fill: fill + ' L 0 ' + bottom + ' Z'
+      };
+    }
+
+    function fitGraph(width, height, bounds, minimumScale) {
+      const sideInset = 28;
+      const topInset = 86;
+      const bottomInset = 28;
+      const contentWidth = Math.max(1, bounds.right - bounds.left);
+      const contentHeight = Math.max(1, bounds.bottom - bounds.top);
+      const availableWidth = Math.max(1, width - sideInset * 2);
+      const availableHeight = Math.max(1, height - topInset - bottomInset);
       const scale = Math.max(
         minimumScale,
-        Math.min(.94, width / graphWidth, height / graphHeight)
+        Math.min(
+          .96,
+          availableWidth / contentWidth,
+          availableHeight / contentHeight
+        )
       );
-      const x = graphWidth * scale > width
-        ? 20
-        : Math.max(18, (width - graphWidth * scale) / 2);
-      const y = Math.max(26, (height - graphHeight * scale) / 2);
+      const x = sideInset - bounds.left * scale;
+      const y = contentHeight * scale > availableHeight
+        ? topInset - bounds.top * scale
+        : topInset +
+          (availableHeight - contentHeight * scale) / 2 -
+          bounds.top * scale;
       graph.call(
         zoomBehavior.transform,
         d3.zoomIdentity.translate(x, y).scale(scale)

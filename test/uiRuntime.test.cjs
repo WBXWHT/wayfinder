@@ -26,6 +26,8 @@ test(
     const mapPath = path.join(temp, "map.html");
     const companionStatePath = path.join(temp, "companion-timeline.json");
     const companionPath = path.join(temp, "companion.html");
+    const singleStatePath = path.join(temp, "single-timeline.json");
+    const singleCompanionPath = path.join(temp, "single-companion.html");
     const userDataDir = path.join(temp, "chrome");
     const state = fixtureState();
     fs.writeFileSync(statePath, JSON.stringify(state));
@@ -52,6 +54,12 @@ test(
       }
     };
     fs.writeFileSync(companionStatePath, JSON.stringify(companionState));
+    const singleState = {
+      ...fixtureState(),
+      nodes: [fixtureState().nodes[0]],
+      pending: {}
+    };
+    fs.writeFileSync(singleStatePath, JSON.stringify(singleState));
 
     const server = http.createServer((request, response) => {
       const pathname = new URL(request.url, "http://localhost").pathname;
@@ -62,6 +70,8 @@ test(
             ? mapPath
             : pathname === "/companion.html"
                 ? companionPath
+                : pathname === "/single-companion.html"
+                  ? singleCompanionPath
                 : pathname === "/codicon.ttf"
                   ? path.join(temp, "codicon.ttf")
                   : path.join(root, pathname.replace(/^\/+/, ""));
@@ -117,6 +127,18 @@ test(
       {
         cwd: root,
         env: { ...process.env, WAYFINDER_PREVIEW_PROJECTS: "2" },
+        stdio: "pipe"
+      }
+    );
+    childProcess.execFileSync(
+      process.execPath,
+      [
+        path.join(root, "scripts/generate-companion-preview.cjs"),
+        singleStatePath,
+        singleCompanionPath
+      ],
+      {
+        cwd: root,
         stdio: "pipe"
       }
     );
@@ -557,12 +579,52 @@ test(
           projects: document.querySelectorAll('.tree-node').length,
           reefs: document.querySelectorAll('.reef-sticker').length,
           ships: document.querySelectorAll('.project-ship').length,
+          cards: document.querySelectorAll('.session-card').length,
+          currentCards: document.querySelectorAll(
+            '.session-card.current'
+          ).length,
           cardWidth: document.querySelector(
-            '.session-node foreignObject'
+            '.session-card .node-card-bg'
           )?.getAttribute('width'),
           cardHeight: document.querySelector(
-            '.session-node foreignObject'
+            '.session-card .node-card-bg'
           )?.getAttribute('height'),
+          foreignObjects: document.querySelectorAll('foreignObject').length,
+          cardCollisions: (() => {
+            const cards = [...document.querySelectorAll(
+              '.session-card .node-card-bg'
+            )].map((card) => card.getBoundingClientRect());
+            let collisions = 0;
+            for (let left = 0; left < cards.length; left += 1) {
+              for (let right = left + 1; right < cards.length; right += 1) {
+                const a = cards[left];
+                const b = cards[right];
+                if (
+                  a.left < b.right - .5 &&
+                  a.right > b.left + .5 &&
+                  a.top < b.bottom - .5 &&
+                  a.bottom > b.top + .5
+                ) {
+                  collisions += 1;
+                }
+              }
+            }
+            return collisions;
+          })(),
+          coastCoversCanvas: (() => {
+            const coast = document.querySelector(
+              '.shore-line'
+            )?.getBoundingClientRect();
+            const canvas = document.querySelector(
+              '.canvas-shell'
+            )?.getBoundingClientRect();
+            return Boolean(
+              coast &&
+              canvas &&
+              coast.top <= canvas.top &&
+              coast.bottom >= canvas.bottom
+            );
+          })(),
           cardMetadata: document.querySelectorAll(
             '.node-kicker, .node-foot'
           ).length,
@@ -612,8 +674,13 @@ test(
       assert.equal(map.projects, 1);
       assert.equal(map.reefs, 1);
       assert.equal(map.ships, 1);
-      assert.equal(map.cardWidth, "148");
-      assert.equal(map.cardHeight, "46");
+      assert.equal(map.cards, 9);
+      assert.equal(map.currentCards, 1);
+      assert.equal(map.cardWidth, "164");
+      assert.equal(map.cardHeight, "58");
+      assert.equal(map.foreignObjects, 0);
+      assert.equal(map.cardCollisions, 0);
+      assert.equal(map.coastCoversCanvas, true);
       assert.equal(map.cardMetadata, 0);
       assert.equal(map.routeChannels, 8);
       assert.equal(new Set(map.routeColors).size, 3);
@@ -633,7 +700,8 @@ test(
 
       await cdp.send("Runtime.evaluate", {
         expression:
-          "document.querySelector('.node-hit[aria-label*=\"错误路线\"]')?.click()"
+          "document.querySelector('.session-card[aria-label*=\"错误路线\"]')" +
+          "?.dispatchEvent(new MouseEvent('click', { bubbles: true }))"
       });
       await delay(120);
       assert.equal(
@@ -681,8 +749,11 @@ test(
       });
       await delay(120);
       assert.equal(
-        await evaluate(cdp, "document.activeElement?.className"),
-        "node-hit"
+        await evaluate(
+          cdp,
+          "document.activeElement?.classList.contains('session-card')"
+        ),
+        true
       );
 
       await cdp.send("Emulation.setEmulatedMedia", {
@@ -751,7 +822,7 @@ test(
       assert.equal(desktopCompanion.sidebarWidth, 236);
       assert.equal(desktopCompanion.sidebarLeft, 0);
       assert.equal(desktopCompanion.projectToggleDisplay, "none");
-      assert.equal(desktopCompanion.projectMeta, "11 轮记录");
+      assert.equal(desktopCompanion.projectMeta, "11 轮 · tmp");
       assert.equal(desktopCompanion.projectCount, 2);
       assert.ok(desktopCompanion.mapNodes > 1);
       assert.equal(desktopCompanion.hasLegacyHookCopy, false);
@@ -858,10 +929,13 @@ test(
         cdp,
         "document.querySelector('#canvasTitle')?.textContent.includes('搜索结果')"
       );
-      await waitForExpression(cdp, "document.querySelectorAll('.node-hit').length > 0");
+      await waitForExpression(
+        cdp,
+        "document.querySelectorAll('.session-card').length > 0"
+      );
       await cdp.send("Runtime.evaluate", {
         expression: `(() => {
-          const target = document.querySelector('.node-hit');
+          const target = document.querySelector('.session-card');
           const sessionId = target?.dataset.sessionId;
           const session = forest.trees
             .flatMap((tree) => tree.sessions)
@@ -879,7 +953,7 @@ test(
               deletions: 3
             }]
           });
-          target?.click();
+          target?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         })()`
       });
       await waitForExpression(
@@ -894,6 +968,55 @@ test(
         await evaluate(cdp, "document.querySelector('.detail-file')?.textContent"),
         /src\/sessionCollector\.ts.*\+12.*−3/
       );
+
+      await cdp.send("Emulation.setDeviceMetricsOverride", {
+        width: 1440,
+        height: 900,
+        deviceScaleFactor: 1,
+        mobile: false
+      });
+      await cdp.send("Page.navigate", {
+        url: `${origin}/single-companion.html`
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelectorAll('.session-card').length === 1"
+      );
+      const singleVoyage = await evaluateJson(
+        cdp,
+        `({
+          markers: document.querySelectorAll('.session-node').length,
+          cards: document.querySelectorAll('.session-card').length,
+          currentCards: document.querySelectorAll(
+            '.session-card.current'
+          ).length,
+          foreignObjects: document.querySelectorAll('foreignObject').length,
+          label: document.querySelector(
+            '.session-card .node-title'
+          )?.textContent,
+          coastCoversCanvas: (() => {
+            const coast = document.querySelector(
+              '.shore-line'
+            )?.getBoundingClientRect();
+            const canvas = document.querySelector(
+              '.canvas-shell'
+            )?.getBoundingClientRect();
+            return Boolean(
+              coast &&
+              canvas &&
+              coast.top <= canvas.top &&
+              coast.bottom >= canvas.bottom
+            );
+          })()
+        })`
+      );
+      assert.equal(singleVoyage.markers, 1);
+      assert.equal(singleVoyage.cards, 1);
+      assert.equal(singleVoyage.currentCards, 1);
+      assert.equal(singleVoyage.foreignObjects, 0);
+      assert.ok(singleVoyage.label.length > 0);
+      assert.equal(singleVoyage.coastCoversCanvas, true);
+
       assert.deepEqual(exceptions, []);
       cdp.close();
     } catch (error) {

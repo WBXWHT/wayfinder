@@ -57,6 +57,29 @@ Claude Code / Codex local JSONL transcripts
 - Local rules mark only evidence-backed failure candidates or conflicts. Cloud
   model analysis remains disabled.
 
+## Map Hierarchy
+
+Wayfinder keeps three separate concepts:
+
+1. **Project map**: one exact normalized working directory (`cwd/root`) becomes
+   one item in the project sidebar and one map under `~/.wayfinder/projects`.
+2. **Voyage**: related goals within that project are grouped by structural,
+   file, topic, and time signals. A new unrelated goal starts another voyage
+   from the same port.
+3. **Waypoint**: one or more adjacent turns pursuing the same sub-goal become a
+   waypoint on that voyage.
+
+Codex and Claude Code are provenance, not map boundaries. Work from both tools
+can appear in the same project map and voyage. Wayfinder does not merge two
+different working directories merely because their text looks similar; doing
+so would invent a relationship without reliable project evidence.
+
+The horizontal renderer reserves fixed geometry for every waypoint card. Cards
+are native SVG so WebKit and Chromium render the same structure. The current
+boat overlays a waypoint marker and never replaces its card. The coastline is
+overscanned beyond the navigable vertical range, and branch spacing moves whole
+subtrees rather than individual cards.
+
 ## Privacy And Cloud Analysis Boundary
 
 Complete conversations, workspace roots, snapshots, and source files remain

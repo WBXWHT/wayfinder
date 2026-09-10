@@ -247,9 +247,12 @@ const desktopStyles = `
   }
   .project-meta {
     display: block;
+    overflow: hidden;
     margin-top: 2px;
     color: var(--muted);
     font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .project-empty {
     padding: 18px 10px;

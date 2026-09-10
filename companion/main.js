@@ -80,7 +80,10 @@ function renderProjectList() {
     name.textContent = project.name;
     const meta = document.createElement("span");
     meta.className = "project-meta";
-    meta.textContent = `${project.nodeCount} 轮记录`;
+    const parent = projectParentLabel(project.root);
+    meta.textContent = parent
+      ? `${project.nodeCount} 轮 · ${parent}`
+      : `${project.nodeCount} 轮记录`;
     copy.append(name, meta);
     item.append(icon, copy);
 
@@ -98,6 +101,13 @@ function renderProjectList() {
   });
 
   projectSummary.textContent = `${projects.length} 个项目`;
+}
+
+function projectParentLabel(root) {
+  const parts = String(root || "")
+    .split(/[\\/]/)
+    .filter(Boolean);
+  return parts.length > 1 ? parts[parts.length - 2] : "";
 }
 
 async function loadActiveProject() {

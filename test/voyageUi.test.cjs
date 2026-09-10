@@ -109,6 +109,16 @@ test("full map scopes layout to one project and removes legacy project list", ()
     /\.forest-edge\.route-0,[\s\S]*?\.forest-edge\.route-3,[\s\S]*?--route-accent: var\(--route-blue\)/
   );
   assert.match(html, /routeClass\(routeIndexById\.get\(session\.id\) \?\? -1\)/);
+  assert.match(html, /const nodeCardWidth = 164/);
+  assert.match(html, /const nodeCardHeight = 58/);
+  assert.match(html, /const nodeVerticalPitch = 128/);
+  assert.match(html, /const nodeHorizontalPitch = 236/);
+  assert.match(html, /const minimumReadableScale = \.7935/);
+  assert.match(html, /coastlineGeometry\(shoreTop, shoreBottom\)/);
+  assert.match(html, /attr\('class', 'card-layer'\)/);
+  assert.match(html, /attr\('class', 'marker-layer'\)/);
+  assert.match(html, /attr\('class', 'node-card-bg'\)/);
+  assert.doesNotMatch(html, /foreignObject/);
   assert.doesNotMatch(html, /stageTone|stage-(sun|leaf|sky|bloom)/);
   assert.doesNotMatch(html, /node-kicker|node-foot/);
   assert.doesNotMatch(html, /<nav class="trees">/);
@@ -125,17 +135,18 @@ test("failed routes expose red, reef, and blocked-route semantics", () => {
     assert.match(html, /\.lineage-edge\.bad|\.forest-edge\.bad/);
     assert.match(html, /appendReef\(selection, true\)/);
     assert.match(html, /appendReef\(selection, false\)/);
-    assert.match(
-      html,
-      /if \(isBlockedEnd\) \{[\s\S]*?appendReef\(selection, false\);[\s\S]*?\} else if \(isCurrent\) \{/
-    );
     assert.match(html, /sailboat project-ship/);
-    assert.match(html, /项目船：当前位置/);
     assert.match(html, /错误路线，此路不通/);
     assert.match(html, /礁石：此路不通/);
     assert.match(html, /aria-pressed/);
     assert.match(html, /animation: none !important/);
   }
+  assert.match(map, /if \(isCurrent && !isBlockedEnd\) \{/);
+  assert.match(
+    map,
+    /if \(isBlockedEnd\) \{[\s\S]*?appendReef\(selection, false\)/
+  );
+  assert.match(map, /当前航点/);
 });
 
 test("sidebar preview resolves D3 from the repository media directory", () => {
