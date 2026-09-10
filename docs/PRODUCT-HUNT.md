@@ -24,10 +24,9 @@ to the app to inspect how a project evolved across tools and attempts.
 
 https://wayfinder-ai.pages.dev
 
-## Listing Update
+## Listing Status
 
-The live Product Hunt page still uses the earlier plugin-oriented description
-and links to GitHub. Update it to the copy and website above when Product Hunt
-editing is available. Existing launch media may remain if it shows the final
-voyage map; host, plugin, or terminal graphics should be replaced with a real
-Companion screenshot.
+The public listing URL and description were updated to the desktop-only
+positioning on 2026-09-10. Existing launch media remains valid where it shows
+the final voyage map; host, plugin, or terminal graphics should be replaced
+before a future relaunch.

@@ -11,7 +11,7 @@ Wayfinder is distributed only as a macOS desktop application.
 | Official website | https://wayfinder-ai.pages.dev | Live download site |
 | macOS Companion | https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.4 | Apple Silicon and Intel DMGs |
 | Source | https://github.com/WBXWHT/wayfinder | Public repository and CI |
-| Product Hunt | https://www.producthunt.com/products/wayfinder-5?launch=wayfinder-6 | Public listing; copy should be updated to the desktop-only positioning |
+| Product Hunt | https://www.producthunt.com/products/wayfinder-5?launch=wayfinder-6 | Public listing updated to the desktop-only positioning |
 | Issues | https://github.com/WBXWHT/wayfinder/issues | Public support channel |
 | Privacy | https://github.com/WBXWHT/wayfinder/blob/main/PRIVACY.md | Local-data policy |
 
