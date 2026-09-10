@@ -58,8 +58,11 @@ execFileSync(process.execPath, ["--experimental-sea-config", configPath], {
 fs.copyFileSync(process.execPath, binaryPath);
 fs.chmodSync(binaryPath, 0o755);
 const nodeRoot = path.dirname(path.dirname(process.execPath));
-const nodeLicense = ["LICENSE", "LICENSE.md"]
-  .map((name) => path.join(nodeRoot, name))
+const nodeLicense = [
+  process.env.WAYFINDER_NODE_LICENSE_PATH,
+  ...["LICENSE", "LICENSE.md"].map((name) => path.join(nodeRoot, name))
+]
+  .filter(Boolean)
   .find((candidate) => fs.existsSync(candidate));
 if (!nodeLicense) {
   throw new Error(`Cannot find the Node.js license beside ${process.execPath}`);

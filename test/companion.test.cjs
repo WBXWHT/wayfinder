@@ -167,6 +167,7 @@ test("zero-cost alpha workflow uses ad-hoc signing and a prerelease tag", () => 
   assert.match(workflow, /--bundles nsis/);
   assert.match(workflow, /Wayfinder-Alpha-\[version\]-Windows-x86_64/);
   assert.match(workflow, /Windows-x86_64\.exe/);
+  assert.match(workflow, /WAYFINDER_NODE_LICENSE_PATH/);
   assert.ok(
     workflow.indexOf("npm run build:companion:sidecar") <
       workflow.indexOf("cargo test --manifest-path"),
@@ -186,6 +187,7 @@ test("SEA build uses the lockfile-pinned local postject CLI", () => {
   assert.equal(metadata.devDependencies.postject, "1.0.0-alpha.6");
   assert.equal(metadata.devDependencies["spdx-license-list"], "6.12.0");
   assert.match(script, /require\.resolve\("postject\/dist\/cli\.js"\)/);
+  assert.match(script, /WAYFINDER_NODE_LICENSE_PATH/);
   assert.doesNotMatch(script, /npx|--yes/);
 });
 
