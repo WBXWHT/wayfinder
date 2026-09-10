@@ -540,8 +540,15 @@ export class ExperienceMapPanel implements vscode.Disposable {
     .detail-turn.bad .detail-turn-dot { background: var(--bad); opacity: 1; }
     .detail-turn-title { font-size: 11px; font-weight: 600; line-height: 1.45; }
     .detail-turn-time { color: var(--muted); font-size: 9px; white-space: nowrap; }
+    .detail-source { margin: 6px 0 0 14px; color: var(--muted); font-size: 9px; }
     .detail-text { margin: 7px 0 0 14px; overflow-wrap: anywhere; color: var(--muted); font-size: 10px; line-height: 1.55; white-space: pre-wrap; }
     .detail-note { margin: 8px 0 0 14px; padding-left: 8px; border-left: 2px solid var(--accent); font-size: 10px; line-height: 1.5; }
+    .detail-files { display: grid; gap: 4px; margin: 8px 0 0 14px; }
+    .detail-file { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; color: var(--muted); font-size: 9px; }
+    .detail-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .detail-file-count { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .detail-file-add { color: var(--good); }
+    .detail-file-delete { color: var(--bad); }
     .detail-actions { display: flex; justify-content: flex-end; gap: 2px; margin-top: 7px; }
     @keyframes inspector-in { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
     @keyframes channel-reveal { from { opacity: 0; } to { opacity: 1; } }
@@ -647,14 +654,14 @@ export class ExperienceMapPanel implements vscode.Disposable {
       const activeTree = forest.trees[activeIndex];
       projectPrevious.disabled = activeIndex === 0;
       projectPrevious.title = projectPrevious.disabled
-        ? '已经是第一个项目'
-        : '上一个项目：' + forest.trees[activeIndex - 1].title;
+        ? '已经是第一条航程'
+        : '上一条航程：' + forest.trees[activeIndex - 1].title;
       projectPrevious.setAttribute('aria-label', projectPrevious.title);
       projectNext.disabled =
         !activeTree || activeIndex === forest.trees.length - 1;
       projectNext.title = projectNext.disabled
-        ? '已经是最后一个项目'
-        : '下一个项目：' + forest.trees[activeIndex + 1].title;
+        ? '已经是最后一条航程'
+        : '下一条航程：' + forest.trees[activeIndex + 1].title;
       projectNext.setAttribute('aria-label', projectNext.title);
       const nextViewportSignature = activeTreeId + '|' + query;
       const preserveViewport =
@@ -1397,6 +1404,18 @@ export class ExperienceMapPanel implements vscode.Disposable {
       time.textContent = shortTime(node.completedAt);
       head.append(dot, title, time);
       section.append(head);
+      if (node.kind === 'collected') {
+        const source = document.createElement('div');
+        source.className = 'detail-source';
+        source.textContent =
+          '自动记录 · ' +
+          (node.sourceHost === 'claude'
+            ? 'Claude Code'
+            : node.sourceHost === 'codex'
+              ? 'Codex'
+              : '本机会话');
+        section.append(source);
+      }
       if (node.response) {
         const text = document.createElement('p');
         text.className = 'detail-text';
@@ -1409,61 +1428,91 @@ export class ExperienceMapPanel implements vscode.Disposable {
         note.textContent = node.note;
         section.append(note);
       }
-      const actions = document.createElement('div');
-      actions.className = 'detail-actions';
-      if (node.kind !== 'imported') {
-        actions.append(actionButton(
-          'diff',
-          '查看 Diff',
-          () => send('diff', { nodeId: node.id }),
-          '',
-          undefined,
-          node.id + ':diff'
-        ));
+      if (node.kind === 'collected' && node.files?.length) {
+        const files = document.createElement('div');
+        files.className = 'detail-files';
+        node.files.forEach((file) => {
+          const row = document.createElement('div');
+          row.className = 'detail-file';
+          const name = document.createElement('span');
+          name.className = 'detail-file-name';
+          name.textContent = file.path;
+          name.title = file.path;
+          const count = document.createElement('span');
+          count.className = 'detail-file-count';
+          count.innerHTML =
+            '<span class="detail-file-add">+' +
+            file.additions +
+            '</span> <span class="detail-file-delete">−' +
+            file.deletions +
+            '</span>';
+          row.append(name, count);
+          files.append(row);
+        });
+        section.append(files);
       }
-      actions.append(
-        actionButton(
-          'pass',
-          node.verdict === 'success' ? '取消正确标记' : '标记正确',
-          () => send('verdict', {
-          nodeId: node.id,
-          verdict: node.verdict === 'success' ? undefined : 'success'
-          }),
-          node.verdict === 'success' ? 'active-good' : '',
-          node.verdict === 'success',
-          node.id + ':pass'
-        ),
-        actionButton(
-          'error',
-          node.verdict === 'failure' ? '取消错误标记' : '标记错误',
-          () => send('verdict', {
-          nodeId: node.id,
-          verdict: node.verdict === 'failure' ? undefined : 'failure'
-          }),
-          node.verdict === 'failure' ? 'active-bad' : '',
-          node.verdict === 'failure',
-          node.id + ':error'
-        ),
-        actionButton(
-          'edit',
-          '记录经验',
-          () => send('note', { nodeId: node.id }),
-          '',
-          undefined,
-          node.id + ':edit'
-        )
-      );
-      if (node.kind !== 'imported') {
-        actions.append(actionButton(
-          'debug-restart',
-          '从这里重来',
-          () => send('restore', { nodeId: node.id }),
-          '',
-          undefined,
-          node.id + ':restore'
-        ));
+      if (!globalThis.__WAYFINDER_DESKTOP__) {
+        const actions = document.createElement('div');
+        actions.className = 'detail-actions';
+        if (
+          node.kind !== 'imported' &&
+          node.kind !== 'collected' &&
+          node.files?.length &&
+          node.snapshotBefore !== node.snapshotAfter
+        ) {
+          actions.append(actionButton(
+            'diff',
+            '查看 Diff',
+            () => send('diff', { nodeId: node.id }),
+            '',
+            undefined,
+            node.id + ':diff'
+          ));
+        }
+        actions.append(
+          actionButton(
+            'pass',
+            node.verdict === 'success' ? '取消正确标记' : '标记正确',
+            () => send('verdict', {
+            nodeId: node.id,
+            verdict: node.verdict === 'success' ? undefined : 'success'
+            }),
+            node.verdict === 'success' ? 'active-good' : '',
+            node.verdict === 'success',
+            node.id + ':pass'
+          ),
+          actionButton(
+            'error',
+            node.verdict === 'failure' ? '取消错误标记' : '标记错误',
+            () => send('verdict', {
+            nodeId: node.id,
+            verdict: node.verdict === 'failure' ? undefined : 'failure'
+            }),
+            node.verdict === 'failure' ? 'active-bad' : '',
+            node.verdict === 'failure',
+            node.id + ':error'
+          ),
+          actionButton(
+            'edit',
+            '记录经验',
+            () => send('note', { nodeId: node.id }),
+            '',
+            undefined,
+            node.id + ':edit'
+          )
+        );
+        if (node.kind !== 'imported' && node.kind !== 'collected') {
+          actions.append(actionButton(
+            'debug-restart',
+            '从这里重来',
+            () => send('restore', { nodeId: node.id }),
+            '',
+            undefined,
+            node.id + ':restore'
+          ));
+        }
+        section.append(actions);
       }
-      section.append(actions);
       return section;
     }
 
@@ -1625,7 +1674,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
         projectName +
         ' · ' +
         forest.trees.length +
-        ' 个项目 · ' +
+        ' 条航程 · ' +
         forest.nodeCount +
         ' 轮';
       renderGraph();

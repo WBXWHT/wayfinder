@@ -33,6 +33,12 @@ export async function runCli(): Promise<void> {
     await runMcpServer();
     return;
   }
+  if (command === "collect") {
+    const { collectSessions } = await import("./sessionCollector");
+    const result = await collectSessions();
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+    return;
+  }
   if (command === "connect" || command === "disconnect") {
     const host = args[0];
     if (host !== "claude" && host !== "codex") {
@@ -121,6 +127,7 @@ export async function runCli(): Promise<void> {
     "       wayfinder <connect|disconnect> <claude|codex>\n" +
     "       wayfinder <doctor|map> [--root <project>]\n" +
     "       wayfinder doctor --global\n" +
+    "       wayfinder collect\n" +
     "       wayfinder --version\n"
   );
 }

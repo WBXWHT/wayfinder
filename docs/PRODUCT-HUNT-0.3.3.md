@@ -60,15 +60,13 @@ verified reviews, with extra weight on detailed and founder reviews.
 
 ## Launch Status
 
-Scheduled successfully for September 9, 2026 (Pacific Time).
-
-Pre-launch dashboard:
-
-https://www.producthunt.com/products/wayfinder-5/wayfinder-6/prelaunch
-
-Public product route:
+The public product page is live:
 
 https://www.producthunt.com/products/wayfinder-5?launch=wayfinder-6
+
+The live listing still links to the GitHub repository and describes the earlier
+AI-coding surfaces. Update it to use `https://wayfinder-ai.pages.dev` and the
+current Companion positioning when Product Hunt editing is available.
 
 Submitted assets:
 

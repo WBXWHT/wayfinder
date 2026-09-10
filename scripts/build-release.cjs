@@ -104,7 +104,7 @@ fs.mkdirSync(path.join(channels, "bucket"), { recursive: true });
 fs.writeFileSync(path.join(channels, "Formula", "wayfinder.rb"),
   `class Wayfinder < Formula
   desc "Local voyage maps for AI coding sessions"
-  homepage "https://github.com/WBXWHT/wayfinder"
+  homepage "https://wayfinder-ai.pages.dev"
   url "${base}/${coreTar}"
   sha256 "${sha(coreTar)}"
   license "MIT"
@@ -134,7 +134,7 @@ end
 `);
 json(path.join(channels, "bucket", "wayfinder.json"), {
   version, description: metadata.description,
-  homepage: "https://github.com/WBXWHT/wayfinder",
+  homepage: "https://wayfinder-ai.pages.dev",
   license: "MIT", depends: ["nodejs-lts", "git"],
   url: `${base}/${coreZip}`, hash: sha(coreZip),
   extract_dir: "wayfinder",

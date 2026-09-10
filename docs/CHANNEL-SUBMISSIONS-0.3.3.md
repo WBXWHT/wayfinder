@@ -169,18 +169,15 @@ three negative test cases are documented in
 
 ## Product Hunt / Orbit Awards
 
-Status: successfully scheduled for September 9, 2026 (Pacific Time). Product
-Hunt reported the required submission fields as 100% complete.
-
-Pre-launch dashboard:
-
-https://www.producthunt.com/products/wayfinder-5/wayfinder-6/prelaunch
+Status: public launch page live. The listing still points to the GitHub
+repository and uses the earlier AI-coding positioning; update it to the
+official website and Companion copy when Product Hunt editing is available.
 
 Public product route:
 
 https://www.producthunt.com/products/wayfinder-5?launch=wayfinder-6
 
-Public pre-launch discussion:
+Public discussion:
 
 https://www.producthunt.com/p/wayfinder-5/what-part-of-your-ai-workflow-do-you-wish-you-could-revisit
 

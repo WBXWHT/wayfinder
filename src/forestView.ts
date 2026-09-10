@@ -451,6 +451,13 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
     .turn.selected .turn-detail { display: block; animation: reveal 140ms ease-out; }
     .detail-label { margin: 7px 0 3px; color: var(--muted); font-size: 9px; font-weight: 650; }
     .detail-text { margin: 0; overflow-wrap: anywhere; font-size: 10px; line-height: 1.55; white-space: pre-wrap; }
+    .detail-source { margin: 0 0 7px; color: var(--muted); font-size: 9px; }
+    .detail-files { display: grid; gap: 4px; margin-top: 8px; }
+    .detail-file { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; color: var(--muted); font-size: 9px; }
+    .detail-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .detail-file-count { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .detail-file-add { color: var(--good); }
+    .detail-file-delete { color: var(--bad); }
     .note { margin-top: 8px; padding-left: 8px; border-left: 2px solid var(--accent); font-size: 10px; line-height: 1.5; }
     .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px; margin-top: 7px; }
     .icon-button {
@@ -2342,7 +2349,18 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
         ? '有经验'
         : node.kind === 'imported'
           ? '历史'
+          : node.kind === 'collected'
+            ? '自动记录'
           : validationLabel(node);
+      if (node.kind === 'collected') {
+        evidence.title =
+          '自动记录自 ' +
+          (node.sourceHost === 'claude'
+            ? 'Claude Code'
+            : node.sourceHost === 'codex'
+              ? 'Codex'
+              : '本机会话');
+      }
       meta.append(time, evidence);
       copy.append(title, meta);
       main.append(marker, copy);
@@ -2353,6 +2371,18 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
       });
       const detail = document.createElement('div');
       detail.className = 'turn-detail';
+      if (node.kind === 'collected') {
+        const source = document.createElement('div');
+        source.className = 'detail-source';
+        source.textContent =
+          '自动记录 · ' +
+          (node.sourceHost === 'claude'
+            ? 'Claude Code'
+            : node.sourceHost === 'codex'
+              ? 'Codex'
+              : '本机会话');
+        detail.append(source);
+      }
       if (node.response) {
         const assistant = node.sourceHost === 'claude'
           ? 'Claude 回复'
@@ -2369,9 +2399,38 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
         note.textContent = node.note;
         detail.append(note);
       }
+      if (node.kind === 'collected' && node.files?.length) {
+        const files = document.createElement('div');
+        files.className = 'detail-files';
+        node.files.forEach((file) => {
+          const row = document.createElement('div');
+          row.className = 'detail-file';
+          const name = document.createElement('span');
+          name.className = 'detail-file-name';
+          name.textContent = file.path;
+          name.title = file.path;
+          const count = document.createElement('span');
+          count.className = 'detail-file-count';
+          const added = document.createElement('span');
+          added.className = 'detail-file-add';
+          added.textContent = '+' + file.additions;
+          const deleted = document.createElement('span');
+          deleted.className = 'detail-file-delete';
+          deleted.textContent = '−' + file.deletions;
+          count.append(added, ' ', deleted);
+          row.append(name, count);
+          files.append(row);
+        });
+        detail.append(files);
+      }
       const actions = document.createElement('div');
       actions.className = 'actions';
-      if (node.kind !== 'imported') {
+      if (
+        node.kind !== 'imported' &&
+        node.kind !== 'collected' &&
+        node.files?.length &&
+        node.snapshotBefore !== node.snapshotAfter
+      ) {
         actions.append(actionButton(
           'diff',
           '查看本轮 Diff',
@@ -2413,7 +2472,7 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
           node.id + ':edit'
         )
       );
-      if (node.kind !== 'imported') {
+      if (node.kind !== 'imported' && node.kind !== 'collected') {
         actions.append(actionButton(
           'debug-restart',
           '从这里重来',

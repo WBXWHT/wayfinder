@@ -7,7 +7,7 @@ const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
 
-test("companion web bundle reuses the map and exposes host connections", () => {
+test("companion web bundle reuses the final map and project navigation", () => {
   childProcess.execFileSync(
     process.execPath,
     [path.join(root, "scripts", "build-companion-web.cjs")],
@@ -17,21 +17,27 @@ test("companion web bundle reuses the map and exposes host connections", () => {
     path.join(root, "companion", "dist", "index.html"),
     "utf8"
   );
-  assert.match(html, /id="projectPicker"/);
-  assert.match(html, /data-connect-host="codex"/);
-  assert.match(html, /data-connect-host="claude"/);
-  assert.match(html, /__WAYFINDER_SET_PAYLOAD__/);
+  assert.match(html, /id="projectSidebar"/);
+  assert.match(html, /id="projectList"/);
+  assert.match(html, /id="toggleProjects"/);
+  assert.doesNotMatch(html, /id="projectPicker"/);
+  assert.doesNotMatch(html, /data-connect-host=/);
+  assert.doesNotMatch(html, /Hook 已配置/);
+  assert.match(html, /__WAYFINDER_DESKTOP_HANDLE_MESSAGE__/);
   assert.match(html, /invoke\("list_projects"\)/);
-  assert.match(html, /class="grid-line"/);
+  assert.match(html, /trail-start-pole/);
+  assert.match(html, /forest-node/);
   assert.match(
     html,
     /id="settingsDialog" aria-labelledby="settingsTitle"/
   );
   assert.match(html, /id="settingsTitle">本地数据<\/h2>/);
-  assert.match(html, /setInterval\(\(\) => \{[\s\S]*updateHostStatus/);
+  assert.match(html, /setInterval\(\(\) => \{[\s\S]*refreshIfChanged/);
   const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
-  assert.equal(scripts.length, 1);
-  assert.doesNotThrow(() => new vm.Script(scripts[0][1]));
+  assert.equal(scripts.length, 3);
+  for (const script of scripts) {
+    assert.doesNotThrow(() => new vm.Script(script[1]));
+  }
 });
 
 test("macOS companion bundle is a DMG with one native sidecar", () => {

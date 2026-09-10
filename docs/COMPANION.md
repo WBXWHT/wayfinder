@@ -1,12 +1,14 @@
 # Wayfinder Companion
 
 Wayfinder Companion is the macOS desktop surface for local Claude Code and
-Codex voyages. The host adapters capture new activity, the Core stores it under
-`~/.wayfinder`, and the Companion reads that local state to render the existing
-voyage map.
+Codex work. It watches the hosts' local JSONL session files, stores normalized
+turns under `~/.wayfinder`, and renders the same final voyage map used by the
+IDE extension.
 
-The Companion does not import conversations created before Wayfinder was
-connected. It does not scrape another application's UI or private database.
+Users do not connect hosts or manage Hooks in the Companion UI. The bundled
+collector runs once at launch and then reacts to transcript changes in the
+background. It reads local session files rather than scraping another
+application's interface.
 
 ## Download Website
 
@@ -22,13 +24,13 @@ early access.
 ## Architecture
 
 ```text
-Claude Code / Codex lifecycle Hooks
-                |
-        bundled Wayfinder sidecar
-                |
-      ~/.wayfinder/projects/*
-                |
-       Tauri Companion WebView
+Claude Code / Codex local JSONL transcripts
+                   |
+       filesystem watcher + bundled collector
+                   |
+         ~/.wayfinder/projects/*
+                   |
+      Tauri Companion + final voyage map
 ```
 
 - One project has one map, regardless of which supported AI host produced a
@@ -36,13 +38,22 @@ Claude Code / Codex lifecycle Hooks
 - Host identity remains provenance on every turn and waypoint.
 - Related turns may share a topic or waypoint; raw turns are never collapsed
   or overwritten.
-- The Companion polls local project metadata and refreshes the selected map
-  when its `updatedAt` value changes.
-- Connecting a host adds Wayfinder's global Hooks incrementally. Existing Hook
-  configuration is preserved.
-- Claude Code and current Codex releases open the installed Companion when
-  they emit `SessionEnd`. Turn capture remains silent while the session is
-  active.
+- A recursive filesystem watcher coalesces transcript writes for two seconds,
+  runs an incremental collection pass, and records per-file progress in
+  `~/.wayfinder/collector-state.json`.
+- The Companion refreshes the selected map when its project data changes.
+- The project sidebar follows the established session-viewer pattern: projects
+  are always scannable on wide screens and move into a drawer on narrow
+  screens.
+- The Companion builds directly from `ExperienceMapPanel`; it does not maintain
+  a second simplified map.
+- Collected turns show their Codex or Claude Code source in the detail panel.
+- File-change summaries are reconstructed only from recorded edit operations
+  such as `apply_patch`, `Write`, `Edit`, and `MultiEdit`. Wayfinder does not
+  fabricate a historical Diff when the transcript lacks file content.
+- Existing lifecycle-Hook installations remain supported for richer live
+  snapshots. Collector deduplication prevents a turn from appearing twice when
+  both paths observe it.
 - Local rules mark only evidence-backed failure candidates or conflicts. Cloud
   model analysis remains disabled.
 

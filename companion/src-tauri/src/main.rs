@@ -15,6 +15,8 @@ use tauri::AppHandle;
 use tauri_plugin_shell::ShellExt;
 
 const PROJECT_LOCK_STALE: Duration = Duration::from_secs(8);
+/// Debounce window for coalescing bursts of transcript writes before a collect.
+const COLLECT_DEBOUNCE: Duration = Duration::from_secs(2);
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -426,9 +428,130 @@ fn validate_install_path(executable: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Transcript directories every comparable local tool watches: Codex rollouts
+/// and Claude Code project logs. Desktop clients write here even when no
+/// lifecycle hook fires, so watching them is what makes background capture work.
+fn transcript_watch_roots() -> Vec<PathBuf> {
+    resolve_transcript_roots(
+        env::var_os("CODEX_SESSIONS_ROOT").map(PathBuf::from),
+        env::var_os("CODEX_HOME").map(PathBuf::from),
+        env::var_os("CLAUDE_CONFIG_DIR").map(PathBuf::from),
+        dirs::home_dir(),
+    )
+}
+
+/// Pure resolver (env passed in) so the precedence rules can be unit-tested
+/// without mutating process-wide environment variables.
+fn resolve_transcript_roots(
+    codex_sessions_root: Option<PathBuf>,
+    codex_home: Option<PathBuf>,
+    claude_config_dir: Option<PathBuf>,
+    home: Option<PathBuf>,
+) -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    if let Some(root) = codex_sessions_root {
+        roots.push(root);
+    } else if let Some(codex_home) = codex_home {
+        roots.push(codex_home.join("sessions"));
+    } else if let Some(home) = home.clone() {
+        roots.push(home.join(".codex").join("sessions"));
+    }
+    if let Some(claude) = claude_config_dir {
+        roots.push(claude.join("projects"));
+    } else if let Some(home) = home {
+        roots.push(home.join(".claude").join("projects"));
+    }
+    roots
+}
+
+/// Run `wayfinder collect` through the bundled sidecar. Best-effort: collection
+/// errors must never crash or block the Companion.
+fn run_collect(app: &AppHandle) {
+    let sidecar = match app.shell().sidecar("wayfinder") {
+        Ok(command) => command,
+        Err(error) => {
+            eprintln!("wayfinder collect: sidecar unavailable: {error}");
+            return;
+        }
+    };
+    // Fire-and-forget on a Tauri async runtime task; the collector is idempotent.
+    tauri::async_runtime::spawn(async move {
+        match sidecar.args(["collect"]).output().await {
+            Ok(output) if !output.status.success() => {
+                eprintln!(
+                    "wayfinder collect failed: {}",
+                    String::from_utf8_lossy(&output.stderr).trim()
+                );
+            }
+            Err(error) => eprintln!("wayfinder collect error: {error}"),
+            _ => {}
+        }
+    });
+}
+
+/// Start a debounced filesystem watcher over the transcript roots. On any
+/// change (new session, appended turn) it triggers a collect after a short
+/// debounce. This mirrors the file-watch approach used by claude-code-watch,
+/// claude-log-viewer, cchv, etc. — event-driven, not polling.
+fn start_transcript_watcher(app: AppHandle) {
+    // Use the notify re-exported by the debouncer to avoid version skew.
+    use notify_debouncer_mini::notify::RecursiveMode;
+    use notify_debouncer_mini::{new_debouncer, DebounceEventResult};
+
+    thread::spawn(move || {
+        let roots: Vec<PathBuf> = transcript_watch_roots()
+            .into_iter()
+            .filter(|root| root.exists())
+            .collect();
+
+        // Collect once at startup so sessions written while the app was closed
+        // are captured immediately.
+        run_collect(&app);
+
+        if roots.is_empty() {
+            return;
+        }
+
+        let handler_app = app.clone();
+        let debouncer = new_debouncer(
+            COLLECT_DEBOUNCE,
+            move |result: DebounceEventResult| {
+                if let Ok(events) = result {
+                    if !events.is_empty() {
+                        run_collect(&handler_app);
+                    }
+                }
+            },
+        );
+        let mut debouncer = match debouncer {
+            Ok(value) => value,
+            Err(error) => {
+                eprintln!("wayfinder watcher: failed to start: {error}");
+                return;
+            }
+        };
+        for root in &roots {
+            if let Err(error) = debouncer
+                .watcher()
+                .watch(root, RecursiveMode::Recursive)
+            {
+                eprintln!("wayfinder watcher: cannot watch {root:?}: {error}");
+            }
+        }
+        // Keep the debouncer (and its watch threads) alive for the app lifetime.
+        loop {
+            thread::sleep(Duration::from_secs(3600));
+        }
+    });
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            start_transcript_watcher(app.handle().clone());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             list_projects,
             read_project_state,
@@ -455,6 +578,36 @@ mod tests {
     fn project_ids_cannot_escape_the_wayfinder_directory() {
         assert!(state_path("../../Library").is_err());
         assert!(state_path("0123456789abcdef0123").is_ok());
+    }
+
+    #[test]
+    fn transcript_roots_follow_env_precedence() {
+        use super::resolve_transcript_roots;
+        use std::path::PathBuf;
+
+        // Defaults from home when no overrides are set.
+        let roots = resolve_transcript_roots(
+            None,
+            None,
+            None,
+            Some(PathBuf::from("/Users/x")),
+        );
+        assert_eq!(roots, vec![
+            PathBuf::from("/Users/x/.codex/sessions"),
+            PathBuf::from("/Users/x/.claude/projects"),
+        ]);
+
+        // Explicit overrides win, and CODEX_SESSIONS_ROOT beats CODEX_HOME.
+        let roots = resolve_transcript_roots(
+            Some(PathBuf::from("/custom/sessions")),
+            Some(PathBuf::from("/ignored/codex")),
+            Some(PathBuf::from("/custom/claude")),
+            Some(PathBuf::from("/Users/x")),
+        );
+        assert_eq!(roots, vec![
+            PathBuf::from("/custom/sessions"),
+            PathBuf::from("/custom/claude/projects"),
+        ]);
     }
 
     #[test]

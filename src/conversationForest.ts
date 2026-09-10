@@ -455,10 +455,10 @@ function metadataForNode(
   node: TimelineNode,
   firstBySession: Map<string, TimelineNode>
 ): ForestMetadata {
-  if (node.source?.forest) {
+  if (node.source?.type === "trae-memory" && node.source.forest) {
     return node.source.forest;
   }
-  if (node.source?.chapter) {
+  if (node.source?.type === "trae-memory" && node.source.chapter) {
     return forestMetadataForChapter(node.source.chapter);
   }
   const first = firstBySession.get(node.sessionId);

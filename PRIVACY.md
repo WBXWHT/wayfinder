@@ -14,6 +14,11 @@ Wayfinder stores prompts, assistant replies, tool summaries, paths, validation
 output, optional notes, and snapshots under `~/.wayfinder`. Do not commit or
 upload that directory. Treat it as sensitive project data.
 
+On macOS, Companion reads supported JSONL session files from the user's local
+Codex and Claude configuration directories. It stores incremental collection
+progress in `~/.wayfinder/collector-state.json`. This collection is local and
+does not scrape application windows or send transcript content to Wayfinder.
+
 Snapshot exclusions include Git internals, host configuration directories,
 dependencies, common build output, and files over the configured size limit.
 Exclusion rules are not secret detection: unignored source files can contain
@@ -49,10 +54,10 @@ feature can ship.
 ## Installation And Removal
 
 Project adapter setup writes `.trae/hooks.json`, `.claude/settings.json`, or
-`.codex/hooks.json`. Companion host connection writes only Wayfinder entries to
-the user's global Claude or Codex Hook file. Both paths preserve unrelated
-Hooks. Capture does not begin until the host enables/trusts the adapter and
-emits supported events.
+`.codex/hooks.json` and preserves unrelated Hooks. Companion collection is
+separate: it watches local Codex and Claude JSONL transcripts and requires no
+Hook approval or host connection screen. If both paths observe the same turn,
+Wayfinder deduplicates it before writing the project timeline.
 
 `wayfinder uninstall <host> --root <project>` removes project Hooks, not history.
 Remove the Plugin in your host to disable Plugin-supplied Hooks. You may delete

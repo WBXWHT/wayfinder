@@ -18,18 +18,26 @@ execFileSync(process.execPath, [path.join(root, "scripts", "build-companion-web.
 const state = JSON.parse(fs.readFileSync(path.resolve(stateFile), "utf8"));
 const projectId = state.projectId || "preview-project";
 const projectName = path.basename(state.root || "Preview project");
+const previewProjectCount = Math.max(
+  1,
+  Number(process.env.WAYFINDER_PREVIEW_PROJECTS || 1)
+);
+const previewProjects = Array.from(
+  { length: previewProjectCount },
+  (_, index) => ({
+    id: index === 0 ? projectId : `${projectId}-${index + 1}`,
+    name: index === 0 ? projectName : `${projectName} ${index + 1}`,
+    root: state.root || "",
+    updatedAt: state.updatedAt || "",
+    nodeCount: Array.isArray(state.nodes) ? state.nodes.length : 0
+  })
+);
 const mock = `<script>
 globalThis.__TAURI__ = {
   core: {
     invoke: async (command) => {
       if (command === "list_projects") {
-        return [{
-          id: ${JSON.stringify(projectId)},
-          name: ${JSON.stringify(projectName)},
-          root: ${JSON.stringify(state.root || "")},
-          updatedAt: ${JSON.stringify(state.updatedAt || "")},
-          nodeCount: ${Array.isArray(state.nodes) ? state.nodes.length : 0}
-        }];
+        return ${JSON.stringify(previewProjects)};
       }
       if (command === "read_project_state") {
         return ${JSON.stringify(state)};
@@ -79,5 +87,11 @@ const html = fs.readFileSync(
   path.join(root, "companion", "dist", "index.html"),
   "utf8"
 );
-fs.writeFileSync(path.resolve(outputFile), html.replace("<script>", `${mock}\n<script>`));
-process.stdout.write(`Generated ${path.resolve(outputFile)}\n`);
+const resolvedOutput = path.resolve(outputFile);
+fs.writeFileSync(resolvedOutput, html.replace("<script>", `${mock}\n<script>`));
+const fontSource = path.join(root, "companion", "dist", "codicon.ttf");
+const fontTarget = path.join(path.dirname(resolvedOutput), "codicon.ttf");
+if (fontSource !== fontTarget) {
+  fs.copyFileSync(fontSource, fontTarget);
+}
+process.stdout.write(`Generated ${resolvedOutput}\n`);

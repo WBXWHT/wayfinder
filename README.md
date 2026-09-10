@@ -4,13 +4,15 @@ Most work with AI is scattered across one chat after another. Wayfinder records
 the prompts, attempts, changes, evidence, decisions, and wrong turns locally,
 then turns them into a branching voyage map you can revisit and reuse.
 
-The first production capture adapters focus on AI coding. The underlying
-experience model is designed to extend to other work advanced through
-conversation, including writing, research, and design.
+The macOS Companion captures workspace-backed Codex and Claude Code
+conversations from their local session files, including plain chat as well as
+coding work. The same experience model can organize writing, research, design,
+and other work advanced through conversation.
 
 **Early access, v0.3.3.** MIT licensed. No account, telemetry, or separate model
 API key is required by Wayfinder.
 
+[Website](https://wayfinder-ai.pages.dev) |
 [Downloads](https://github.com/WBXWHT/wayfinder/releases/tag/v0.3.3) |
 [Install Guide](https://github.com/WBXWHT/wayfinder/blob/main/docs/INSTALL.md) |
 [Privacy](https://github.com/WBXWHT/wayfinder/blob/main/PRIVACY.md) |
@@ -42,12 +44,13 @@ See the [Install Guide](docs/INSTALL.md#macos-companion).
 Download the macOS Alpha DMG for your Mac architecture from
 [GitHub Releases](https://github.com/WBXWHT/wayfinder/releases). The current
 zero-cost Alpha uses an ad-hoc signature, so macOS requires **Open Anyway** on
-first launch. Open Wayfinder, connect Claude Code and/or Codex once, then work
-normally. Both hosts write into the same project map; host identity remains
-visible as provenance rather than splitting the voyage.
+first launch. Open Wayfinder, then work normally in Claude Code or Codex. The
+Companion watches their local session files in the background; both hosts write
+into the same project map and remain visible as provenance rather than
+splitting the voyage.
 
 The Companion and complete voyage history stay local under `~/.wayfinder`.
-It only captures sessions created after a host is connected. See
+It does not require Node.js or a separate Hook setup. See
 [Companion architecture and release notes](docs/COMPANION.md).
 
 ### IDE Sidebar
@@ -150,6 +153,8 @@ delete voyage history.
 ## Capabilities And Limits
 
 - Capture prompts, tool actions, replies, file changes, and validation results.
+- Collect new Codex and Claude Code transcript writes in the background without
+  requiring a host connection screen.
 - Separate task trees, inspect branches, and keep abandoned paths visible.
 - Inspect diffs and restore snapshots in the IDE, with a safety snapshot first.
 - Search current-project history; keep personal notes and explicit verdicts.
@@ -159,7 +164,8 @@ delete voyage history.
   restore/diff commands are not exposed through MCP.
 - Claude/Codex adapters have process-level protocol tests; real authenticated
   client acceptance is still pending. Host versions and trust settings matter.
-- The sidebar and MCP App currently share data semantics, not a single renderer.
+- The Companion and IDE wide map share the final voyage-map renderer. The MCP
+  App remains a separate compact renderer for in-conversation use.
 
 Wayfinder does not alter the project's Git index, commits, or branches.
 Restores affect captured workspace files only, not databases, remote services,

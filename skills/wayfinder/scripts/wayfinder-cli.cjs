@@ -782,10 +782,10 @@ var require_conversationForest = __commonJS({
         session.depth = depthFor(session);
     }
     function metadataForNode(node, firstBySession) {
-      if (node.source?.forest) {
+      if (node.source?.type === "trae-memory" && node.source.forest) {
         return node.source.forest;
       }
-      if (node.source?.chapter) {
+      if (node.source?.type === "trae-memory" && node.source.chapter) {
         return forestMetadataForChapter(node.source.chapter);
       }
       const first = firstBySession.get(node.sessionId);
@@ -45947,6 +45947,661 @@ var require_mcpServer = __commonJS({
   }
 });
 
+// out/sessionCollector.js
+var require_sessionCollector = __commonJS({
+  "out/sessionCollector.js"(exports2) {
+    "use strict";
+    var __createBinding2 = exports2 && exports2.__createBinding || (Object.create ? (function(o, m, k, k2) {
+      if (k2 === void 0) k2 = k;
+      var desc = Object.getOwnPropertyDescriptor(m, k);
+      if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+        desc = { enumerable: true, get: function() {
+          return m[k];
+        } };
+      }
+      Object.defineProperty(o, k2, desc);
+    }) : (function(o, m, k, k2) {
+      if (k2 === void 0) k2 = k;
+      o[k2] = m[k];
+    }));
+    var __setModuleDefault2 = exports2 && exports2.__setModuleDefault || (Object.create ? (function(o, v) {
+      Object.defineProperty(o, "default", { enumerable: true, value: v });
+    }) : function(o, v) {
+      o["default"] = v;
+    });
+    var __importStar2 = exports2 && exports2.__importStar || /* @__PURE__ */ (function() {
+      var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function(o2) {
+          var ar = [];
+          for (var k in o2) if (Object.prototype.hasOwnProperty.call(o2, k)) ar[ar.length] = k;
+          return ar;
+        };
+        return ownKeys(o);
+      };
+      return function(mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) {
+          for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding2(result, mod, k[i]);
+        }
+        __setModuleDefault2(result, mod);
+        return result;
+      };
+    })();
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.codexSessionsRoot = codexSessionsRoot;
+    exports2.claudeProjectsRoot = claudeProjectsRoot;
+    exports2.listTranscriptFiles = listTranscriptFiles;
+    exports2.parseCodexRollout = parseCodexRollout;
+    exports2.parseClaudeTranscript = parseClaudeTranscript;
+    exports2.parseApplyPatch = parseApplyPatch;
+    exports2.collectSessions = collectSessions;
+    var fs2 = __importStar2(require("fs"));
+    var os2 = __importStar2(require("os"));
+    var path2 = __importStar2(require("path"));
+    var shadowRepo_1 = require_shadowRepo();
+    var storage_12 = require_storage();
+    var ENV_CONTEXT = /^\s*<(environment_context|app-context|user_instructions|system_instructions|developer_instructions)/i;
+    function codexSessionsRoot() {
+      if (process.env.CODEX_SESSIONS_ROOT) {
+        return process.env.CODEX_SESSIONS_ROOT;
+      }
+      const home = process.env.CODEX_HOME || path2.join(os2.homedir(), ".codex");
+      return path2.join(home, "sessions");
+    }
+    function claudeProjectsRoot() {
+      const home = process.env.CLAUDE_CONFIG_DIR || path2.join(os2.homedir(), ".claude");
+      return path2.join(home, "projects");
+    }
+    function listTranscriptFiles(root) {
+      const results = [];
+      const walk = (dir) => {
+        let entries;
+        try {
+          entries = fs2.readdirSync(dir, { withFileTypes: true });
+        } catch {
+          return;
+        }
+        for (const entry of entries) {
+          const full = path2.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            walk(full);
+          } else if (entry.isFile() && entry.name.endsWith(".jsonl")) {
+            results.push(full);
+          }
+        }
+      };
+      walk(root);
+      return results.sort();
+    }
+    function parseJsonl(file) {
+      let raw;
+      try {
+        raw = fs2.readFileSync(file, "utf8");
+      } catch {
+        return [];
+      }
+      const records = [];
+      for (const line of raw.split(/\r?\n/)) {
+        if (!line.trim()) {
+          continue;
+        }
+        try {
+          const value = JSON.parse(line);
+          records.push(value);
+        } catch {
+        }
+      }
+      return records;
+    }
+    function asRecord(value) {
+      return value && typeof value === "object" ? value : void 0;
+    }
+    function textFromContent(content) {
+      if (typeof content === "string") {
+        return content;
+      }
+      if (!Array.isArray(content)) {
+        return "";
+      }
+      return content.map((item) => {
+        const part = asRecord(item);
+        if (!part) {
+          return "";
+        }
+        if (typeof part.text === "string") {
+          return part.text;
+        }
+        if (typeof part.content === "string") {
+          return part.content;
+        }
+        return "";
+      }).filter(Boolean).join("\n");
+    }
+    function isEnvelope(text) {
+      return ENV_CONTEXT.test(text.trimStart().slice(0, 40)) || text.trimStart().startsWith("<");
+    }
+    function parseCodexRollout(file) {
+      const records = parseJsonl(file);
+      if (records.length === 0) {
+        return void 0;
+      }
+      let sessionId = path2.basename(file);
+      let cwd;
+      const meta = records.find((r) => r.type === "session_meta");
+      if (meta) {
+        const payload = asRecord(meta.payload) || {};
+        sessionId = String(payload.id || payload.session_id || sessionId);
+        if (typeof payload.cwd === "string") {
+          cwd = payload.cwd;
+        }
+      }
+      const turns = [];
+      let pendingPrompt;
+      let pendingActions = [];
+      let pendingFiles = /* @__PURE__ */ new Map();
+      const callNames = /* @__PURE__ */ new Map();
+      const flush = (responseText, at) => {
+        if (!pendingPrompt) {
+          return;
+        }
+        turns.push({
+          host: "codex",
+          sessionId,
+          rolloutPath: file,
+          turnIndex: turns.length,
+          cwd,
+          prompt: pendingPrompt.text,
+          response: responseText?.trim() || void 0,
+          actions: pendingActions,
+          files: [...pendingFiles.values()],
+          startedAt: pendingPrompt.at,
+          completedAt: at
+        });
+        pendingPrompt = void 0;
+        pendingActions = [];
+        pendingFiles = /* @__PURE__ */ new Map();
+      };
+      for (const record of records) {
+        const timestamp = typeof record.timestamp === "string" ? record.timestamp : (/* @__PURE__ */ new Date()).toISOString();
+        const payload = asRecord(record.payload) || {};
+        const payloadType = payload.type;
+        if (record.type === "response_item" && payloadType === "message") {
+          const role = payload.role;
+          const text = textFromContent(payload.content).trim();
+          if (!text) {
+            continue;
+          }
+          if (role === "user") {
+            if (isEnvelope(text)) {
+              continue;
+            }
+            if (pendingPrompt && pendingPrompt.text !== text) {
+              flush(void 0, pendingPrompt.at);
+            }
+            if (!pendingPrompt || pendingPrompt.text !== text) {
+              pendingPrompt = { text, at: timestamp };
+            }
+          } else if (role === "assistant") {
+            flush(text, timestamp);
+          }
+          continue;
+        }
+        if (record.type === "response_item" && (payloadType === "function_call" || payloadType === "local_shell_call")) {
+          const callId = typeof payload.call_id === "string" ? payload.call_id : void 0;
+          const name = typeof payload.name === "string" ? payload.name : "tool";
+          if (callId) {
+            callNames.set(callId, name);
+          }
+          pendingActions.push(toolActionFromCall(name, payload));
+          for (const change of fileChangesFromCall(name, payload)) {
+            mergeFileChange(pendingFiles, change);
+          }
+          continue;
+        }
+        if (record.type === "response_item" && payloadType === "function_call_output") {
+          const callId = typeof payload.call_id === "string" ? payload.call_id : void 0;
+          const ok = !outputLooksFailed(payload.output);
+          const last = pendingActions[pendingActions.length - 1];
+          if (last && (!callId || callNames.get(callId) === last.tool)) {
+            last.ok = ok;
+          }
+        }
+      }
+      if (pendingPrompt) {
+        flush(void 0, pendingPrompt.at);
+      }
+      return { host: "codex", sessionId, rolloutPath: file, cwd, turns };
+    }
+    function parseClaudeTranscript(file) {
+      const records = parseJsonl(file);
+      if (records.length === 0) {
+        return void 0;
+      }
+      let sessionId = path2.basename(file, ".jsonl");
+      let cwd;
+      const turns = [];
+      let pendingPrompt;
+      let pendingActions = [];
+      let pendingFiles = /* @__PURE__ */ new Map();
+      let responseParts = [];
+      let lastAt;
+      const flush = () => {
+        if (!pendingPrompt) {
+          return;
+        }
+        const response = responseParts.join("\n").trim();
+        turns.push({
+          host: "claude",
+          sessionId,
+          rolloutPath: file,
+          turnIndex: turns.length,
+          cwd,
+          prompt: pendingPrompt.text,
+          response: response || void 0,
+          actions: pendingActions,
+          files: [...pendingFiles.values()],
+          startedAt: pendingPrompt.at,
+          completedAt: lastAt || pendingPrompt.at
+        });
+        pendingPrompt = void 0;
+        pendingActions = [];
+        pendingFiles = /* @__PURE__ */ new Map();
+        responseParts = [];
+      };
+      for (const record of records) {
+        if (typeof record.cwd === "string" && !cwd) {
+          cwd = record.cwd;
+        }
+        if (typeof record.sessionId === "string") {
+          sessionId = record.sessionId;
+        }
+        const timestamp = typeof record.timestamp === "string" ? record.timestamp : (/* @__PURE__ */ new Date()).toISOString();
+        const message = asRecord(record.message);
+        if (!message) {
+          continue;
+        }
+        const role = message.role;
+        const text = textFromContent(message.content).trim();
+        if (record.type === "user" || role === "user") {
+          if (!text || isEnvelope(text) || hasToolResult(message.content)) {
+            continue;
+          }
+          flush();
+          pendingPrompt = { text, at: timestamp };
+          lastAt = timestamp;
+        } else if (record.type === "assistant" || role === "assistant") {
+          collectClaudeToolUses(message.content, pendingActions);
+          for (const change of claudeFileChanges(message.content)) {
+            mergeFileChange(pendingFiles, change);
+          }
+          if (text) {
+            responseParts.push(text);
+          }
+          lastAt = timestamp;
+        }
+      }
+      flush();
+      return { host: "claude", sessionId, rolloutPath: file, cwd, turns };
+    }
+    function toolActionFromCall(name, payload) {
+      let detail;
+      let filePath;
+      const args = typeof payload.arguments === "string" ? safeJson(payload.arguments) : asRecord(payload.arguments);
+      if (args) {
+        if (typeof args.command === "string") {
+          detail = args.command;
+        } else if (Array.isArray(args.command)) {
+          detail = args.command.join(" ");
+        }
+        filePath = [args.file_path, args.path, args.target_file].find((value) => typeof value === "string");
+      }
+      const kind = name === "apply_patch" || name === "edit" ? "edit" : name === "exec_command" || name === "local_shell" || name === "shell" ? "run" : "other";
+      return {
+        kind,
+        tool: name,
+        path: filePath ? clipInline(filePath, 300) : void 0,
+        detail: detail ? clipInline(detail, 300) : void 0
+      };
+    }
+    function collectClaudeToolUses(content, out) {
+      if (!Array.isArray(content)) {
+        return;
+      }
+      for (const item of content) {
+        const part = asRecord(item);
+        if (!part || part.type !== "tool_use") {
+          continue;
+        }
+        const name = typeof part.name === "string" ? part.name : "tool";
+        const input = asRecord(part.input) || {};
+        const detail = typeof input.command === "string" ? input.command : void 0;
+        const filePath = [input.file_path, input.path].find((value) => typeof value === "string");
+        out.push({
+          kind: name === "Write" ? "write" : name === "Edit" ? "edit" : name === "Bash" ? "run" : "other",
+          tool: name,
+          path: filePath ? clipInline(filePath, 300) : void 0,
+          detail: detail ? clipInline(detail, 300) : void 0
+        });
+      }
+    }
+    function hasToolResult(content) {
+      return Array.isArray(content) && content.some((item) => asRecord(item)?.type === "tool_result");
+    }
+    function relPath(filePath) {
+      return filePath.replace(/^\.\//, "");
+    }
+    function countLines(text) {
+      if (!text) {
+        return 0;
+      }
+      const normalized = text.replace(/\r\n?/g, "\n");
+      const trimmed = normalized.endsWith("\n") ? normalized.slice(0, -1) : normalized;
+      return trimmed.length === 0 ? 0 : trimmed.split("\n").length;
+    }
+    function mergeFileChange(map, change) {
+      const existing = map.get(change.path);
+      if (!existing) {
+        map.set(change.path, { ...change });
+        return;
+      }
+      existing.additions += change.additions;
+      existing.deletions += change.deletions;
+      if (change.status === "D") {
+        existing.status = "D";
+      } else if (existing.status !== "A") {
+        existing.status = "M";
+      }
+      existing.binary = existing.binary || change.binary;
+    }
+    function editChange(filePath, oldString, newString) {
+      return {
+        path: relPath(filePath),
+        status: "M",
+        additions: countLines(newString),
+        deletions: countLines(oldString)
+      };
+    }
+    function fileChangesFromCall(name, payload) {
+      const args = typeof payload.arguments === "string" ? safeJson(payload.arguments) : asRecord(payload.arguments);
+      if (name === "apply_patch") {
+        let patch;
+        if (args && typeof args.input === "string") {
+          patch = args.input;
+        } else if (args && typeof args.patch === "string") {
+          patch = args.patch;
+        } else if (typeof payload.arguments === "string" && !args) {
+          patch = payload.arguments;
+        }
+        return patch ? parseApplyPatch(patch) : [];
+      }
+      if (name === "Write" && args && typeof args.file_path === "string") {
+        return [{
+          path: relPath(args.file_path),
+          status: "A",
+          additions: countLines(String(args.content || "")),
+          deletions: 0
+        }];
+      }
+      if (name === "Edit" && args && typeof args.file_path === "string") {
+        return [editChange(String(args.file_path), String(args.old_string || ""), String(args.new_string || ""))];
+      }
+      return [];
+    }
+    function claudeFileChanges(content) {
+      if (!Array.isArray(content)) {
+        return [];
+      }
+      const changes = [];
+      for (const item of content) {
+        const part = asRecord(item);
+        if (!part || part.type !== "tool_use") {
+          continue;
+        }
+        const name = typeof part.name === "string" ? part.name : "";
+        const input = asRecord(part.input) || {};
+        const filePath = typeof input.file_path === "string" ? input.file_path : void 0;
+        if (!filePath) {
+          continue;
+        }
+        if (name === "Write") {
+          changes.push({
+            path: relPath(filePath),
+            status: "A",
+            additions: countLines(String(input.content || "")),
+            deletions: 0
+          });
+        } else if (name === "Edit") {
+          changes.push(editChange(filePath, String(input.old_string || ""), String(input.new_string || "")));
+        } else if (name === "MultiEdit" && Array.isArray(input.edits)) {
+          for (const raw of input.edits) {
+            const edit = asRecord(raw);
+            if (!edit) {
+              continue;
+            }
+            changes.push(editChange(filePath, String(edit.old_string || ""), String(edit.new_string || "")));
+          }
+        }
+      }
+      return changes;
+    }
+    function parseApplyPatch(patch) {
+      const lines = patch.replace(/\r\n?/g, "\n").split("\n");
+      const changes = [];
+      let current;
+      const push = () => {
+        if (current) {
+          changes.push(current);
+          current = void 0;
+        }
+      };
+      for (const line of lines) {
+        const add = /^\*\*\* Add File: (.+)$/.exec(line);
+        const update = /^\*\*\* Update File: (.+)$/.exec(line);
+        const del = /^\*\*\* Delete File: (.+)$/.exec(line);
+        if (add) {
+          push();
+          current = { path: relPath(add[1].trim()), status: "A", additions: 0, deletions: 0 };
+          continue;
+        }
+        if (update) {
+          push();
+          current = { path: relPath(update[1].trim()), status: "M", additions: 0, deletions: 0 };
+          continue;
+        }
+        if (del) {
+          push();
+          current = { path: relPath(del[1].trim()), status: "D", additions: 0, deletions: 0 };
+          continue;
+        }
+        if (/^\*\*\* End of File$/.test(line) || /^\*\*\* End Patch$/.test(line)) {
+          continue;
+        }
+        if (!current) {
+          continue;
+        }
+        if (line.startsWith("@@") || line.startsWith("*** Move to:")) {
+          continue;
+        }
+        if (line.startsWith("+")) {
+          current.additions += 1;
+        } else if (line.startsWith("-")) {
+          current.deletions += 1;
+        }
+      }
+      push();
+      return changes;
+    }
+    function outputLooksFailed(output) {
+      const text = typeof output === "string" ? output : JSON.stringify(output || "");
+      return /"?(error|failed|exception|traceback)"?/i.test(text);
+    }
+    function safeJson(text) {
+      try {
+        return asRecord(JSON.parse(text));
+      } catch {
+        return void 0;
+      }
+    }
+    function clipInline(text, max) {
+      const clean = text.replace(/\s+/g, " ").trim();
+      return clean.length > max ? `${clean.slice(0, max - 1)}\u2026` : clean;
+    }
+    function collectorStatePath() {
+      return path2.join((0, storage_12.wayfinderHome)(), "collector-state.json");
+    }
+    function readCursor() {
+      try {
+        const raw = fs2.readFileSync(collectorStatePath(), "utf8");
+        const parsed = JSON.parse(raw);
+        if (parsed.version === 1 && parsed.files) {
+          return parsed;
+        }
+      } catch {
+      }
+      return { version: 1, files: {} };
+    }
+    async function writeCursor(cursor) {
+      const file = collectorStatePath();
+      await fs2.promises.mkdir(path2.dirname(file), { recursive: true });
+      const temp = `${file}.${process.pid}.${(0, storage_12.createId)("cursor")}.tmp`;
+      await fs2.promises.writeFile(temp, `${JSON.stringify(cursor, null, 2)}
+`, "utf8");
+      await fs2.promises.rename(temp, file);
+    }
+    function resolveProjectRoot(cwd) {
+      if (!cwd || !fs2.existsSync(cwd)) {
+        return void 0;
+      }
+      try {
+        return (0, storage_12.normalizeRoot)(cwd);
+      } catch {
+        return void 0;
+      }
+    }
+    async function collectSessions() {
+      const cursor = readCursor();
+      const codexFiles = listTranscriptFiles(codexSessionsRoot());
+      const claudeFiles = listTranscriptFiles(claudeProjectsRoot());
+      const result = {
+        scannedFiles: 0,
+        newTurns: 0,
+        projects: [],
+        skippedNoProject: 0
+      };
+      const touchedProjects = /* @__PURE__ */ new Set();
+      const process_ = async (file, parse) => {
+        let stat;
+        try {
+          stat = fs2.statSync(file);
+        } catch {
+          return;
+        }
+        const previous = cursor.files[file];
+        if (previous && previous.size === stat.size) {
+          return;
+        }
+        result.scannedFiles += 1;
+        const session = parse(file);
+        if (!session || session.turns.length === 0) {
+          cursor.files[file] = {
+            size: stat.size,
+            collectedTurns: previous?.collectedTurns || 0
+          };
+          return;
+        }
+        const alreadyCollected = previous?.collectedTurns || 0;
+        const fresh = session.turns.filter((turn) => turn.turnIndex >= alreadyCollected);
+        if (fresh.length === 0) {
+          cursor.files[file] = { size: stat.size, collectedTurns: alreadyCollected };
+          return;
+        }
+        const root = resolveProjectRoot(session.cwd);
+        if (!root) {
+          result.skippedNoProject += fresh.length;
+          cursor.files[file] = { size: stat.size, collectedTurns: session.turns.length };
+          return;
+        }
+        const persisted = await persistTurns(root, session.host, fresh);
+        result.newTurns += persisted;
+        touchedProjects.add(root);
+        cursor.files[file] = { size: stat.size, collectedTurns: session.turns.length };
+      };
+      for (const file of codexFiles) {
+        await process_(file, parseCodexRollout);
+      }
+      for (const file of claudeFiles) {
+        await process_(file, parseClaudeTranscript);
+      }
+      await writeCursor(cursor);
+      result.projects = [...touchedProjects];
+      return result;
+    }
+    async function persistTurns(root, host, turns) {
+      const config = await (0, storage_12.readProjectConfig)(root);
+      return (0, storage_12.mutateProjectState)(root, async (state) => {
+        const shadow = new shadowRepo_1.ShadowRepo(root, config.maxFileSizeMB);
+        let baseline;
+        let added = 0;
+        for (const turn of turns) {
+          const scopedSession = `${host}:${turn.sessionId}`;
+          const nodeId = `collected-${host}-${safeId(turn.sessionId)}-${turn.turnIndex}`;
+          const duplicate = state.nodes.some((node2) => {
+            if (node2.id === nodeId) {
+              return true;
+            }
+            if (node2.sessionId !== scopedSession) {
+              return false;
+            }
+            if (node2.prompt !== turn.prompt) {
+              return false;
+            }
+            return !turn.response || !node2.response || node2.response === turn.response;
+          });
+          if (duplicate) {
+            continue;
+          }
+          if (!baseline) {
+            baseline = (await shadow.capture((0, storage_12.createId)("collect-baseline"), `Collected: ${host}`)).commit;
+          }
+          const parent = (0, storage_12.latestNodeOnBranch)(state);
+          const node = {
+            id: nodeId,
+            kind: "collected",
+            sessionId: scopedSession,
+            sourceHost: host,
+            branchId: state.activeBranchId,
+            parentId: parent?.id,
+            prompt: turn.prompt,
+            response: turn.response,
+            startedAt: turn.startedAt,
+            completedAt: turn.completedAt,
+            snapshotBefore: baseline,
+            snapshotAfter: baseline,
+            files: turn.files,
+            actions: turn.actions,
+            validation: { status: "skipped" },
+            source: {
+              type: "rollout",
+              host,
+              rolloutPath: turn.rolloutPath,
+              sessionId: turn.sessionId,
+              turnIndex: turn.turnIndex,
+              collectedAt: (/* @__PURE__ */ new Date()).toISOString()
+            }
+          };
+          state.nodes.push(node);
+          added += 1;
+        }
+        return added;
+      });
+    }
+    function safeId(value) {
+      return value.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60);
+    }
+  }
+});
+
 // out/cli.js
 var __createBinding = exports && exports.__createBinding || (Object.create ? (function(o, m, k, k2) {
   if (k2 === void 0) k2 = k;
@@ -46011,6 +46666,13 @@ async function runCli() {
   if (command === "mcp") {
     const { runMcpServer } = await Promise.resolve().then(() => __importStar(require_mcpServer()));
     await runMcpServer();
+    return;
+  }
+  if (command === "collect") {
+    const { collectSessions } = await Promise.resolve().then(() => __importStar(require_sessionCollector()));
+    const result = await collectSessions();
+    process.stdout.write(`${JSON.stringify(result, null, 2)}
+`);
     return;
   }
   if (command === "connect" || command === "disconnect") {
@@ -46084,7 +46746,7 @@ async function runCli() {
     process.stdout.write((0, terminalMap_1.renderTerminalMap)(root, state, forest));
     return;
   }
-  process.stdout.write("Usage: wayfinder <install|uninstall> <trae|claude|codex|all> [--root <project>]\n       wayfinder <connect|disconnect> <claude|codex>\n       wayfinder <doctor|map> [--root <project>]\n       wayfinder doctor --global\n       wayfinder --version\n");
+  process.stdout.write("Usage: wayfinder <install|uninstall> <trae|claude|codex|all> [--root <project>]\n       wayfinder <connect|disconnect> <claude|codex>\n       wayfinder <doctor|map> [--root <project>]\n       wayfinder doctor --global\n       wayfinder collect\n       wayfinder --version\n");
 }
 function currentExecutable() {
   return /\.(?:c?js|mjs)$/i.test(__filename) ? __filename : process.execPath;

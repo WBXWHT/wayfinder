@@ -45,7 +45,7 @@ Plugin validation passed
 - Developer: `WBXWHT`
 - Repository: https://github.com/WBXWHT/wayfinder
 - Release: https://github.com/WBXWHT/wayfinder/releases/tag/v0.3.3
-- Website: https://github.com/WBXWHT/wayfinder
+- Website: https://wayfinder-ai.pages.dev
 - Support: https://github.com/WBXWHT/wayfinder/issues
 - Privacy: https://github.com/WBXWHT/wayfinder/blob/main/PRIVACY.md
 - Terms / license: https://github.com/WBXWHT/wayfinder/blob/main/LICENSE
@@ -66,7 +66,7 @@ Submitted source:
 ```text
 Repository: https://github.com/WBXWHT/wayfinder
 Repository path: plugins/wayfinder
-Homepage: https://github.com/WBXWHT/wayfinder
+Homepage: https://wayfinder-ai.pages.dev
 Supported surface: Claude Code
 License: MIT
 ```

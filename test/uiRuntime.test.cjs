@@ -25,9 +25,34 @@ test(
     const sidebarPath = path.join(temp, "sidebar.html");
     const mapPath = path.join(temp, "map.html");
     const mcpPath = path.join(temp, "mcp.html");
+    const companionStatePath = path.join(temp, "companion-timeline.json");
+    const companionPath = path.join(temp, "companion.html");
     const userDataDir = path.join(temp, "chrome");
     const state = fixtureState();
     fs.writeFileSync(statePath, JSON.stringify(state));
+    const companionState = fixtureState();
+    companionState.nodes[3] = {
+      ...companionState.nodes[3],
+      kind: "collected",
+      sourceHost: "codex",
+      files: [
+        {
+          path: "src/sessionCollector.ts",
+          status: "M",
+          additions: 12,
+          deletions: 3
+        }
+      ],
+      source: {
+        type: "rollout",
+        host: "codex",
+        rolloutPath: "/tmp/rollout.jsonl",
+        sessionId: "resume-ai",
+        turnIndex: 0,
+        collectedAt: "2026-09-10T09:00:00.000Z"
+      }
+    };
+    fs.writeFileSync(companionStatePath, JSON.stringify(companionState));
 
     const server = http.createServer((request, response) => {
       const pathname = new URL(request.url, "http://localhost").pathname;
@@ -38,7 +63,11 @@ test(
             ? mapPath
             : pathname === "/mcp.html"
               ? mcpPath
-            : path.join(root, pathname.replace(/^\/+/, ""));
+              : pathname === "/companion.html"
+                ? companionPath
+                : pathname === "/codicon.ttf"
+                  ? path.join(temp, "codicon.ttf")
+                  : path.join(root, pathname.replace(/^\/+/, ""));
       if (!file.startsWith(root) && !file.startsWith(temp)) {
         response.writeHead(403).end();
         return;
@@ -82,6 +111,19 @@ test(
         }
       );
     }
+    childProcess.execFileSync(
+      process.execPath,
+      [
+        path.join(root, "scripts/generate-companion-preview.cjs"),
+        companionStatePath,
+        companionPath
+      ],
+      {
+        cwd: root,
+        env: { ...process.env, WAYFINDER_PREVIEW_PROJECTS: "2" },
+        stdio: "pipe"
+      }
+    );
 
     const debugPort = await freePort();
     const browser = childProcess.spawn(
@@ -818,6 +860,195 @@ test(
       assert.equal(
         await evaluate(cdp, "document.querySelector('#treeCount')?.textContent"),
         "2 / 2"
+      );
+
+      await cdp.send("Emulation.setDeviceMetricsOverride", {
+        width: 1440,
+        height: 900,
+        deviceScaleFactor: 1,
+        mobile: false
+      });
+      await cdp.send("Page.navigate", { url: `${origin}/companion.html` });
+      await waitForExpression(
+        cdp,
+        "document.querySelectorAll('.project-item').length === 2"
+      );
+      await waitForExpression(
+        cdp,
+        "document.querySelectorAll('.forest-node').length > 1"
+      );
+      const desktopCompanion = await evaluateJson(
+        cdp,
+        `({
+          width: innerWidth,
+          scrollWidth: document.body.scrollWidth,
+          sidebarWidth: document.querySelector(
+            '.project-sidebar'
+          )?.getBoundingClientRect().width,
+          sidebarLeft: document.querySelector(
+            '.project-sidebar'
+          )?.getBoundingClientRect().left,
+          projectToggleDisplay: getComputedStyle(
+            document.querySelector('#toggleProjects')
+          ).display,
+          projectMeta: document.querySelector('.project-meta')?.textContent,
+          projectCount: document.querySelectorAll('.project-item').length,
+          mapNodes: document.querySelectorAll('.forest-node').length,
+          hasLegacyHookCopy: document.body.textContent.includes(
+            'Hook 已配置'
+          ),
+          hasLegacyHostButtons: Boolean(
+            document.querySelector('[data-connect-host]')
+          )
+        })`
+      );
+      assert.equal(desktopCompanion.width, 1440);
+      assert.equal(desktopCompanion.scrollWidth, 1440);
+      assert.equal(desktopCompanion.sidebarWidth, 236);
+      assert.equal(desktopCompanion.sidebarLeft, 0);
+      assert.equal(desktopCompanion.projectToggleDisplay, "none");
+      assert.equal(desktopCompanion.projectMeta, "11 轮记录");
+      assert.equal(desktopCompanion.projectCount, 2);
+      assert.ok(desktopCompanion.mapNodes > 1);
+      assert.equal(desktopCompanion.hasLegacyHookCopy, false);
+      assert.equal(desktopCompanion.hasLegacyHostButtons, false);
+
+      await cdp.send("Runtime.evaluate", {
+        expression: "document.querySelectorAll('.project-item')[1]?.click()"
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelector('#currentProjectLabel')?.textContent === 'ui-test 2'"
+      );
+
+      await cdp.send("Emulation.setDeviceMetricsOverride", {
+        width: 320,
+        height: 720,
+        deviceScaleFactor: 2,
+        mobile: false
+      });
+      await cdp.send("Page.reload", { ignoreCache: true });
+      await waitForExpression(
+        cdp,
+        "document.querySelectorAll('.project-item').length === 2"
+      );
+      await waitForExpression(
+        cdp,
+        "document.querySelectorAll('.forest-node').length > 1"
+      );
+      const narrowCompanion = await evaluateJson(
+        cdp,
+        `({
+          width: innerWidth,
+          scrollWidth: document.body.scrollWidth,
+          projectToggleDisplay: getComputedStyle(
+            document.querySelector('#toggleProjects')
+          ).display,
+          topbarChildrenFit: Array.from(
+            document.querySelector('.desktop-topbar').children
+          ).every((element) => {
+            const rect = element.getBoundingClientRect();
+            return rect.left >= 0 && rect.right <= innerWidth;
+          }),
+          sidebarWidth: document.querySelector(
+            '.project-sidebar'
+          )?.getBoundingClientRect().width,
+          sidebarRight: document.querySelector(
+            '.project-sidebar'
+          )?.getBoundingClientRect().right
+        })`
+      );
+      assert.equal(narrowCompanion.width, 320);
+      assert.equal(narrowCompanion.scrollWidth, 320);
+      assert.notEqual(narrowCompanion.projectToggleDisplay, "none");
+      assert.equal(narrowCompanion.topbarChildrenFit, true);
+      assert.equal(narrowCompanion.sidebarWidth, 278);
+      assert.ok(narrowCompanion.sidebarRight <= 0);
+
+      await cdp.send("Runtime.evaluate", {
+        expression: "document.querySelector('#toggleProjects')?.click()"
+      });
+      await waitForExpression(
+        cdp,
+        "Math.abs(document.querySelector('.project-sidebar')" +
+          "?.getBoundingClientRect().left || 0) < 1"
+      );
+      const openDrawer = await evaluateJson(
+        cdp,
+        `({
+          left: document.querySelector(
+            '.project-sidebar'
+          )?.getBoundingClientRect().left,
+          right: document.querySelector(
+            '.project-sidebar'
+          )?.getBoundingClientRect().right,
+          scrimPointerEvents: getComputedStyle(
+            document.querySelector('#sidebarScrim')
+          ).pointerEvents
+        })`
+      );
+      assert.equal(openDrawer.left, 0);
+      assert.ok(openDrawer.right <= 320);
+      assert.equal(openDrawer.scrimPointerEvents, "auto");
+
+      await cdp.send("Runtime.evaluate", {
+        expression: "document.querySelectorAll('.project-item')[1]?.click()"
+      });
+      await waitForExpression(
+        cdp,
+        "!document.body.classList.contains('projects-open')"
+      );
+      await waitForExpression(
+        cdp,
+        "document.querySelector('#currentProjectLabel')?.textContent === 'ui-test 2'"
+      );
+
+      await cdp.send("Runtime.evaluate", {
+        expression: `(() => {
+          const input = document.querySelector('#search');
+          input.value = forest.trees[0]?.sessions[0]?.title || '';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        })()`
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelector('#canvasTitle')?.textContent.includes('搜索结果')"
+      );
+      await waitForExpression(cdp, "document.querySelectorAll('.node-hit').length > 0");
+      await cdp.send("Runtime.evaluate", {
+        expression: `(() => {
+          const target = document.querySelector('.node-hit');
+          const sessionId = target?.dataset.sessionId;
+          const session = forest.trees
+            .flatMap((tree) => tree.sessions)
+            .find((item) => item.id === sessionId);
+          const node = state.nodes.find((item) =>
+            session?.nodeIds.includes(item.id)
+          );
+          Object.assign(node, {
+            kind: 'collected',
+            sourceHost: 'codex',
+            files: [{
+              path: 'src/sessionCollector.ts',
+              status: 'M',
+              additions: 12,
+              deletions: 3
+            }]
+          });
+          target?.click();
+        })()`
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelector('#inspector')?.classList.contains('open')"
+      );
+      assert.equal(
+        await evaluate(cdp, "document.querySelector('.detail-source')?.textContent"),
+        "自动记录 · Codex"
+      );
+      assert.match(
+        await evaluate(cdp, "document.querySelector('.detail-file')?.textContent"),
+        /src\/sessionCollector\.ts.*\+12.*−3/
       );
       assert.deepEqual(exceptions, []);
       cdp.close();

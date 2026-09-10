@@ -1,4 +1,9 @@
-export type NodeKind = "turn" | "manual" | "safety" | "imported";
+export type NodeKind =
+  | "turn"
+  | "manual"
+  | "safety"
+  | "imported"
+  | "collected";
 export type AgentHost = "trae" | "claude" | "codex";
 export type UserVerdict = "success" | "failure";
 export type ValidationStatus =
@@ -52,19 +57,28 @@ export interface TimelineNode {
   validation: ValidationResult;
   verdict?: UserVerdict;
   note?: string;
-  source?: {
-    type: "trae-memory";
-    messageId?: string;
-    importedAt: string;
-    chapter?: string;
-    forest?: {
-      tree: string;
-      stage: string;
-      stageOrder: number;
-      parentStage?: string;
-      branch?: string;
-    };
-  };
+  source?:
+    | {
+        type: "trae-memory";
+        messageId?: string;
+        importedAt: string;
+        chapter?: string;
+        forest?: {
+          tree: string;
+          stage: string;
+          stageOrder: number;
+          parentStage?: string;
+          branch?: string;
+        };
+      }
+    | {
+        type: "rollout";
+        host: AgentHost;
+        rolloutPath: string;
+        sessionId: string;
+        turnIndex: number;
+        collectedAt: string;
+      };
 }
 
 export interface TimelineBranch {

@@ -1,12 +1,14 @@
 # Publication Status
 
-Version: **0.3.3 early access**. Checked 2026-09-08.
+Version: **0.3.3 early access**. Checked 2026-09-10.
 
 ## Published
 
 | Channel | Public entry | Verification |
 | --- | --- | --- |
+| Official website | https://wayfinder-ai.pages.dev | Live Cloudflare Pages download site; automatic-transcript-collection copy is updated in the repository and awaits the next Pages deployment |
 | GitHub source | https://github.com/WBXWHT/wayfinder | Public repository and CI |
+| macOS Companion Alpha | https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.3 | Apple Silicon and Intel DMGs plus SHA-256 checksum files |
 | GitHub Releases / VSIX | https://github.com/WBXWHT/wayfinder/releases/tag/v0.3.3 | Ten uploaded assets, SHA-256 manifest |
 | Claude Code self-hosted marketplace | `WBXWHT/wayfinder`, plugin `wayfinder@wayfinder` | Official Claude Code 2.1.263 added the marketplace and installed the enabled 0.3.3 plugin from a clean temporary home; Hook process checks also pass |
 | Codex self-hosted marketplace | `codex plugin marketplace add WBXWHT/wayfinder` | Public catalog, complete Plugin bundle and Hook process checks |
@@ -14,7 +16,7 @@ Version: **0.3.3 early access**. Checked 2026-09-08.
 | Homebrew Tap | https://github.com/WBXWHT/homebrew-tap | Clean macOS runner installed the formula and passed `brew test` |
 | Scoop Bucket | https://github.com/WBXWHT/scoop-wayfinder | Clean Windows runner installed, checked the download hash, ran CLI |
 | npm-compatible release tarball | `wbxwht-wayfinder-0.3.3.tgz` in GitHub Releases | Clean macOS, Windows, and Linux installations |
-| Official MCP Registry | `io.github.WBXWHT/wayfinder` | Registry API returns version 0.3.3 with `active` status |
+| Official MCP Registry | `io.github.WBXWHT/wayfinder` | Registry API currently returns version 0.3.1 with `active` status; 0.3.3 has not propagated |
 | Desktop MCP bundle | `wayfinder-0.3.3.mcpb` in GitHub Releases | Official manifest validation and stdio MCP process checks |
 | MCPFind | https://www.mcpfind.org/servers/io-github-wbxwht-wayfinder | Auto-imported from the official Registry and marked `Verified` |
 
@@ -35,7 +37,7 @@ review flow; that submission is pending and is not yet an approval.
 | TensorBlock MCP Index | Source issue corrected to 0.3.3; stale generated draft PR awaiting regeneration | https://github.com/TensorBlock/awesome-mcp-servers/pull/2231 |
 | OpenModels MCP Registry | PR updated to 0.3.3; all 218 registry files validate | https://github.com/openmodelsrun/mcp/pull/32 |
 | Glama | Automatically indexed, not deployable through Glama | https://glama.ai/mcp/servers/WBXWHT/wayfinder |
-| Product Hunt | Scheduled for 2026-09-09 (Pacific Time); pre-launch discussion published | https://www.producthunt.com/products/wayfinder-5?launch=wayfinder-6 |
+| Product Hunt | Public launch page is live; its website link and product copy still point to the pre-Companion GitHub positioning | https://www.producthunt.com/products/wayfinder-5?launch=wayfinder-6 |
 | punkpeye/awesome-mcp-servers | Submitted; automated check passes | https://github.com/punkpeye/awesome-mcp-servers/pull/13982 |
 | Awesome Claude Code Workflows | Submitted; CodeRabbit check passes, maintainer review pending | https://github.com/ithiria894/awesome-claude-code-workflows/pull/30 |
 | Awesome Claude Skills | Submitted; listing validation and both Socket checks pass, maintainer review pending | https://github.com/ComposioHQ/awesome-claude-skills/pull/1861 |
@@ -86,8 +88,8 @@ Skills `#1861`, and Awesome Claude Plugins `#459`. The archived
   https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.WBXWHT/wayfinder
 - Public Agent Skill page:
   https://skills.sh/wbxwht/wayfinder/wayfinder
-- Product Hunt pre-launch discussion:
-  https://www.producthunt.com/p/wayfinder-5/what-part-of-your-ai-workflow-do-you-wish-you-could-revisit
+- Product Hunt launch page:
+  https://www.producthunt.com/products/wayfinder-5?launch=wayfinder-6
 - Glama profile quality details:
   https://glama.ai/mcp/servers/WBXWHT/wayfinder/score
 - OpenModels schema validation was run locally against all 218 entries before

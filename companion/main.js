@@ -1,36 +1,40 @@
 import { buildConversationForest } from "../src/conversationForest";
-import { buildLocalTopicAssessments } from "../src/localExperience";
 
-const projectPicker = document.querySelector("#projectPicker");
-const connectionStatus = document.querySelector("#connectionStatus");
+const projectList = document.querySelector("#projectList");
+const projectSummary = document.querySelector("#projectSummary");
+const currentProjectLabel = document.querySelector("#currentProjectLabel");
 const refreshButton = document.querySelector("#refresh");
 const settingsDialog = document.querySelector("#settingsDialog");
+const toast = document.querySelector("#toast");
+
 let invoke;
 let projects = [];
 let activeProjectId = "";
 let lastUpdatedAt = "";
-let hostStates = [];
-let hostStatusRefresh;
-let hostStatusGeneration = 0;
 let projectLoadGeneration = 0;
-const hostOperations = new Set();
+let toastTimer;
 
 async function start() {
-  globalThis.__WAYFINDER_DESKTOP__ = true;
-  await import("../mcp/wayfinder-app.js");
   invoke = globalThis.__TAURI__.core.invoke;
-  try {
-    await updateHostStatus();
-  } catch {
-    connectionStatus.textContent = "连接状态暂不可用";
-  }
+  globalThis.__WAYFINDER_DESKTOP_HANDLE_MESSAGE__ = handleMapMessage;
+  const queued = globalThis.__WAYFINDER_DESKTOP_MESSAGE_QUEUE__ || [];
+  globalThis.__WAYFINDER_DESKTOP_MESSAGE_QUEUE__ = [];
+  queued.forEach(handleMapMessage);
+
   await loadProjects();
   setInterval(() => {
     void refreshIfChanged().catch(() => undefined);
   }, 1_500);
-  setInterval(() => {
-    void updateHostStatus().catch(() => undefined);
-  }, 5_000);
+}
+
+function handleMapMessage(message) {
+  // The final map sends "ready" through the VS Code adapter. Companion data is
+  // loaded by start(); host-only commands are hidden in desktop mode.
+  if (message?.type === "ready") return;
+}
+
+function sendToMap(data) {
+  globalThis.dispatchEvent(new MessageEvent("message", { data }));
 }
 
 async function loadProjects(preferredId) {
@@ -40,31 +44,77 @@ async function loadProjects(preferredId) {
       ? activeProjectId
       : preferredId && projects.some((item) => item.id === preferredId)
         ? preferredId
-      : projects[0]?.id || "";
+        : projects[0]?.id || "";
   activeProjectId = nextId;
-  projectPicker.innerHTML = projects.length
-    ? projects.map((project) =>
-        `<option value="${escapeHtml(project.id)}">` +
-        `${escapeHtml(project.name)} · ${project.nodeCount} 航点</option>`
-      ).join("")
-    : '<option value="">尚无航迹</option>';
-  projectPicker.value = activeProjectId;
-  projectPicker.disabled = projects.length === 0;
+  renderProjectList();
   await loadActiveProject();
+}
+
+function renderProjectList() {
+  projectList.replaceChildren();
+  if (projects.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "project-empty";
+    empty.textContent = "开始一次 AI 协作后，项目会自动出现在这里。";
+    projectList.append(empty);
+    projectSummary.textContent = "尚无项目";
+    return;
+  }
+
+  projects.forEach((project) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "project-item";
+    item.dataset.projectId = project.id;
+    item.setAttribute("aria-current", String(project.id === activeProjectId));
+    item.title = project.root || project.name;
+
+    const icon = document.createElement("span");
+    icon.className = "codicon codicon-folder";
+    icon.setAttribute("aria-hidden", "true");
+
+    const copy = document.createElement("span");
+    copy.className = "project-copy";
+    const name = document.createElement("span");
+    name.className = "project-name";
+    name.textContent = project.name;
+    const meta = document.createElement("span");
+    meta.className = "project-meta";
+    meta.textContent = `${project.nodeCount} 轮记录`;
+    copy.append(name, meta);
+    item.append(icon, copy);
+
+    item.addEventListener("click", async () => {
+      if (activeProjectId === project.id) {
+        closeProjects();
+        return;
+      }
+      activeProjectId = project.id;
+      renderProjectList();
+      await loadActiveProject();
+      closeProjects();
+    });
+    projectList.append(item);
+  });
+
+  projectSummary.textContent = `${projects.length} 个项目`;
 }
 
 async function loadActiveProject() {
   const requestedProjectId = activeProjectId;
   const requestGeneration = ++projectLoadGeneration;
   if (!requestedProjectId) {
-    globalThis.__WAYFINDER_SET_PAYLOAD__({
-      project: "Wayfinder",
-      state: undefined,
+    currentProjectLabel.textContent = "航海图";
+    sendToMap({
+      type: "render",
+      projectName: "Wayfinder",
+      state: { nodes: [] },
       forest: { trees: [], sessionCount: 0, nodeCount: 0 }
     });
     lastUpdatedAt = "";
     return;
   }
+
   let state;
   try {
     state = await invoke("read_project_state", {
@@ -77,12 +127,7 @@ async function loadActiveProject() {
     ) {
       return;
     }
-    globalThis.__WAYFINDER_SET_PAYLOAD__({
-      project: "读取失败",
-      state: undefined,
-      forest: { trees: [], sessionCount: 0, nodeCount: 0 }
-    });
-    connectionStatus.textContent = `数据读取失败：${String(error)}`;
+    showToast(`读取失败：${String(error)}`);
     return;
   }
   if (
@@ -91,13 +136,14 @@ async function loadActiveProject() {
   ) {
     return;
   }
+
   const project = projects.find((item) => item.id === requestedProjectId);
-  const forest = buildConversationForest(state);
-  globalThis.__WAYFINDER_SET_PAYLOAD__({
-    project: project?.name || "Wayfinder",
+  currentProjectLabel.textContent = project?.name || "航海图";
+  sendToMap({
+    type: "render",
+    projectName: project?.name || "Wayfinder",
     state,
-    forest,
-    assessments: buildLocalTopicAssessments(state, forest)
+    forest: buildConversationForest(state)
   });
   lastUpdatedAt = state.updatedAt || "";
 }
@@ -122,19 +168,29 @@ async function refreshIfChanged() {
   }
 }
 
-projectPicker.addEventListener("change", async () => {
-  activeProjectId = projectPicker.value;
-  await loadActiveProject();
-});
-
 refreshButton.addEventListener("click", async () => {
+  const icon = refreshButton.querySelector(".codicon");
   refreshButton.disabled = true;
+  icon?.classList.add("is-spinning");
   try {
     await loadProjects(activeProjectId);
+  } catch (error) {
+    showToast(`刷新失败：${String(error)}`);
   } finally {
     refreshButton.disabled = false;
+    icon?.classList.remove("is-spinning");
   }
 });
+
+document.querySelector("#toggleProjects").addEventListener("click", () => {
+  document.body.classList.toggle("projects-open");
+});
+document.querySelector("#closeProjects").addEventListener("click", closeProjects);
+document.querySelector("#sidebarScrim").addEventListener("click", closeProjects);
+
+function closeProjects() {
+  document.body.classList.remove("projects-open");
+}
 
 document.querySelector("#settings").addEventListener("click", () => {
   document.querySelector("#archiveProject").disabled = !activeProjectId;
@@ -142,6 +198,9 @@ document.querySelector("#settings").addEventListener("click", () => {
 });
 document.querySelector("#closeSettings").addEventListener("click", () => {
   settingsDialog.close();
+});
+settingsDialog.addEventListener("click", (event) => {
+  if (event.target === settingsDialog) settingsDialog.close();
 });
 document.querySelector("#openData").addEventListener("click", async () => {
   await invoke("open_data_folder");
@@ -153,9 +212,10 @@ document.querySelector("#archiveProject").addEventListener("click", async () => 
   if (!activeProjectId) return;
   const project = projects.find((item) => item.id === activeProjectId);
   const confirmed = globalThis.confirm(
-    `归档“${project?.name || "当前项目"}”？项目会移出列表，原始数据仍保留在 archive 目录。`
+    `归档“${project?.name || "当前项目"}”？原始数据仍会保存在本机。`
   );
   if (!confirmed) return;
+
   try {
     await invoke("archive_project", {
       projectId: activeProjectId,
@@ -164,12 +224,11 @@ document.querySelector("#archiveProject").addEventListener("click", async () => 
     activeProjectId = "";
     settingsDialog.close();
     await loadProjects();
+    showToast("项目已归档");
   } catch (error) {
     if (
       String(error).includes("PENDING_TURNS:") &&
-      globalThis.confirm(
-        "仍有未完成的 AI 回合。确认 Codex 与 Claude Code 已停止后强制归档？"
-      )
+      globalThis.confirm("当前项目仍在记录。确认停止相关 AI 会话后强制归档？")
     ) {
       try {
         await invoke("archive_project", {
@@ -179,138 +238,28 @@ document.querySelector("#archiveProject").addEventListener("click", async () => 
         activeProjectId = "";
         settingsDialog.close();
         await loadProjects();
+        showToast("项目已归档");
         return;
       } catch (forceError) {
-        connectionStatus.textContent = `归档失败：${String(forceError)}`;
+        showToast(`归档失败：${String(forceError)}`);
         return;
       }
     }
-    connectionStatus.textContent = `归档失败：${String(error)}`;
+    showToast(`归档失败：${String(error)}`);
   }
 });
 
-document.querySelectorAll("[data-connect-host]").forEach((button) => {
-  button.addEventListener("click", async () => {
-    const host = button.dataset.connectHost;
-    const state = hostStates.find((item) => item.host === host);
-    const disconnecting = Boolean(
-      state?.configured &&
-      (state?.runtimeMatches || state?.enabled === false)
-    );
-    hostOperations.add(host);
-    hostStatusGeneration += 1;
-    button.disabled = true;
-    connectionStatus.textContent =
-      `正在${disconnecting ? "断开" : "配置"} ${hostName(host)}…`;
-    try {
-      const result = await invoke(
-        disconnecting ? "disconnect_host" : "connect_host",
-        { host }
-      );
-      connectionStatus.textContent = result;
-      hostOperations.delete(host);
-      await updateHostStatus({ force: true });
-    } catch (error) {
-      connectionStatus.textContent = `操作失败：${String(error)}`;
-    } finally {
-      hostOperations.delete(host);
-      button.disabled = hostOperations.has(host);
-    }
-  });
+globalThis.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeProjects();
 });
 
-async function updateHostStatus({ force = false } = {}) {
-  if (hostStatusRefresh && !force) return hostStatusRefresh;
-  const generation = ++hostStatusGeneration;
-  const request = (async () => {
-    const result = await invoke("host_status");
-    if (generation !== hostStatusGeneration) return;
-    hostStates = result.hosts || [];
-    document.querySelectorAll("[data-connect-host]").forEach((button) => {
-      const state = hostStates.find(
-        (item) => item.host === button.dataset.connectHost
-      );
-      const label = button.querySelector(".host-label");
-      const dot = button.querySelector(".host-dot");
-      button.dataset.connected = state?.healthy ? "true" : "false";
-      button.dataset.configured =
-        state?.configured && state?.runtimeMatches ? "true" : "false";
-      button.title = state?.healthy
-        ? `断开 ${hostName(button.dataset.connectHost)}`
-        : state?.configured && state?.enabled === false
-          ? `断开 ${hostName(button.dataset.connectHost)} 的已禁用配置`
-          : state?.configured && state?.runtimeMatches
-            ? `${hostName(button.dataset.connectHost)} 已配置；首次使用需在宿主批准`
-          : state?.configured
-            ? `${hostName(button.dataset.connectHost)} 配置需要修复`
-            : `配置 ${hostName(button.dataset.connectHost)}`;
-      button.disabled = hostOperations.has(button.dataset.connectHost);
-      if (label) label.textContent = hostName(button.dataset.connectHost);
-      if (dot) dot.setAttribute(
-        "aria-label",
-        state?.healthy
-          ? "Hook 正常"
-          : state?.configured && state?.runtimeMatches
-            ? "Hook 已配置"
-            : state?.configured
-              ? "Hook 需要修复"
-            : "尚未配置"
-      );
-    });
-    const healthy = hostStates.filter((state) => state.healthy);
-    const disabled = hostStates.filter(
-      (state) => state.configured && state.enabled === false
-    );
-    const awaitingApproval = hostStates.filter(
-      (state) =>
-        state.configured &&
-        state.enabled &&
-        state.runtimeMatches &&
-        !state.healthy
-    );
-    const needsRepair = hostStates.filter(
-      (state) =>
-        state.configured &&
-        (!state.enabled || !state.runtimeMatches)
-    );
-    connectionStatus.textContent = !result.git?.available
-      ? "未检测到 Git，配置后也无法记录"
-      : disabled.length > 0
-        ? `${disabled.map((state) => hostName(state.host)).join("、")} Hooks 已禁用，请在宿主设置中启用`
-      : needsRepair.length > 0
-        ? `${needsRepair.map((state) => hostName(state.host)).join("、")} 配置需要修复`
-        : healthy.length > 0
-          ? `Hook 正常：${healthy.map((state) => hostName(state.host)).join("、")}`
-          : awaitingApproval.length > 0
-            ? `Hook 已配置：${awaitingApproval
-                .map((state) => hostName(state.host))
-                .join("、")}；首次使用需在宿主批准`
-          : "仅在本地记录";
-  })();
-  hostStatusRefresh = request;
-  try {
-    return await request;
-  } finally {
-    if (hostStatusRefresh === request) {
-      hostStatusRefresh = undefined;
-    }
-  }
-}
-
-function hostName(host) {
-  return host === "claude" ? "Claude Code" : "Codex";
-}
-
-function escapeHtml(value) {
-  return String(value || "").replace(/[&<>"']/g, (char) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  })[char]);
+function showToast(message) {
+  clearTimeout(toastTimer);
+  toast.textContent = message;
+  toast.classList.add("visible");
+  toastTimer = setTimeout(() => toast.classList.remove("visible"), 3_000);
 }
 
 void start().catch((error) => {
-  connectionStatus.textContent = `启动失败：${String(error)}`;
+  showToast(`启动失败：${String(error)}`);
 });
