@@ -295,7 +295,7 @@ jobs:
             echo "$hash  Wayfinder-Alpha-${VERSION}-macOS-${arch}.dmg" \
               >> SHA256SUMS
           done
-          windows="$(find artifacts -path '*Windows-x86_64*' -name '*.exe' -print -quit)"
+          windows="$(find artifacts/windows -name '*.exe' -print -quit)"
           test -n "$windows"
           output="release-assets/Wayfinder-Alpha-${VERSION}-Windows-x86_64.exe"
           cp "$windows" "$output"
