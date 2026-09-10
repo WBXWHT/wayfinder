@@ -5,11 +5,13 @@ Codex and Claude Code into one visual voyage map. It preserves prompts,
 responses, tool activity, file changes, branches, failures, and decisions so
 the path behind a result remains reviewable.
 
-**Current public release: v0.3.7 early access.** MIT licensed. Your complete
-history stays on your computer.
+**Current public release: v0.3.6 early access.** Windows x64 remains available
+from v0.3.5 while the cross-platform v0.3.7 release is prepared. MIT licensed.
+Your complete history stays on your computer.
 
 [Website](https://wayfinder-ai.pages.dev) |
-[Desktop Downloads](https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.7) |
+[macOS 0.3.6](https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.6) |
+[Windows x64 0.3.5](https://github.com/WBXWHT/wayfinder/releases/download/alpha-v0.3.5/Wayfinder-Alpha-0.3.5-Windows-x86_64.exe) |
 [Install Guide](https://github.com/WBXWHT/wayfinder/blob/main/docs/INSTALL.md) |
 [Privacy](https://github.com/WBXWHT/wayfinder/blob/main/PRIVACY.md) |
 [Report a Bug](https://github.com/WBXWHT/wayfinder/issues)

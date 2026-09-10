@@ -1,10 +1,11 @@
-# Wayfinder 0.3.7 Alpha
+# Wayfinder 0.3.7 Alpha (Unreleased)
 
 This cross-platform release carries the 0.3.6 voyage-map and collector
 improvements to macOS and Windows.
 
-Status: published as `alpha-v0.3.7` with Apple Silicon, Intel macOS, and
-Windows x64 installers.
+Status: release-candidate validation. The current public macOS release remains
+`alpha-v0.3.6`; the public Windows build remains `alpha-v0.3.5` until all
+0.3.7 assets pass their native runners.
 
 ## Highlights
 
