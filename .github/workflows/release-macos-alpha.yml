@@ -60,17 +60,6 @@ jobs:
             let release = releases.find(
               (item) => item.tag_name === process.env.RELEASE_TAG
             );
-            if (!release) {
-              try {
-                release = (await github.rest.repos.getReleaseByTag({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  tag: process.env.RELEASE_TAG
-                })).data;
-              } catch (error) {
-                if (error.status !== 404) throw error;
-              }
-            }
             const tagCommit = await resolveTagCommit(process.env.RELEASE_TAG);
             if (tagCommit && tagCommit !== context.sha) {
               if (!release?.draft) {

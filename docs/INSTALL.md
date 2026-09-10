@@ -1,18 +1,16 @@
 # Install Wayfinder
 
-Current public versions: **macOS 0.3.6** and **Windows x64 0.3.5** early
-access. The next cross-platform release is 0.3.7.
+Current public version: **0.3.6 early access**.
 
 Wayfinder is distributed as a desktop application for macOS and Windows:
 
-- macOS: https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.6
-- Windows: https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.5
+https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.6
 
 ## Choose Your Installer
 
-- `Wayfinder-Alpha-0.3.6-macOS-aarch64.dmg`: Apple Silicon.
-- `Wayfinder-Alpha-0.3.6-macOS-x86_64.dmg`: Intel.
-- `Wayfinder-Alpha-0.3.5-Windows-x86_64.exe`: Windows 10/11 x64.
+- `Wayfinder-Alpha-<version>-macOS-aarch64.dmg`: Apple Silicon.
+- `Wayfinder-Alpha-<version>-macOS-x86_64.dmg`: Intel.
+- `Wayfinder-Alpha-<version>-Windows-x86_64.exe`: Windows 10/11 x64.
 
 On macOS, download the matching DMG, move Wayfinder to Applications, and open
 it. On Windows, download and run the x64 installer.
