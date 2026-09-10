@@ -18,7 +18,6 @@ test("download website exposes architecture-specific release links", () => {
   assert.match(html, /<h1>Wayfinder<\/h1>/);
   assert.match(html, /data-download="arm64"/);
   assert.match(html, /data-download="x64"/);
-  assert.match(html, /data-download="windowsX64" hidden/);
   assert.match(html, /data-default-download/);
   assert.match(html, /class="hero-waypoint waypoint-start"/);
   assert.match(html, /src="\.\/wayfinder-icon\.svg"/);
@@ -46,11 +45,6 @@ test("download website exposes architecture-specific release links", () => {
     `https://github.com/WBXWHT/wayfinder/releases/download/${tag}/` +
       `${assetPrefix}-macOS-x86_64.dmg`
   );
-  assert.equal(
-    releases.downloads.windowsX64,
-    `https://github.com/WBXWHT/wayfinder/releases/download/${tag}/` +
-      `${assetPrefix}-Windows-x86_64.exe`
-  );
 });
 
 test("website scripts parse and visual CSS avoids decorative gradients", () => {
@@ -67,9 +61,9 @@ test("website scripts parse and visual CSS avoids decorative gradients", () => {
   assert.match(styles, /#voyageCanvas/);
   assert.match(script, /prefers-reduced-motion: reduce/);
   assert.match(script, /data-default-download/);
-  assert.match(script, /release\.downloads\?\.\[target\]/);
-  assert.match(script, /detectDownloadTarget/);
-  assert.match(script, /"选择桌面版本"/);
+  assert.match(script, /release\.downloads\?\.\[architecture\]/);
+  assert.match(script, /detectArchitecture/);
+  assert.match(script, /"选择 Mac 版本"/);
 });
 
 test("Cloudflare deployment cannot silently claim the occupied project name", () => {
@@ -86,15 +80,7 @@ test("Cloudflare deployment cannot silently claim the occupied project name", ()
   assert.match(workflow, /tag: `companion-v\$\{release\.version\}`/);
   assert.match(
     workflow,
-    /`\$\{channel\.assetPrefix\}-macOS-aarch64\.dmg`/
-  );
-  assert.match(
-    workflow,
-    /`\$\{channel\.assetPrefix\}-macOS-x86_64\.dmg`/
-  );
-  assert.match(
-    workflow,
-    /`\$\{channel\.assetPrefix\}-Windows-x86_64\.exe`/
+    /`\$\{channel\.assetPrefix\}-macOS-\$\{assetArchitecture\}\.dmg`/
   );
   assert.match(workflow, /url\.pathname !== expectedPath/);
   assert.match(workflow, /--head/);
@@ -110,16 +96,6 @@ test("Intel detection updates the generic CTA and reduced motion stops animation
   assert.equal(runtime.animationFrames, 0);
 });
 
-test("Windows detection exposes and prioritizes the Windows installer", async () => {
-  const runtime = await runWebsiteScript("x86", true, true, "Windows");
-
-  assert.match(runtime.defaultLink.href, /Windows-x86_64\.exe$/);
-  assert.equal(runtime.defaultLink.textContent, "下载 Windows 版");
-  assert.equal(runtime.windowsLink.hidden, false);
-  assert.ok(runtime.windowsLink.classes.has("primary"));
-  assert.ok(runtime.arm64Link.classes.has("secondary"));
-});
-
 test("unknown Mac architecture keeps the generic release chooser", async () => {
   const runtime = await runWebsiteScript(undefined);
 
@@ -127,7 +103,7 @@ test("unknown Mac architecture keeps the generic release chooser", async () => {
     runtime.defaultLink.href,
     "https://github.com/WBXWHT/wayfinder/releases"
   );
-  assert.equal(runtime.defaultLink.textContent, "选择桌面版本");
+  assert.equal(runtime.defaultLink.textContent, "选择 Mac 版本");
 });
 
 test("unpublished downloads fall back to the release page", async () => {
@@ -138,7 +114,6 @@ test("unpublished downloads fall back to the release page", async () => {
     "https://github.com/WBXWHT/wayfinder/releases"
   );
   assert.equal(runtime.defaultLink.href, runtime.arm64Link.href);
-  assert.equal(runtime.windowsLink.hidden, true);
 });
 
 test("runtime reduced-motion changes cancel the active canvas frame", async () => {
@@ -163,8 +138,7 @@ test("canvas redraws when resized after its entrance animation", async () => {
 async function runWebsiteScript(
   architecture,
   published = true,
-  initiallyReduced = true,
-  platform = "macOS"
+  initiallyReduced = true
 ) {
   const script = fs.readFileSync(path.join(root, "website", "app.js"), "utf8");
   const drawingContext = new Proxy({}, {
@@ -203,13 +177,11 @@ async function runWebsiteScript(
   });
   const arm64Link = link("arm64", ["download", "primary"]);
   const x64Link = link("x64", ["download", "secondary"]);
-  const windowsLink = link("windowsX64", ["download", "secondary"]);
   const defaultLink = link("arm64", ["download", "primary", "compact"]);
-  for (const item of [arm64Link, x64Link, windowsLink, defaultLink]) {
+  for (const item of [arm64Link, x64Link, defaultLink]) {
     item.classList.owner = item;
   }
   const macVersion = { textContent: "" };
-  const windowsVersion = { textContent: "" };
   let animationFrames = 0;
   let cancelledFrames = 0;
   let motionListener;
@@ -225,8 +197,7 @@ async function runWebsiteScript(
         releasePage: "https://github.com/WBXWHT/wayfinder/releases",
         downloads: {
           arm64: "https://example.test/macOS-aarch64.dmg",
-          x64: "https://example.test/macOS-x86_64.dmg",
-          windowsX64: "https://example.test/Windows-x86_64.exe"
+          x64: "https://example.test/macOS-x86_64.dmg"
         }
       })
     }),
@@ -241,11 +212,11 @@ async function runWebsiteScript(
     }),
     navigator: {
       userAgentData: {
-        platform,
+        platform: "macOS",
         getHighEntropyValues: async () => ({ architecture })
       },
-      platform,
-      userAgent: platform
+      platform: "macOS",
+      userAgent: "macOS"
     },
     performance: { now: () => 1_000 },
     requestAnimationFrame: (callback) => {
@@ -259,19 +230,17 @@ async function runWebsiteScript(
     document: {
       querySelector(selector) {
         if (selector === "#voyageCanvas") return canvas;
-        if (selector.includes("windowsX64")) return windowsLink;
         if (selector.includes("arm64")) return arm64Link;
         if (selector.includes("x64")) return x64Link;
         return undefined;
       },
       querySelectorAll(selector) {
         if (selector === "[data-version='macos']") return [macVersion];
-        if (selector === "[data-version='windows']") return [windowsVersion];
         if (selector === ".download-row [data-download]") {
-          return [arm64Link, x64Link, windowsLink];
+          return [arm64Link, x64Link];
         }
         if (selector === "[data-download]") {
-          return [arm64Link, x64Link, windowsLink, defaultLink];
+          return [arm64Link, x64Link, defaultLink];
         }
         if (selector === "[data-default-download]") return [defaultLink];
         return [];
@@ -289,7 +258,6 @@ async function runWebsiteScript(
   return {
     arm64Link,
     x64Link,
-    windowsLink,
     defaultLink,
     animationFrames,
     get clears() {

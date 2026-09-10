@@ -1,4 +1,4 @@
-name: Release Desktop Alpha
+name: Release macOS Alpha
 on:
   workflow_dispatch:
 
@@ -6,7 +6,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-desktop-alpha
+  group: release-macos-alpha
   cancel-in-progress: false
 
 jobs:
@@ -86,9 +86,8 @@ jobs:
                 target_commitish: context.sha,
                 name: `Wayfinder Alpha v${process.env.RELEASE_VERSION}`,
                 body: [
-                  "Early-access desktop build for macOS and Windows.",
-                  "The macOS build is not Apple-notarized. On first launch, use System Settings > Privacy & Security > Open Anyway.",
-                  "The Windows build is not code-signed. Microsoft Defender SmartScreen may require More info > Run anyway."
+                  "Early-access macOS build. This build is not Apple-notarized.",
+                  "On first launch, use System Settings > Privacy & Security > Open Anyway."
                 ].join("\n"),
                 draft: true,
                 prerelease: true
@@ -101,9 +100,8 @@ jobs:
                 target_commitish: context.sha,
                 name: `Wayfinder Alpha v${process.env.RELEASE_VERSION}`,
                 body: [
-                  "Early-access desktop build for macOS and Windows.",
-                  "The macOS build is not Apple-notarized. On first launch, use System Settings > Privacy & Security > Open Anyway.",
-                  "The Windows build is not code-signed. Microsoft Defender SmartScreen may require More info > Run anyway."
+                  "Early-access macOS build. This build is not Apple-notarized.",
+                  "On first launch, use System Settings > Privacy & Security > Open Anyway."
                 ].join("\n"),
                 draft: true,
                 prerelease: true
@@ -191,83 +189,14 @@ jobs:
           file "$app/Contents/MacOS/wayfinder-companion" | grep -q "$expected_arch"
           file "$app/Contents/MacOS/wayfinder" | grep -q "$expected_arch"
 
-  build_windows:
-    needs: prepare
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
-        with:
-          node-version: "22.13.1"
-          cache: npm
-      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
-        with:
-          targets: x86_64-pc-windows-msvc
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-        with:
-          workspaces: companion/src-tauri
-      - run: npm ci
-      - run: npm run check
-        env:
-          WAYFINDER_SKIP_UI_TEST: "1"
-      - run: npm run build:companion:runtime
-      - name: Build Windows sidecar
-        shell: pwsh
-        run: |
-          $license = "$env:RUNNER_TEMP\NODE_LICENSE.txt"
-          Invoke-WebRequest `
-            "https://raw.githubusercontent.com/nodejs/node/v22.13.1/LICENSE" `
-            -OutFile $license
-          $env:WAYFINDER_NODE_LICENSE_PATH = $license
-          node scripts/build-sea.cjs
-      - run: npm run generate:companion-licenses
-      - run: npm run build:companion:sidecar
-      - run: cargo test --manifest-path companion/src-tauri/Cargo.toml
-      - run: npm run build:companion:web
-      - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
-        with:
-          projectPath: companion/src-tauri
-          tauriScript: ../../node_modules/.bin/tauri
-          args: --target x86_64-pc-windows-msvc --bundles nsis
-          uploadWorkflowArtifacts: true
-          workflowArtifactNamePattern: "Wayfinder-Alpha-Windows-x86_64-[bundle]"
-      - name: Verify the packaged installer
-        shell: pwsh
-        env:
-          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
-        run: |
-          $bundle = "companion/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis"
-          $installer = Get-ChildItem $bundle -Filter "*.exe" | Select-Object -First 1
-          if (-not $installer) {
-            throw "Windows NSIS installer was not produced"
-          }
-          if ($installer.Length -lt 1MB) {
-            throw "Windows NSIS installer is unexpectedly small"
-          }
-          $app = "companion/src-tauri/target/x86_64-pc-windows-msvc/release/wayfinder-companion.exe"
-          $sidecar = "companion/src-tauri/binaries/wayfinder-x86_64-pc-windows-msvc.exe"
-          if (-not (Test-Path $app)) {
-            throw "Packaged Windows application binary is missing"
-          }
-          if (-not (Test-Path $sidecar)) {
-            throw "Packaged Windows sidecar is missing"
-          }
-          if ((Get-Item $app).VersionInfo.ProductVersion -notlike "$env:RELEASE_VERSION*") {
-            throw "Windows application version does not match $env:RELEASE_VERSION"
-          }
-
   checksums:
-    needs: [prepare, build_macos, build_windows]
+    needs: [prepare, build_macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:
           pattern: Wayfinder-Alpha-macOS-*-dmg
           path: artifacts
-      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
-        with:
-          pattern: Wayfinder-Alpha-Windows-x86_64-nsis
-          path: artifacts/windows
       - name: Generate SHA256SUMS
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
@@ -284,13 +213,6 @@ jobs:
             echo "$hash  Wayfinder-Alpha-${VERSION}-macOS-${arch}.dmg" \
               >> SHA256SUMS
           done
-          windows="$(find artifacts -path '*Windows-x86_64*' -name '*.exe' -print -quit)"
-          test -n "$windows"
-          output="release-assets/Wayfinder-Alpha-${VERSION}-Windows-x86_64.exe"
-          cp "$windows" "$output"
-          hash="$(sha256sum "$output" | cut -d' ' -f1)"
-          echo "$hash  Wayfinder-Alpha-${VERSION}-Windows-x86_64.exe" \
-            >> SHA256SUMS
           cp SHA256SUMS release-assets/SHA256SUMS
       - name: Publish verified release assets
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
@@ -305,7 +227,6 @@ jobs:
             const expectedNames = [
               `Wayfinder-Alpha-${process.env.RELEASE_VERSION}-macOS-aarch64.dmg`,
               `Wayfinder-Alpha-${process.env.RELEASE_VERSION}-macOS-x86_64.dmg`,
-              `Wayfinder-Alpha-${process.env.RELEASE_VERSION}-Windows-x86_64.exe`,
               "SHA256SUMS"
             ];
             const listAssets = () => github.paginate(
@@ -377,9 +298,7 @@ jobs:
                   headers: {
                     "content-type": name.endsWith(".dmg")
                       ? "application/x-apple-diskimage"
-                      : name.endsWith(".exe")
-                        ? "application/vnd.microsoft.portable-executable"
-                        : "text/plain",
+                      : "text/plain",
                     "content-length": data.length
                   }
                 });

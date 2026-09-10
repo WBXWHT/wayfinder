@@ -4,7 +4,8 @@ This release brought Wayfinder to Windows and made the voyage map faster,
 clearer, and easier to navigate.
 
 Status: published as `alpha-v0.3.5` with Apple Silicon, Intel macOS, and
-Windows x64 installers.
+Windows x64 installers. Windows was an experimental release surface and is not
+part of the current supported product.
 
 ## Highlights
 

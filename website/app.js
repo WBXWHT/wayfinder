@@ -186,36 +186,26 @@ async function loadDownloads() {
         ? `macOS ${release.version} · Early Access`
         : `macOS ${release.version} · 即将开放`;
     });
-    document.querySelectorAll("[data-version='windows']").forEach((element) => {
-      element.textContent = published
-        ? `Windows ${release.version} · Early Access`
-        : `Windows ${release.version} · 即将开放`;
-    });
     document.querySelectorAll("[data-download]").forEach((link) => {
       const url = published
         ? release.downloads?.[link.dataset.download]
         : undefined;
       link.href = url || release.releasePage;
-      link.hidden = link.dataset.download === "windowsX64" && !url;
     });
-    const target = await detectDownloadTarget();
-    if (published && target) {
+    const architecture = await detectArchitecture();
+    if (published && architecture) {
       document.querySelectorAll(".download-row [data-download]").forEach(
         (link) => link.classList.replace("primary", "secondary")
       );
       document.querySelector(
-        `.download-row [data-download='${target}']`
+        `.download-row [data-download='${architecture}']`
       )?.classList.replace("secondary", "primary");
     }
     document.querySelectorAll("[data-default-download]").forEach((link) => {
-      link.href = published && target
-        ? release.downloads?.[target] || release.releasePage
+      link.href = published && architecture
+        ? release.downloads?.[architecture] || release.releasePage
         : release.releasePage;
-      link.textContent = target === "windowsX64"
-        ? "下载 Windows 版"
-        : target
-          ? "下载 macOS 版"
-          : "选择桌面版本";
+      link.textContent = architecture ? "下载 macOS 版" : "选择 Mac 版本";
     });
   } catch {
     document.querySelectorAll("[data-download]").forEach((link) => {
@@ -224,14 +214,11 @@ async function loadDownloads() {
   }
 }
 
-async function detectDownloadTarget() {
+async function detectArchitecture() {
   const platform = [
     navigator.userAgentData?.platform,
     navigator.userAgent
   ].filter(Boolean).join(" ");
-  if (/Windows|Win32|Win64/i.test(platform)) {
-    return "windowsX64";
-  }
   if (!/Mac/i.test(platform)) {
     return undefined;
   }
