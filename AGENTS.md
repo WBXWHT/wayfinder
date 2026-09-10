@@ -2,9 +2,9 @@
 
 ## Product
 
-Wayfinder is a standalone macOS application that turns local Codex and Claude
-Code sessions into one visual voyage map. The complete history stays under
-`~/.wayfinder`.
+Wayfinder is a standalone macOS and Windows application that turns local Codex
+and Claude Code sessions into one visual voyage map. The complete history stays
+under `~/.wayfinder`.
 
 ## Stack And Commands
 
@@ -34,12 +34,12 @@ Code sessions into one visual voyage map. The complete history stays under
   a cloud service.
 - Keep `package.json`, `package-lock.json`, `src/version.ts`, Cargo metadata,
   and Tauri config versions synchronized.
-- Do not update `website/releases.json` until both public DMGs exist.
+- Do not update `website/releases.json` until both macOS DMGs and the Windows
+  installer exist publicly.
 - Do not edit generated `out/`, `companion/dist/`, binaries, or `target/`.
 
 ## Current State
 
-- Public/live release: `0.3.4` early access.
-- Local source version: `0.3.5`, not yet released.
-- Next step: finish local verification, commit and push `0.3.5`, publish both
-  architecture DMGs, then update and deploy `website/releases.json`.
+- Public/live release: `0.3.5` early access.
+- Public artifacts: Apple Silicon and Intel macOS DMGs plus a Windows x64 NSIS
+  installer, with SHA-256 checksums.

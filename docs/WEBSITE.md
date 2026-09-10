@@ -38,7 +38,7 @@ not required.
 | --- | --- |
 | Official website | https://wayfinder-ai.pages.dev |
 | Source and overview | https://github.com/WBXWHT/wayfinder |
-| macOS Alpha | https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.4 |
+| Desktop Alpha | https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.5 |
 | Installation guide | https://github.com/WBXWHT/wayfinder/blob/main/docs/INSTALL.md |
 | Privacy policy | https://github.com/WBXWHT/wayfinder/blob/main/PRIVACY.md |
 | Issue tracker | https://github.com/WBXWHT/wayfinder/issues |
@@ -49,6 +49,7 @@ not required.
 
 Before publishing the site for a new Companion release, update
 `website/releases.json` with the matching versioned Alpha or stable asset
-names, publish the GitHub Release, and set `published` to `true`. Both
-architecture links must return a DMG before deployment; until then the local
-preview sends download actions to the general Releases page.
+names, publish the GitHub Release, and set `published` to `true`. Both macOS
+DMGs and the Windows installer must return successfully before deployment;
+until then unavailable download actions remain hidden or point to the general
+Releases page.

@@ -31,6 +31,7 @@ test("download website exposes architecture-specific release links", () => {
   assert.equal(typeof releases.published, "boolean");
   assert.match(releases.downloads.arm64, /Alpha.*macOS-aarch64\.dmg$/);
   assert.match(releases.downloads.x64, /Alpha.*macOS-x86_64\.dmg$/);
+  assert.match(releases.downloads.windowsX64, /Alpha.*Windows-x86_64\.exe$/);
 });
 
 test("website scripts parse and visual CSS avoids decorative gradients", () => {

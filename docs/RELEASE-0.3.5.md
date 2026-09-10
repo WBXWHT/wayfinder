@@ -1,10 +1,10 @@
-# Wayfinder 0.3.5 Alpha (Unreleased)
+# Wayfinder 0.3.5 Alpha
 
 This release brings Wayfinder to Windows and makes the voyage map faster,
 clearer, and easier to navigate.
 
-Status: local development. No public `alpha-v0.3.5` release or download assets
-exist yet; the current public release remains `alpha-v0.3.4`.
+Status: published as `alpha-v0.3.5` with Apple Silicon, Intel macOS, and
+Windows x64 installers.
 
 ## Highlights
 
@@ -17,9 +17,9 @@ exist yet; the current public release remains `alpha-v0.3.4`.
 - Wayfinder branding and voyage-map icons throughout the desktop app.
 - A refined download site built around the same coastline and route language.
 
-## Release Gate
+## Verification
 
-Before publication, verify:
+The release pipeline verified:
 
 - the Node test suite;
 - the Rust companion test suite;

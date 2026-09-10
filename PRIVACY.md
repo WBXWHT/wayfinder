@@ -14,10 +14,11 @@ Wayfinder stores prompts, assistant replies, tool summaries, paths, validation
 output, optional notes, and snapshots under `~/.wayfinder`. Do not commit or
 upload that directory. Treat it as sensitive project data.
 
-On macOS, Companion reads supported JSONL session files from the user's local
-Codex and Claude configuration directories. It stores incremental collection
-progress in `~/.wayfinder/collector-state.json`. This collection is local and
-does not scrape application windows or send transcript content to Wayfinder.
+On macOS and Windows, Companion reads supported JSONL session files from the
+user's local Codex and Claude configuration directories. It stores incremental
+collection progress in `~/.wayfinder/collector-state.json`. This collection is
+local and does not scrape application windows or send transcript content to
+Wayfinder.
 
 Snapshot exclusions include Git internals, host configuration directories,
 dependencies, common build output, and files over the configured size limit.

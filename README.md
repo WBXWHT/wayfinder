@@ -1,19 +1,20 @@
 # Wayfinder
 
-Wayfinder is a local macOS app that turns work from Codex and Claude Code into
-one visual voyage map. It preserves prompts, responses, tool activity, file
-changes, branches, failures, and decisions so the path behind a result remains
-reviewable.
+Wayfinder is a local desktop app for macOS and Windows that turns work from
+Codex and Claude Code into one visual voyage map. It preserves prompts,
+responses, tool activity, file changes, branches, failures, and decisions so
+the path behind a result remains reviewable.
 
-**Current public release: v0.3.4 early access.** The next source version is
-v0.3.5, which is not yet published. MIT licensed. Your complete history stays
-on your Mac.
+**Current public release: v0.3.5 early access.** MIT licensed. Your complete
+history stays on your computer.
 
 [Website](https://wayfinder-ai.pages.dev) |
-[macOS Download](https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.4) |
+[Desktop Downloads](https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.5) |
 [Install Guide](https://github.com/WBXWHT/wayfinder/blob/main/docs/INSTALL.md) |
 [Privacy](https://github.com/WBXWHT/wayfinder/blob/main/PRIVACY.md) |
 [Report a Bug](https://github.com/WBXWHT/wayfinder/issues)
+
+![Wayfinder voyage map](docs/assets/wayfinder-product-hunt-map.png)
 
 ## How It Works
 
@@ -28,7 +29,7 @@ overwriting raw history.
 
 ## Product Surface
 
-Wayfinder is a standalone macOS application.
+Wayfinder is a standalone desktop application for macOS and Windows.
 
 ## Local Data
 
