@@ -111,9 +111,23 @@ test("full map scopes layout to one project and removes legacy project list", ()
   assert.match(html, /routeClass\(routeIndexById\.get\(session\.id\) \?\? -1\)/);
   assert.match(html, /const nodeCardWidth = 164/);
   assert.match(html, /const nodeCardHeight = 58/);
-  assert.match(html, /const nodeVerticalPitch = 128/);
+  assert.match(html, /const nodeVerticalPitch = 176/);
   assert.match(html, /const nodeHorizontalPitch = 236/);
   assert.match(html, /const minimumReadableScale = \.7935/);
+  assert.match(html, /\.scaleExtent\(\[\.4, 3\.2\]\)/);
+  assert.match(
+    html,
+    /\.translateExtent\(\[\s*\[0, -Infinity\],\s*\[Infinity, Infinity\]\s*\]\)/
+  );
+  assert.match(html, /event\.type === 'mousedown'/);
+  assert.match(html, /event\.touches\?\.length \|\| 0/);
+  assert.match(html, /'wheel\.zoom', null/);
+  assert.match(html, /'wheel\.wayfinder'/);
+  assert.match(html, /zoomBehavior\.translateBy/);
+  assert.match(html, /zoomBehavior\.scaleBy/);
+  assert.match(html, /Math\.pow\(2, -delta \* \.01\)/);
+  assert.match(html, /const firstControlX = sx \+ span \* \.32/);
+  assert.match(html, /const secondControlX = sx \+ span \* \.62/);
   assert.match(html, /coastlineGeometry\(shoreTop, shoreBottom\)/);
   assert.match(html, /attr\('class', 'card-layer'\)/);
   assert.match(html, /attr\('class', 'marker-layer'\)/);

@@ -666,7 +666,39 @@ test(
           ).fill,
           decorations: document.querySelectorAll(
             '.channel-decoration'
-          ).length
+          ).length,
+          allRoutesDirectCubic: [...document.querySelectorAll(
+            '.forest-edge'
+          )].every((edge) => {
+            const path = edge.getAttribute('d') || '';
+            return path.includes(' C ') && !path.includes(' L ');
+          }),
+          maxForkAngle: (() => {
+            const groups = new Map();
+            [...document.querySelectorAll('.forest-edge')].forEach((edge) => {
+              const link = edge.__data__?.link;
+              if (!link) return;
+              const key = link.source.data.session?.id || 'root';
+              const items = groups.get(key) || [];
+              items.push(link);
+              groups.set(key, items);
+            });
+            const angles = [];
+            groups.forEach((links) => {
+              if (links.length < 2) return;
+              links.forEach((link) => {
+                angles.push(
+                  Math.atan2(
+                    Math.abs(link.target.screenY - link.source.screenY),
+                    link.target.screenX - link.source.screenX
+                  ) *
+                  180 /
+                  Math.PI
+                );
+              });
+            });
+            return angles.length ? Math.max(...angles) : 0;
+          })()
         })`
       );
       assert.equal(map.scrollWidth, 320);
@@ -697,6 +729,111 @@ test(
       assert.equal(map.channelWidth, "19px");
       assert.match(map.shoreFill, /244.*210.*138/);
       assert.equal(map.decorations, 9);
+      assert.equal(map.allRoutesDirectCubic, true);
+      assert.ok(map.maxForkAngle >= 20);
+
+      const gestures = await evaluateJson(
+        cdp,
+        `(() => {
+          const target = document.querySelector('#graph');
+          const rect = target.getBoundingClientRect();
+          const wheel = (deltaX, deltaY, ctrlKey = false) =>
+            target.dispatchEvent(new WheelEvent('wheel', {
+              deltaX,
+              deltaY,
+              ctrlKey,
+              bubbles: true,
+              cancelable: true,
+              clientX: rect.left + rect.width / 2,
+              clientY: rect.top + rect.height / 2
+            }));
+          const initial = d3.zoomTransform(target);
+          for (let index = 0; index < 30; index += 1) {
+            wheel(-80, 0);
+          }
+          const atCoast = d3.zoomTransform(target);
+          for (let index = 0; index < 30; index += 1) {
+            wheel(80, 0);
+          }
+          const explored = d3.zoomTransform(target);
+          for (let index = 0; index < 3; index += 1) {
+            wheel(0, 80);
+          }
+          const panned = d3.zoomTransform(target);
+          document.querySelector('#fit').click();
+          const reset = d3.zoomTransform(target);
+          for (let index = 0; index < 3; index += 1) {
+            wheel(0, -40, true);
+          }
+          const pinched = d3.zoomTransform(target);
+          return {
+            initial: { x: initial.x, y: initial.y, k: initial.k },
+            atCoast: { x: atCoast.x, y: atCoast.y, k: atCoast.k },
+            explored: { x: explored.x, y: explored.y, k: explored.k },
+            panned: { x: panned.x, y: panned.y, k: panned.k },
+            reset: { x: reset.x, y: reset.y, k: reset.k },
+            pinched: { x: pinched.x, y: pinched.y, k: pinched.k }
+          };
+        })()`
+      );
+      assert.ok(gestures.atCoast.x <= 0.001);
+      assert.ok(gestures.atCoast.x >= -0.001);
+      assert.equal(gestures.atCoast.k, gestures.initial.k);
+      assert.ok(gestures.explored.x < gestures.atCoast.x);
+      assert.equal(gestures.explored.k, gestures.atCoast.k);
+      assert.ok(gestures.panned.y < gestures.explored.y);
+      assert.equal(gestures.panned.k, gestures.explored.k);
+      assert.ok(gestures.pinched.k / gestures.reset.k > 1.25);
+      assert.ok(gestures.pinched.k / gestures.reset.k < 1.32);
+
+      const dragTarget = await evaluateJson(
+        cdp,
+        `(() => {
+          const target = document.querySelector('#graph');
+          const rect = target.getBoundingClientRect();
+          const transform = d3.zoomTransform(target);
+          return {
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2,
+            transform: {
+              x: transform.x,
+              y: transform.y,
+              k: transform.k
+            }
+          };
+        })()`
+      );
+      await cdp.send("Input.dispatchMouseEvent", {
+        type: "mousePressed",
+        x: dragTarget.x,
+        y: dragTarget.y,
+        button: "left",
+        clickCount: 1
+      });
+      await cdp.send("Input.dispatchMouseEvent", {
+        type: "mouseMoved",
+        x: dragTarget.x + 80,
+        y: dragTarget.y + 60,
+        button: "left",
+        buttons: 1
+      });
+      await cdp.send("Input.dispatchMouseEvent", {
+        type: "mouseReleased",
+        x: dragTarget.x + 80,
+        y: dragTarget.y + 60,
+        button: "left",
+        clickCount: 1
+      });
+      const afterMouseDrag = await evaluateJson(
+        cdp,
+        `(() => {
+          const transform = d3.zoomTransform(
+            document.querySelector('#graph')
+          );
+          return { x: transform.x, y: transform.y, k: transform.k };
+        })()`
+      );
+      assert.deepEqual(afterMouseDrag, dragTarget.transform);
 
       await cdp.send("Runtime.evaluate", {
         expression:

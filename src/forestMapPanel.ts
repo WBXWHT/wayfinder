@@ -315,9 +315,10 @@ export class ExperienceMapPanel implements vscode.Disposable {
       height: 100%;
       min-height: 0;
       overflow: hidden;
-      cursor: grab;
+      cursor: default;
+      touch-action: none;
+      user-select: none;
     }
-    #graph:active { cursor: grabbing; }
     .forest-path-bed,
     .forest-edge {
       fill: none;
@@ -649,7 +650,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
     const nodeCardWidth = 164;
     const nodeCardHeight = 58;
     const nodeCardTop = 24;
-    const nodeVerticalPitch = 128;
+    const nodeVerticalPitch = 176;
     const nodeHorizontalPitch = 236;
     const mapStartX = 142;
     const mapTopInset = 112;
@@ -830,13 +831,46 @@ export class ExperienceMapPanel implements vscode.Disposable {
           ', ' + (worldWidth - 25) + ' ' + (contentBottom + 72)
         );
       zoomBehavior = d3.zoom()
-        .scaleExtent([minimumReadableScale, 2.4])
+        .scaleExtent([.4, 3.2])
+        .filter((event) => {
+          if (event.type === 'mousedown') return false;
+          if (event.type === 'touchstart') {
+            return (event.touches?.length || 0) >= 2;
+          }
+          return true;
+        })
         .translateExtent([
-          [-220, shoreTop],
-          [worldWidth + 320, shoreBottom]
+          [0, -Infinity],
+          [Infinity, Infinity]
         ])
         .on('zoom', (event) => graphLayer.attr('transform', event.transform));
-      graph.call(zoomBehavior).on('dblclick.zoom', null);
+      graph
+        .call(zoomBehavior)
+        .on('dblclick.zoom', null)
+        .on('wheel.zoom', null)
+        .on(
+          'wheel.wayfinder',
+          (event) => {
+            event.preventDefault();
+            const current = d3.zoomTransform(graph.node());
+            if (event.ctrlKey || event.metaKey) {
+              const delta = Math.max(-12, Math.min(12, event.deltaY));
+              const rect = graph.node().getBoundingClientRect();
+              graph.call(
+                zoomBehavior.scaleBy,
+                Math.pow(2, -delta * .01),
+                [event.clientX - rect.left, event.clientY - rect.top]
+              );
+              return;
+            }
+            graph.call(
+              zoomBehavior.translateBy,
+              -event.deltaX / current.k,
+              -event.deltaY / current.k
+            );
+          },
+          { passive: false }
+        );
 
       const allNodes = layouts.flatMap(({
         tree,
@@ -905,10 +939,12 @@ export class ExperienceMapPanel implements vscode.Disposable {
         const sy = link.source.screenY;
         const tx = link.target.screenX;
         const ty = link.target.screenY;
-        const middle = sx + (tx - sx) * .52;
+        const span = tx - sx;
+        const firstControlX = sx + span * .32;
+        const secondControlX = sx + span * .62;
         return 'M ' + sx + ' ' + sy +
-          ' C ' + middle + ' ' + sy + ', ' +
-          (middle - 5) + ' ' + ty + ', ' +
+          ' C ' + firstControlX + ' ' + sy + ', ' +
+          secondControlX + ' ' + ty + ', ' +
           tx + ' ' + ty;
       };
       const linkClass = ({

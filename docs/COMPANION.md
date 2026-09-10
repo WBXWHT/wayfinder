@@ -78,7 +78,19 @@ The horizontal renderer reserves fixed geometry for every waypoint card. Cards
 are native SVG so WebKit and Chromium render the same structure. The current
 boat overlays a waypoint marker and never replaces its card. The coastline is
 overscanned beyond the navigable vertical range, and branch spacing moves whole
-subtrees rather than individual cards.
+subtrees rather than individual cards. Branches leave their parent directly as
+long cubic curves, with enough vertical pitch to produce a visibly open fan.
+
+Trackpad interaction mirrors the final narrow-map behavior:
+
+- a two-finger swipe pans the map without changing scale;
+- a pinch zooms around the gesture center with the higher-sensitivity factor
+  used by the validated narrow map;
+- mouse press-and-drag is disabled, so panning does not require a long press;
+- the coast is the left world boundary: users can pan back to it but never
+  reveal empty space behind it, while movement into the map remains unbounded;
+- the initial fit preserves a readable scale floor, while users can pinch out
+  to the `0.4` overview scale.
 
 ## Privacy And Cloud Analysis Boundary
 
