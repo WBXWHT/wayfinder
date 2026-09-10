@@ -78,6 +78,18 @@ export interface TimelineNode {
         sessionId: string;
         turnIndex: number;
         collectedAt: string;
+      }
+    | {
+        type: "folder-import";
+        relativePath: string;
+        importedAt: string;
+        forest: {
+          tree: string;
+          stage: string;
+          stageOrder: number;
+          parentStage?: string;
+          branch?: string;
+        };
       };
 }
 

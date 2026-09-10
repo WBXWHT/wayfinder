@@ -443,6 +443,48 @@ test("imported-only history keeps its curated chapter forest", () => {
   assert.ok(stages.includes("API 动态分成"));
 });
 
+test("folder imports keep their explicit voyage and branch structure", () => {
+  const root = folderImport(
+    "skill-root",
+    "2026-09-03T09:00:00.000Z",
+    "Skill 文件夹",
+    0
+  );
+  const translate = folderImport(
+    "translate",
+    "2026-09-03T09:01:00.000Z",
+    "翻译",
+    1,
+    "Skill 文件夹"
+  );
+  const web = folderImport(
+    "web",
+    "2026-09-03T09:02:00.000Z",
+    "网页设计",
+    2,
+    "Skill 文件夹"
+  );
+
+  const forest = buildConversationForest(
+    projectState([root, translate, web])
+  );
+  const tree = forest.trees[0];
+  const rootSession = tree.sessions.find(
+    (session) => session.stage === "Skill 文件夹"
+  );
+
+  assert.equal(forest.trees.length, 1);
+  assert.equal(tree.title, "Skill 内容库");
+  assert.equal(tree.sessions.length, 3);
+  assert.ok(rootSession);
+  assert.deepEqual(
+    tree.sessions
+      .filter((session) => session.id !== rootSession.id)
+      .map((session) => session.parentId),
+    [rootSession.id, rootSession.id]
+  );
+});
+
 function projectState(nodes) {
   return {
     version: 1,
@@ -501,5 +543,39 @@ function liveTurn(id, hhmm, prompt, files) {
     })),
     actions: [],
     validation: { status: "skipped" }
+  };
+}
+
+function folderImport(id, completedAt, stage, stageOrder, parentStage) {
+  return {
+    id,
+    kind: "imported",
+    sessionId: `folder-import:${id}`,
+    branchId: "main",
+    prompt: stage,
+    response: "",
+    startedAt: completedAt,
+    completedAt,
+    snapshotBefore: "folder-import",
+    snapshotAfter: "folder-import",
+    files: [{
+      path: `${stage}/SKILL.md`,
+      status: "A",
+      additions: 1,
+      deletions: 0
+    }],
+    actions: [],
+    validation: { status: "skipped" },
+    source: {
+      type: "folder-import",
+      relativePath: `${stage}/SKILL.md`,
+      importedAt: completedAt,
+      forest: {
+        tree: "Skill 内容库",
+        stage,
+        stageOrder,
+        ...(parentStage ? { parentStage, branch: stage } : {})
+      }
+    }
   };
 }

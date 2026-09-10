@@ -455,7 +455,11 @@ function metadataForNode(
   node: TimelineNode,
   firstBySession: Map<string, TimelineNode>
 ): ForestMetadata {
-  if (node.source?.type === "trae-memory" && node.source.forest) {
+  if (
+    (node.source?.type === "trae-memory" ||
+      node.source?.type === "folder-import") &&
+    node.source.forest
+  ) {
     return node.source.forest;
   }
   if (node.source?.type === "trae-memory" && node.source.chapter) {

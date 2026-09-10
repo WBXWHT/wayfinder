@@ -843,6 +843,14 @@ export class ExperienceMapPanel implements vscode.Disposable {
           [0, -Infinity],
           [Infinity, Infinity]
         ])
+        .constrain((transform) => {
+          const clampedX = Math.min(0, transform.x);
+          return clampedX === transform.x
+            ? transform
+            : d3.zoomIdentity
+                .translate(clampedX, transform.y)
+                .scale(transform.k);
+        })
         .on('zoom', (event) => graphLayer.attr('transform', event.transform));
       graph
         .call(zoomBehavior)
@@ -863,10 +871,22 @@ export class ExperienceMapPanel implements vscode.Disposable {
               );
               return;
             }
+            const horizontalDelta =
+              Math.abs(event.deltaX) > .1
+                ? event.deltaX
+                : event.shiftKey
+                  ? event.deltaY
+                  : 0;
+            const verticalDelta = event.shiftKey ? 0 : event.deltaY;
+            const next = d3.zoomIdentity
+              .translate(
+                Math.min(0, current.x - horizontalDelta),
+                current.y - verticalDelta
+              )
+              .scale(current.k);
             graph.call(
-              zoomBehavior.translateBy,
-              -event.deltaX / current.k,
-              -event.deltaY / current.k
+              zoomBehavior.transform,
+              next
             );
           },
           { passive: false }
@@ -1561,6 +1581,11 @@ export class ExperienceMapPanel implements vscode.Disposable {
             : node.sourceHost === 'codex'
               ? 'Codex'
               : '本机会话');
+        section.append(source);
+      } else if (node.source?.type === 'folder-import') {
+        const source = document.createElement('div');
+        source.className = 'detail-source';
+        source.textContent = '目录导入 · ' + node.source.relativePath;
         section.append(source);
       }
       if (node.response) {

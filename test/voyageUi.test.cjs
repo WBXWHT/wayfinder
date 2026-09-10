@@ -123,7 +123,9 @@ test("full map scopes layout to one project and removes legacy project list", ()
   assert.match(html, /event\.touches\?\.length \|\| 0/);
   assert.match(html, /'wheel\.zoom', null/);
   assert.match(html, /'wheel\.wayfinder'/);
-  assert.match(html, /zoomBehavior\.translateBy/);
+  assert.match(html, /\.constrain\(\(transform\) => \{/);
+  assert.match(html, /Math\.min\(0, current\.x - horizontalDelta\)/);
+  assert.match(html, /zoomBehavior\.transform/);
   assert.match(html, /zoomBehavior\.scaleBy/);
   assert.match(html, /Math\.pow\(2, -delta \* \.01\)/);
   assert.match(html, /const firstControlX = sx \+ span \* \.32/);
