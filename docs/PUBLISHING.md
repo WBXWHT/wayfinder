@@ -57,3 +57,7 @@ workflows, and MCP directories were closed as withdrawn on the same date.
 
 Never overwrite an existing published asset. Publish a new version so recorded
 hashes and user downloads remain reproducible.
+
+External showcase and package-catalog submissions are tracked in
+[RECOGNITION.md](RECOGNITION.md). Pending submissions must not be described as
+awards or accepted listings.
