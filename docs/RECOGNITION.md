@@ -48,8 +48,9 @@ platform awards carry more weight than broad directory counts.
 - Console.dev: an evidence-based pitch was sent to `hello@console.dev` on
   2026-09-11 for editorial consideration. Console.dev reviews only 2-3 tools
   per week for more than 30K subscribers and explicitly accepts pre-1.0
-  developer-tool releases. Treat this as a submission until a public issue
-  includes Wayfinder.
+  developer-tool releases. Its automated reply confirmed that Wayfinder will
+  be reviewed for the next newsletter. Treat this as a submission until a
+  public issue includes Wayfinder.
 - Changelog News: the 0.3.5 release was submitted through Changelog's official
   news form on 2026-09-11 and the site confirmed receipt. Changelog explicitly
   permits maintainers to submit their own non-commercial open-source work.
