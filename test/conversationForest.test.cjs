@@ -485,6 +485,43 @@ test("folder imports keep their explicit voyage and branch structure", () => {
   );
 });
 
+test("folder imports keep explicit metadata beside live file sessions", () => {
+  const root = folderImport(
+    "skill-root-mixed",
+    "2026-09-03T09:00:00.000Z",
+    "Skill 文件夹",
+    0
+  );
+  const translate = folderImport(
+    "translate-mixed",
+    "2026-09-03T09:01:00.000Z",
+    "翻译",
+    1,
+    "Skill 文件夹"
+  );
+  const live = liveTurn(
+    "live-after-import",
+    "10:00",
+    "修复导入后的搜索",
+    ["src/search.ts"]
+  );
+
+  const forest = buildConversationForest(projectState([root, translate, live]));
+  const skillTree = forest.trees.find((tree) => tree.title === "Skill 内容库");
+  const liveTree = forest.trees.find((tree) =>
+    tree.sessions.some((session) => session.nodeIds.includes(live.id))
+  );
+
+  assert.ok(skillTree);
+  assert.ok(liveTree);
+  assert.deepEqual(
+    skillTree.sessions.map((session) => session.stage),
+    ["Skill 文件夹", "翻译"]
+  );
+  assert.equal(skillTree.nodeCount, 2);
+  assert.equal(forest.nodeCount, 3);
+});
+
 function projectState(nodes) {
   return {
     version: 1,

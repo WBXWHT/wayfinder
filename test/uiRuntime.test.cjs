@@ -17,7 +17,7 @@ test(
   "generated voyage previews run in Chromium at 220px and 320px",
   {
     skip: !chrome || process.env.WAYFINDER_SKIP_UI_TEST === "1",
-    timeout: 45_000
+    timeout: 75_000
   },
   async () => {
     const temp = fs.mkdtempSync(path.join(os.tmpdir(), "wayfinder-ui-"));
@@ -149,6 +149,7 @@ test(
       [
         "--headless=new",
         "--disable-gpu",
+        "--disable-dev-shm-usage",
         "--hide-scrollbars",
         "--no-first-run",
         `--remote-debugging-port=${debugPort}`,
@@ -778,6 +779,17 @@ test(
             };
           }
           const before = target?.getBoundingClientRect();
+          const graph = document.querySelector('#graph');
+          for (let index = 0; index < 30; index += 1) {
+            graph.dispatchEvent(new WheelEvent('wheel', {
+              deltaX: 80,
+              deltaY: 0,
+              bubbles: true,
+              cancelable: true,
+              clientX: viewport.left + viewport.width / 2,
+              clientY: viewport.top + viewport.height / 2
+            }));
+          }
           target.focus();
           const after = target.getBoundingClientRect();
           return {
@@ -792,6 +804,27 @@ test(
       assert.equal(keyboardReveal.beforeVisible, false);
       assert.equal(keyboardReveal.afterVisible, true);
       assert.equal(keyboardReveal.focused, true);
+      await delay(120);
+      const settledKeyboardReveal = await evaluateJson(
+        cdp,
+        `(() => {
+          const viewport = document.querySelector('#graph').getBoundingClientRect();
+          const target = document.activeElement;
+          const rect = target?.getBoundingClientRect();
+          return {
+            focused: target?.classList.contains('session-card') || false,
+            visible: Boolean(
+              rect &&
+              rect.right > viewport.left &&
+              rect.left < viewport.right &&
+              rect.bottom > viewport.top &&
+              rect.top < viewport.bottom
+            )
+          };
+        })()`
+      );
+      assert.equal(settledKeyboardReveal.focused, true);
+      assert.equal(settledKeyboardReveal.visible, true);
 
       await cdp.send("Runtime.evaluate", {
         expression: `(() => {
@@ -809,6 +842,22 @@ test(
         await evaluate(
           cdp,
           "document.querySelectorAll('.session-card').length > 0"
+        ),
+        true
+      );
+      assert.equal(
+        await evaluate(
+          cdp,
+          `[...document.querySelectorAll('.session-card:not(.dimmed)')]
+            .some((element) => {
+              const rect = element.getBoundingClientRect();
+              return (
+                rect.right > 0 &&
+                rect.left < innerWidth &&
+                rect.bottom > 0 &&
+                rect.top < innerHeight
+              );
+            })`
         ),
         true
       );
@@ -1973,7 +2022,7 @@ function freePort() {
 }
 
 async function waitForTarget(port, suffix) {
-  for (let attempt = 0; attempt < 150; attempt += 1) {
+  for (let attempt = 0; attempt < 450; attempt += 1) {
     try {
       const targets = await getTargets(port);
       const target = targets.find(

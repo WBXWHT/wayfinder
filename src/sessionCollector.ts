@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import * as lockfile from "proper-lockfile";
 import { AgentHost, FileChange, TimelineNode, ToolAction } from "./models";
 import { ShadowRepo } from "./shadowRepo";
 import {
@@ -144,6 +145,27 @@ function isEnvelope(text: string): boolean {
     text.trimStart().startsWith("<");
 }
 
+interface PendingFileOperation {
+  action: ToolAction;
+  changes: FileChange[];
+  status: "pending" | "succeeded" | "failed";
+}
+
+function committedFileChanges(
+  operations: PendingFileOperation[]
+): FileChange[] {
+  const files = new Map<string, FileChange>();
+  for (const operation of operations) {
+    if (operation.status !== "succeeded") {
+      continue;
+    }
+    for (const change of operation.changes) {
+      mergeFileChange(files, change);
+    }
+  }
+  return [...files.values()];
+}
+
 /** Parse a single Codex rollout file into an ordered list of turns. */
 export function parseCodexRollout(file: string): CollectedSession | undefined {
   const records = parseJsonl(file);
@@ -165,8 +187,8 @@ export function parseCodexRollout(file: string): CollectedSession | undefined {
   const turns: CollectedTurn[] = [];
   let pendingPrompt: { text: string; at: string } | undefined;
   let pendingActions: ToolAction[] = [];
-  let pendingFiles = new Map<string, FileChange>();
-  const callNames = new Map<string, string>();
+  let pendingOperations: PendingFileOperation[] = [];
+  const calls = new Map<string, PendingFileOperation>();
 
   const flush = (responseText: string | undefined, at: string): void => {
     if (!pendingPrompt) {
@@ -181,13 +203,14 @@ export function parseCodexRollout(file: string): CollectedSession | undefined {
       prompt: pendingPrompt.text,
       response: responseText?.trim() || undefined,
       actions: pendingActions,
-      files: [...pendingFiles.values()],
+      files: committedFileChanges(pendingOperations),
       startedAt: pendingPrompt.at,
       completedAt: at
     });
     pendingPrompt = undefined;
     pendingActions = [];
-    pendingFiles = new Map<string, FileChange>();
+    pendingOperations = [];
+    calls.clear();
   };
 
   for (const record of records) {
@@ -228,14 +251,16 @@ export function parseCodexRollout(file: string): CollectedSession | undefined {
     ) {
       const callId = typeof payload.call_id === "string" ? payload.call_id : undefined;
       const name = typeof payload.name === "string" ? payload.name : "tool";
+      const action = toolActionFromCall(name, payload);
+      const operation = {
+        action,
+        changes: fileChangesFromCall(name, payload),
+        status: "pending" as const
+      };
+      pendingActions.push(action);
+      pendingOperations.push(operation);
       if (callId) {
-        callNames.set(callId, name);
-      }
-      pendingActions.push(toolActionFromCall(name, payload));
-      // Replay file changes the model actually wrote (apply_patch / Write /
-      // Edit), the same way every session-recovery tool reconstructs diffs.
-      for (const change of fileChangesFromCall(name, payload)) {
-        mergeFileChange(pendingFiles, change);
+        calls.set(callId, operation);
       }
       continue;
     }
@@ -243,16 +268,25 @@ export function parseCodexRollout(file: string): CollectedSession | undefined {
     if (record.type === "response_item" && payloadType === "function_call_output") {
       const callId = typeof payload.call_id === "string" ? payload.call_id : undefined;
       const ok = !outputLooksFailed(payload.output);
-      const last = pendingActions[pendingActions.length - 1];
-      if (last && (!callId || callNames.get(callId) === last.tool)) {
-        last.ok = ok;
+      const operation = callId
+        ? calls.get(callId)
+        : pendingOperations.at(-1);
+      if (operation) {
+        operation.action.ok = ok;
+        operation.status = ok ? "succeeded" : "failed";
       }
+      continue;
     }
-  }
 
-  // Close a trailing prompt with no assistant reply (e.g. failed request).
-  if (pendingPrompt) {
-    flush(undefined, pendingPrompt.at);
+    if (
+      record.type === "event_msg" &&
+      (payloadType === "task_complete" || payloadType === "turn_aborted") &&
+      pendingPrompt
+    ) {
+      const response = [payload.last_agent_message, payload.error, payload.reason]
+        .find((value) => typeof value === "string") as string | undefined;
+      flush(response, timestamp);
+    }
   }
 
   return { host: "codex", sessionId, rolloutPath: file, cwd, turns };
@@ -270,7 +304,8 @@ export function parseClaudeTranscript(file: string): CollectedSession | undefine
   const turns: CollectedTurn[] = [];
   let pendingPrompt: { text: string; at: string } | undefined;
   let pendingActions: ToolAction[] = [];
-  let pendingFiles = new Map<string, FileChange>();
+  let pendingOperations: PendingFileOperation[] = [];
+  const calls = new Map<string, PendingFileOperation>();
   let responseParts: string[] = [];
   let lastAt: string | undefined;
 
@@ -288,13 +323,14 @@ export function parseClaudeTranscript(file: string): CollectedSession | undefine
       prompt: pendingPrompt.text,
       response: response || undefined,
       actions: pendingActions,
-      files: [...pendingFiles.values()],
+      files: committedFileChanges(pendingOperations),
       startedAt: pendingPrompt.at,
       completedAt: lastAt || pendingPrompt.at
     });
     pendingPrompt = undefined;
     pendingActions = [];
-    pendingFiles = new Map<string, FileChange>();
+    pendingOperations = [];
+    calls.clear();
     responseParts = [];
   };
 
@@ -317,7 +353,12 @@ export function parseClaudeTranscript(file: string): CollectedSession | undefine
 
     if (record.type === "user" || role === "user") {
       // Tool results arrive as user records; keep only real prompts.
-      if (!text || isEnvelope(text) || hasToolResult(message.content)) {
+      if (hasToolResult(message.content)) {
+        applyClaudeToolResults(message.content, calls);
+        lastAt = timestamp;
+        continue;
+      }
+      if (!text || isEnvelope(text)) {
         continue;
       }
       // A new prompt finalizes the previous turn (with everything it gathered).
@@ -327,17 +368,24 @@ export function parseClaudeTranscript(file: string): CollectedSession | undefine
     } else if (record.type === "assistant" || role === "assistant") {
       // Assistant text + tool_use all belong to the current turn; accumulate
       // rather than closing the turn on the first assistant line.
-      collectClaudeToolUses(message.content, pendingActions);
-      for (const change of claudeFileChanges(message.content)) {
-        mergeFileChange(pendingFiles, change);
-      }
+      collectClaudeToolUses(
+        message.content,
+        pendingActions,
+        pendingOperations,
+        calls
+      );
       if (text) {
         responseParts.push(text);
       }
       lastAt = timestamp;
+      const stopReason = typeof message.stop_reason === "string"
+        ? message.stop_reason
+        : undefined;
+      if (stopReason && stopReason !== "tool_use") {
+        flush();
+      }
     }
   }
-  flush();
 
   return { host: "claude", sessionId, rolloutPath: file, cwd, turns };
 }
@@ -374,7 +422,12 @@ function toolActionFromCall(
   };
 }
 
-function collectClaudeToolUses(content: unknown, out: ToolAction[]): void {
+function collectClaudeToolUses(
+  content: unknown,
+  actions: ToolAction[],
+  operations: PendingFileOperation[],
+  calls: Map<string, PendingFileOperation>
+): void {
   if (!Array.isArray(content)) {
     return;
   }
@@ -388,20 +441,57 @@ function collectClaudeToolUses(content: unknown, out: ToolAction[]): void {
     const detail = typeof input.command === "string" ? input.command : undefined;
     const filePath = [input.file_path, input.path]
       .find((value) => typeof value === "string") as string | undefined;
-    out.push({
+    const action: ToolAction = {
       kind:
         name === "Write" ? "write" : name === "Edit" ? "edit"
           : name === "Bash" ? "run" : "other",
       tool: name,
       path: filePath ? clipInline(filePath, 300) : undefined,
       detail: detail ? clipInline(detail, 300) : undefined
-    });
+    };
+    const operation = {
+      action,
+      changes: claudeFileChangesForUse(name, input),
+      status: "pending" as const
+    };
+    actions.push(action);
+    operations.push(operation);
+    if (typeof part.id === "string") {
+      calls.set(part.id, operation);
+    }
   }
 }
 
 function hasToolResult(content: unknown): boolean {
   return Array.isArray(content) &&
     content.some((item) => asRecord(item)?.type === "tool_result");
+}
+
+function applyClaudeToolResults(
+  content: unknown,
+  calls: Map<string, PendingFileOperation>
+): void {
+  if (!Array.isArray(content)) {
+    return;
+  }
+  for (const item of content) {
+    const part = asRecord(item);
+    if (!part || part.type !== "tool_result") {
+      continue;
+    }
+    const callId = typeof part.tool_use_id === "string"
+      ? part.tool_use_id
+      : undefined;
+    const operation = callId ? calls.get(callId) : undefined;
+    if (!operation) {
+      continue;
+    }
+    const failed = typeof part.is_error === "boolean"
+      ? part.is_error
+      : outputLooksFailed(part.content);
+    operation.action.ok = !failed;
+    operation.status = failed ? "failed" : "succeeded";
+  }
 }
 
 // --- File-change replay -----------------------------------------------------
@@ -492,47 +582,41 @@ function fileChangesFromCall(
 }
 
 /** File changes from Claude tool_use blocks (Write / Edit / MultiEdit). */
-function claudeFileChanges(content: unknown): FileChange[] {
-  if (!Array.isArray(content)) {
-    return [];
-  }
+function claudeFileChangesForUse(
+  name: string,
+  input: Record<string, unknown>
+): FileChange[] {
   const changes: FileChange[] = [];
-  for (const item of content) {
-    const part = asRecord(item);
-    if (!part || part.type !== "tool_use") {
-      continue;
-    }
-    const name = typeof part.name === "string" ? part.name : "";
-    const input = asRecord(part.input) || {};
-    const filePath = typeof input.file_path === "string" ? input.file_path : undefined;
-    if (!filePath) {
-      continue;
-    }
-    if (name === "Write") {
-      changes.push({
-        path: relPath(filePath),
-        status: "A",
-        additions: countLines(String(input.content || "")),
-        deletions: 0
-      });
-    } else if (name === "Edit") {
+  const filePath = typeof input.file_path === "string"
+    ? input.file_path
+    : undefined;
+  if (!filePath) {
+    return changes;
+  }
+  if (name === "Write") {
+    changes.push({
+      path: relPath(filePath),
+      status: "A",
+      additions: countLines(String(input.content || "")),
+      deletions: 0
+    });
+  } else if (name === "Edit") {
+    changes.push(editChange(
+      filePath,
+      String(input.old_string || ""),
+      String(input.new_string || "")
+    ));
+  } else if (name === "MultiEdit" && Array.isArray(input.edits)) {
+    for (const raw of input.edits) {
+      const edit = asRecord(raw);
+      if (!edit) {
+        continue;
+      }
       changes.push(editChange(
         filePath,
-        String(input.old_string || ""),
-        String(input.new_string || "")
+        String(edit.old_string || ""),
+        String(edit.new_string || "")
       ));
-    } else if (name === "MultiEdit" && Array.isArray(input.edits)) {
-      for (const raw of input.edits) {
-        const edit = asRecord(raw);
-        if (!edit) {
-          continue;
-        }
-        changes.push(editChange(
-          filePath,
-          String(edit.old_string || ""),
-          String(edit.new_string || "")
-        ));
-      }
     }
   }
   return changes;
@@ -590,8 +674,25 @@ export function parseApplyPatch(patch: string): FileChange[] {
 }
 
 function outputLooksFailed(output: unknown): boolean {
+  const record = asRecord(output);
+  if (record) {
+    if (typeof record.success === "boolean") {
+      return !record.success;
+    }
+    const exitCode = [record.exit_code, record.exitCode, record.code]
+      .find((value) => typeof value === "number");
+    if (typeof exitCode === "number") {
+      return exitCode !== 0;
+    }
+  }
   const text = typeof output === "string" ? output : JSON.stringify(output || "");
-  return /"?(error|failed|exception|traceback)"?/i.test(text);
+  if (/process exited with code 0|exit code[:= ]+0\b/i.test(text)) {
+    return false;
+  }
+  return (
+    /"?(error|failed|exception|traceback)"?/i.test(text) ||
+    /invalid context|permission denied|file not found/i.test(text)
+  );
 }
 
 function safeJson(text: string): Record<string, unknown> | undefined {
@@ -668,6 +769,27 @@ function resolveProjectRoot(cwd: string | undefined): string | undefined {
  * and this collector is never double-recorded.
  */
 export async function collectSessions(): Promise<CollectRunResult> {
+  const cursorFile = collectorStatePath();
+  await fs.promises.mkdir(path.dirname(cursorFile), { recursive: true });
+  const release = await lockfile.lock(cursorFile, {
+    realpath: false,
+    stale: 15_000,
+    update: 5_000,
+    retries: {
+      retries: 600,
+      factor: 1,
+      minTimeout: 100,
+      maxTimeout: 100
+    }
+  });
+  try {
+    return await collectSessionsUnlocked();
+  } finally {
+    await release().catch(() => undefined);
+  }
+}
+
+async function collectSessionsUnlocked(): Promise<CollectRunResult> {
   const cursor = readCursor();
   const codexFiles = listTranscriptFiles(codexSessionsRoot());
   const claudeFiles = listTranscriptFiles(claudeProjectsRoot());

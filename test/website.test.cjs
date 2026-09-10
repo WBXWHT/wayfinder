@@ -28,9 +28,23 @@ test("download website exposes architecture-specific release links", () => {
   assert.doesNotMatch(html, /无需 Node、插件或 MCP/);
   assert.doesNotMatch(html, /首次打开需在系统设置中允许/);
   assert.equal(typeof releases.published, "boolean");
-  assert.match(releases.downloads.arm64, /Alpha.*macOS-aarch64\.dmg$/);
-  assert.match(releases.downloads.x64, /Alpha.*macOS-x86_64\.dmg$/);
-  assert.match(releases.downloads.windowsX64, /Alpha.*Windows-x86_64\.exe$/);
+  assert.ok(["alpha", "stable"].includes(releases.channel));
+  const tag = releases.channel === "alpha"
+    ? `alpha-v${releases.version}`
+    : `companion-v${releases.version}`;
+  const assetPrefix = releases.channel === "alpha"
+    ? `Wayfinder-Alpha-${releases.version}`
+    : `Wayfinder-${releases.version}`;
+  assert.equal(
+    releases.downloads.arm64,
+    `https://github.com/WBXWHT/wayfinder/releases/download/${tag}/` +
+      `${assetPrefix}-macOS-aarch64.dmg`
+  );
+  assert.equal(
+    releases.downloads.x64,
+    `https://github.com/WBXWHT/wayfinder/releases/download/${tag}/` +
+      `${assetPrefix}-macOS-x86_64.dmg`
+  );
 });
 
 test("website scripts parse and visual CSS avoids decorative gradients", () => {
@@ -60,6 +74,15 @@ test("Cloudflare deployment cannot silently claim the occupied project name", ()
   assert.match(workflow, /CLOUDFLARE_PROJECT_NAME/);
   assert.match(workflow, /test "\$PROJECT_NAME" != "wayfinder"/);
   assert.match(workflow, /Verify public release downloads/);
+  assert.match(workflow, /alpha: \{/);
+  assert.match(workflow, /stable: \{/);
+  assert.match(workflow, /tag: `alpha-v\$\{release\.version\}`/);
+  assert.match(workflow, /tag: `companion-v\$\{release\.version\}`/);
+  assert.match(
+    workflow,
+    /`\$\{channel\.assetPrefix\}-macOS-\$\{assetArchitecture\}\.dmg`/
+  );
+  assert.match(workflow, /url\.pathname !== expectedPath/);
   assert.match(workflow, /--head/);
   assert.match(workflow, /--retry-all-errors/);
 });

@@ -9,6 +9,7 @@ if (!prefix) {
 }
 
 const packageVersion = require("../package.json").version;
+const packageLock = require("../package-lock.json");
 const tauriVersion = require(
   "../companion/src-tauri/tauri.conf.json"
 ).version;
@@ -16,13 +17,26 @@ const cargo = fs.readFileSync(
   path.join(root, "companion", "src-tauri", "Cargo.toml"),
   "utf8"
 );
+const cargoLock = fs.readFileSync(
+  path.join(root, "companion", "src-tauri", "Cargo.lock"),
+  "utf8"
+);
 const source = fs.readFileSync(path.join(root, "src", "version.ts"), "utf8");
 const cargoVersion = cargo.match(/^version\s*=\s*"([^"]+)"/m)?.[1];
+const cargoLockPackage = cargoLock
+  .split("[[package]]")
+  .find((entry) => /\bname\s*=\s*"wayfinder-companion"/.test(entry));
+const cargoLockVersion = cargoLockPackage?.match(
+  /\bversion\s*=\s*"([^"]+)"/
+)?.[1];
 const sourceVersion = source.match(/WAYFINDER_VERSION\s*=\s*"([^"]+)"/)?.[1];
 const versions = {
   "package.json": packageVersion,
+  "package-lock.json": packageLock.version,
+  "package-lock.json packages root": packageLock.packages?.[""]?.version,
   "tauri.conf.json": tauriVersion,
   "Cargo.toml": cargoVersion,
+  "Cargo.lock": cargoLockVersion,
   "src/version.ts": sourceVersion
 };
 const mismatched = Object.entries(versions)

@@ -17,6 +17,37 @@ const PROJECT_LOCK_STALE: Duration = Duration::from_secs(8);
 /// Debounce window for coalescing bursts of transcript writes before a collect.
 const COLLECT_DEBOUNCE: Duration = Duration::from_secs(2);
 
+#[derive(Clone, Default)]
+struct CollectGate {
+    running: Arc<AtomicBool>,
+    pending: Arc<AtomicBool>,
+}
+
+impl CollectGate {
+    fn request(&self) -> bool {
+        self.pending.store(true, Ordering::SeqCst);
+        self.running
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_ok()
+    }
+
+    fn begin_run(&self) {
+        self.pending.store(false, Ordering::SeqCst);
+    }
+
+    fn finish_or_continue(&self) -> bool {
+        if self.pending.swap(false, Ordering::SeqCst) {
+            return true;
+        }
+        self.running.store(false, Ordering::SeqCst);
+        self.pending.load(Ordering::SeqCst)
+            && self
+                .running
+                .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+                .is_ok()
+    }
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct ProjectSummary {
@@ -389,27 +420,35 @@ fn resolve_transcript_roots(
     roots
 }
 
-/// Run `wayfinder collect` through the bundled sidecar. Best-effort: collection
-/// errors must never crash or block the Companion.
-fn run_collect(app: &AppHandle) {
-    let sidecar = match app.shell().sidecar("wayfinder") {
-        Ok(command) => command,
-        Err(error) => {
-            eprintln!("wayfinder collect: sidecar unavailable: {error}");
-            return;
-        }
-    };
-    // Fire-and-forget on a Tauri async runtime task; the collector is idempotent.
+/// Schedule `wayfinder collect` through the bundled sidecar. A burst received
+/// during a run is collapsed into one follow-up pass.
+fn schedule_collect(app: &AppHandle, gate: &CollectGate) {
+    if !gate.request() {
+        return;
+    }
+    let app = app.clone();
+    let gate = gate.clone();
     tauri::async_runtime::spawn(async move {
-        match sidecar.args(["collect"]).output().await {
-            Ok(output) if !output.status.success() => {
-                eprintln!(
-                    "wayfinder collect failed: {}",
-                    String::from_utf8_lossy(&output.stderr).trim()
-                );
+        loop {
+            gate.begin_run();
+            match app.shell().sidecar("wayfinder") {
+                Ok(sidecar) => match sidecar.args(["collect"]).output().await {
+                    Ok(output) if !output.status.success() => {
+                        eprintln!(
+                            "wayfinder collect failed: {}",
+                            String::from_utf8_lossy(&output.stderr).trim()
+                        );
+                    }
+                    Err(error) => eprintln!("wayfinder collect error: {error}"),
+                    _ => {}
+                },
+                Err(error) => {
+                    eprintln!("wayfinder collect: sidecar unavailable: {error}");
+                }
             }
-            Err(error) => eprintln!("wayfinder collect error: {error}"),
-            _ => {}
+            if !gate.finish_or_continue() {
+                break;
+            }
         }
     });
 }
@@ -424,9 +463,10 @@ fn start_transcript_watcher(app: AppHandle) {
     use notify_debouncer_mini::{new_debouncer, DebounceEventResult};
 
     thread::spawn(move || {
+        let collect_gate = CollectGate::default();
         // Collect once at startup so sessions written while the app was closed
         // are captured immediately.
-        run_collect(&app);
+        schedule_collect(&app, &collect_gate);
 
         loop {
             let roots: Vec<PathBuf> = transcript_watch_roots()
@@ -439,10 +479,11 @@ fn start_transcript_watcher(app: AppHandle) {
             }
 
             let handler_app = app.clone();
+            let handler_gate = collect_gate.clone();
             let debouncer = new_debouncer(COLLECT_DEBOUNCE, move |result: DebounceEventResult| {
                 if let Ok(events) = result {
                     if !events.is_empty() {
-                        run_collect(&handler_app);
+                        schedule_collect(&handler_app, &handler_gate);
                     }
                 }
             });
@@ -454,19 +495,23 @@ fn start_transcript_watcher(app: AppHandle) {
                     continue;
                 }
             };
-            let mut all_roots_watched = true;
+            let mut watched_roots = Vec::new();
+            let mut failed_roots = Vec::new();
             for root in &roots {
-                if let Err(error) = debouncer.watcher().watch(root, RecursiveMode::Recursive) {
-                    eprintln!("wayfinder watcher: cannot watch {root:?}: {error}");
-                    all_roots_watched = false;
+                match debouncer.watcher().watch(root, RecursiveMode::Recursive) {
+                    Ok(()) => watched_roots.push(root.clone()),
+                    Err(error) => {
+                        eprintln!("wayfinder watcher: cannot watch {root:?}: {error}");
+                        failed_roots.push(root.clone());
+                    }
                 }
             }
-            if !all_roots_watched {
+            if watched_roots.is_empty() {
                 thread::sleep(Duration::from_secs(2));
                 continue;
             }
             // Capture files created before the watcher was attached.
-            run_collect(&app);
+            schedule_collect(&app, &collect_gate);
 
             loop {
                 thread::sleep(Duration::from_secs(2));
@@ -475,9 +520,21 @@ fn start_transcript_watcher(app: AppHandle) {
                     .filter(|root| root.exists())
                     .collect();
                 if current != roots {
-                    run_collect(&app);
+                    schedule_collect(&app, &collect_gate);
                     break;
                 }
+                failed_roots.retain(|root| {
+                    match debouncer.watcher().watch(root, RecursiveMode::Recursive) {
+                        Ok(()) => {
+                            watched_roots.push(root.clone());
+                            false
+                        }
+                        Err(error) => {
+                            eprintln!("wayfinder watcher: cannot watch {root:?}: {error}");
+                            true
+                        }
+                    }
+                });
             }
         }
     });
@@ -506,7 +563,20 @@ mod tests {
     use std::fs;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-    use super::{state_path, ProjectLock, PROJECT_LOCK_STALE};
+    use super::{state_path, CollectGate, ProjectLock, PROJECT_LOCK_STALE};
+
+    #[test]
+    fn collect_gate_coalesces_requests_into_one_follow_up_run() {
+        let gate = CollectGate::default();
+        assert!(gate.request());
+        gate.begin_run();
+        assert!(!gate.request());
+        assert!(!gate.request());
+        assert!(gate.finish_or_continue());
+        gate.begin_run();
+        assert!(!gate.finish_or_continue());
+        assert!(gate.request());
+    }
 
     #[test]
     fn project_ids_cannot_escape_the_wayfinder_directory() {

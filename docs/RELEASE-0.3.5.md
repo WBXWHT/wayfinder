@@ -1,13 +1,16 @@
 # Wayfinder 0.3.5 Alpha
 
-This release makes the Wayfinder voyage map faster, clearer, and easier to
-navigate.
+This release brought Wayfinder to Windows and made the voyage map faster,
+clearer, and easier to navigate.
 
 Status: published as `alpha-v0.3.5` with Apple Silicon, Intel macOS, and
-Windows x64 installers.
+Windows x64 installers. Windows was an experimental release surface and is not
+part of the current supported product.
 
 ## Highlights
 
+- Native Windows x64 desktop installer alongside Apple Silicon and Intel macOS
+  builds.
 - Smooth two-finger panning with frame-batched viewport updates.
 - Stable return to the coastline after exploring deeper parts of a map.
 - Richer waypoint cards with titles, summaries, source details, and file size.
@@ -23,4 +26,5 @@ The release pipeline verified:
 - the Rust companion test suite;
 - Chromium desktop and 320px rendering;
 - real macOS WKWebView panning, reverse-panning, cards, and inspector behavior;
-- both macOS DMGs and their checksums.
+- the Windows x64 build on a native GitHub Actions runner;
+- both macOS DMGs, the Windows NSIS installer, and their checksums.

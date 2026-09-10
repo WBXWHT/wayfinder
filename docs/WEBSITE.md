@@ -48,8 +48,7 @@ not required.
 ## Release Updates
 
 Before publishing the site for a new Companion release, update
-`website/releases.json` with the matching versioned Alpha or stable asset
-names, publish the GitHub Release, and set `published` to `true`. Both macOS
-DMGs and the Windows installer must return successfully before deployment;
-until then unavailable download actions remain hidden or point to the general
-Releases page.
+`website/releases.json` with the matching version, `alpha` or `stable`
+channel, and versioned asset names. Publish the GitHub Release and set
+`published` to `true` only after both macOS DMGs return successfully; until
+then unavailable download actions point to the general Releases page.

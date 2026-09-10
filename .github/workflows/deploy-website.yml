@@ -32,16 +32,33 @@ jobs:
           if (release.published !== true) {
             throw new Error("Companion release is not marked public");
           }
+          const channels = {
+            alpha: {
+              tag: `alpha-v${release.version}`,
+              assetPrefix: `Wayfinder-Alpha-${release.version}`
+            },
+            stable: {
+              tag: `companion-v${release.version}`,
+              assetPrefix: `Wayfinder-${release.version}`
+            }
+          };
+          const channel = channels[release.channel];
+          if (!channel) {
+            throw new Error(`Unsupported release channel: ${release.channel}`);
+          }
           const downloads = [
-            ["arm64", release.downloads?.arm64, ".dmg"],
-            ["x64", release.downloads?.x64, ".dmg"]
+            ["arm64", release.downloads?.arm64, "aarch64"],
+            ["x64", release.downloads?.x64, "x86_64"]
           ];
-          for (const [architecture, raw, extension] of downloads) {
+          for (const [architecture, raw, assetArchitecture] of downloads) {
             const url = new URL(raw);
+            const expectedPath =
+              `/WBXWHT/wayfinder/releases/download/${channel.tag}/` +
+              `${channel.assetPrefix}-macOS-${assetArchitecture}.dmg`;
             if (
               url.protocol !== "https:" ||
               url.hostname !== "github.com" ||
-              !url.pathname.endsWith(extension)
+              url.pathname !== expectedPath
             ) {
               throw new Error(`Invalid ${architecture} download URL`);
             }

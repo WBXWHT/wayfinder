@@ -691,7 +691,17 @@ export class ExperienceMapPanel implements vscode.Disposable {
       wheelFrame = requestAnimationFrame(flushViewportFrame);
     }
 
+    function discardPendingViewportInput() {
+      if (wheelFrame) cancelAnimationFrame(wheelFrame);
+      wheelFrame = 0;
+      pendingPanX = 0;
+      pendingPanY = 0;
+      pendingScale = 1;
+      pendingZoomPoint = null;
+    }
+
     function revealCardInViewport(node) {
+      discardPendingViewportInput();
       const current = d3.zoomTransform(graph.node());
       const viewportWidth = graph.node().clientWidth;
       const viewportHeight = graph.node().clientHeight;
@@ -1126,7 +1136,15 @@ export class ExperienceMapPanel implements vscode.Disposable {
         }))
       );
       const narrowFocusNode = allNodes
-        .filter(({ node }) => Boolean(node.data.session))
+        .filter(({ tree, node }) => {
+          const session = node.data.session;
+          if (!session) return false;
+          return (
+            !query ||
+            tree.title.toLocaleLowerCase('zh-CN').includes(query) ||
+            sessionMatches(session, nodeById, query)
+          );
+        })
         .sort((left, right) => left.node.screenY - right.node.screenY)[0]
         ?.node;
       const narrowFocusRight = narrowFocusNode

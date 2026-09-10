@@ -136,11 +136,34 @@ export function buildConversationForest(
   // clustering fragments it far worse than its curated chapters — so it keeps
   // the chapter-based grouping below. This split is deliberate: we never invent
   // structure from text alone.
+  const explicitNodes = state.nodes.filter(hasExplicitForestMetadata);
   if (hasLiveSignal(state)) {
-    return buildLiveForest(state);
+    if (explicitNodes.length === 0) {
+      return buildLiveForest(state);
+    }
+    const explicitIds = new Set(explicitNodes.map((node) => node.id));
+    const liveNodes = state.nodes.filter((node) => !explicitIds.has(node.id));
+    const curatedForest = buildCuratedForest(state, explicitNodes);
+    const liveForest = liveNodes.length > 0
+      ? buildLiveForest({ ...state, nodes: liveNodes })
+      : emptyForest();
+    const trees = [...curatedForest.trees, ...liveForest.trees]
+      .sort((a, b) => b.completedAt.localeCompare(a.completedAt));
+    return {
+      trees,
+      sessionCount: curatedForest.sessionCount + liveForest.sessionCount,
+      nodeCount: state.nodes.length
+    };
   }
+  return buildCuratedForest(state, state.nodes);
+}
+
+function buildCuratedForest(
+  state: ProjectState,
+  inputNodes: TimelineNode[]
+): ConversationForest {
   const abandoned = abandonedNodeIds(state);
-  const nodes = [...state.nodes]
+  const nodes = [...inputNodes]
     .sort((a, b) => a.completedAt.localeCompare(b.completedAt))
     // Structure rule: a turn that a later restore/branch abandoned is marked
     // as a failed route (coral + reef) unless the user already judged it.
@@ -240,6 +263,22 @@ export function buildConversationForest(
     ),
     nodeCount: nodes.length
   };
+}
+
+function emptyForest(): ConversationForest {
+  return {
+    trees: [],
+    sessionCount: 0,
+    nodeCount: 0
+  };
+}
+
+function hasExplicitForestMetadata(node: TimelineNode): boolean {
+  return (
+    (node.source?.type === "trae-memory" ||
+      node.source?.type === "folder-import") &&
+    Boolean(node.source.forest)
+  );
 }
 
 /**

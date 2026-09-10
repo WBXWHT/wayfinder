@@ -2,20 +2,56 @@ const fs = require("node:fs");
 const Module = require("node:module");
 const path = require("node:path");
 const esbuild = require("esbuild");
+const lockfile = require("proper-lockfile");
 
 const root = path.resolve(__dirname, "..");
-const output = path.join(root, "companion", "dist");
-fs.rmSync(output, { recursive: true, force: true });
-fs.mkdirSync(output, { recursive: true });
+const companionRoot = path.join(root, "companion");
+const finalOutput = path.join(companionRoot, "dist");
+const output = path.join(
+  companionRoot,
+  `.dist-${process.pid}-${Date.now()}.tmp`
+);
+const backupOutput = path.join(companionRoot, ".dist-previous");
 
-const bundle = esbuild.buildSync({
+async function exists(target) {
+  try {
+    await fs.promises.access(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function build() {
+  const releaseBuildLock = await lockfile.lock(companionRoot, {
+    realpath: false,
+    lockfilePath: path.join(companionRoot, ".dist-build.lock"),
+    stale: 60_000,
+    update: 20_000,
+    retries: {
+      retries: 600,
+      factor: 1,
+      minTimeout: 50,
+      maxTimeout: 50
+    }
+  });
+  try {
+    if (!(await exists(finalOutput)) && await exists(backupOutput)) {
+      await fs.promises.rename(backupOutput, finalOutput);
+    } else if (await exists(backupOutput)) {
+      await fs.promises.rm(backupOutput, { recursive: true, force: true });
+    }
+    await fs.promises.rm(output, { recursive: true, force: true });
+    await fs.promises.mkdir(output, { recursive: true });
+
+  const bundle = (await esbuild.build({
   entryPoints: [path.join(root, "companion", "main.js")],
   bundle: true,
   platform: "browser",
   target: "safari15",
   format: "iife",
   write: false
-}).outputFiles[0].text;
+  })).outputFiles[0].text;
 
 // The Companion and the extension must render the same final map. Generate the
 // desktop page from ExperienceMapPanel instead of maintaining a second map.
@@ -52,8 +88,11 @@ const webview = {
 };
 
 let html = new ExperienceMapPanel(".", ".", {}).html(webview);
-const d3 = fs.readFileSync(path.join(root, "media", "d3.min.js"), "utf8");
-const codiconCss = fs.readFileSync(
+const d3 = await fs.promises.readFile(
+  path.join(root, "media", "d3.min.js"),
+  "utf8"
+);
+const codiconCss = (await fs.promises.readFile(
   path.join(
     root,
     "node_modules",
@@ -63,8 +102,8 @@ const codiconCss = fs.readFileSync(
     "codicon.css"
   ),
   "utf8"
-).replace(/\.\/codicon\.ttf\?[^")]+/g, "./codicon.ttf");
-fs.copyFileSync(
+)).replace(/\.\/codicon\.ttf\?[^")]+/g, "./codicon.ttf");
+await fs.promises.copyFile(
   path.join(
     root,
     "node_modules",
@@ -75,7 +114,7 @@ fs.copyFileSync(
   ),
   path.join(output, "codicon.ttf")
 );
-fs.copyFileSync(
+await fs.promises.copyFile(
   path.join(root, "companion", "src-tauri", "icons", "icon.png"),
   path.join(output, "wayfinder-icon.png")
 );
@@ -427,5 +466,27 @@ html = html
   .replace("<body>", () => `<body class="desktop-mode">${desktopOpen}`)
   .replace("</body>", () => `<script>${bundle}</script>\n</body>`);
 
-fs.writeFileSync(path.join(output, "index.html"), html);
-process.stdout.write(`Built ${path.join(output, "index.html")}\n`);
+  await fs.promises.writeFile(path.join(output, "index.html"), html);
+  if (await exists(finalOutput)) {
+    await fs.promises.rename(finalOutput, backupOutput);
+  }
+  try {
+    await fs.promises.rename(output, finalOutput);
+  } catch (error) {
+    if (!(await exists(finalOutput)) && await exists(backupOutput)) {
+      await fs.promises.rename(backupOutput, finalOutput);
+    }
+    throw error;
+  }
+  await fs.promises.rm(backupOutput, { recursive: true, force: true });
+  process.stdout.write(`Built ${path.join(finalOutput, "index.html")}\n`);
+  } finally {
+    await fs.promises.rm(output, { recursive: true, force: true });
+    await releaseBuildLock();
+  }
+}
+
+void build().catch((error) => {
+  process.stderr.write(`${error?.stack || error}\n`);
+  process.exitCode = 1;
+});

@@ -220,83 +220,193 @@ jobs:
               `Wayfinder-Alpha-${process.env.RELEASE_VERSION}-macOS-x86_64.dmg`,
               "SHA256SUMS"
             ];
+            const listAssets = () => github.paginate(
+              github.rest.repos.listReleaseAssets,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: releaseId,
+                per_page: 100
+              }
+            );
+            const deleteEvery = async (assets) => {
+              const errors = [];
+              for (const asset of assets) {
+                try {
+                  await github.rest.repos.deleteReleaseAsset({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    asset_id: asset.id
+                  });
+                } catch (error) {
+                  errors.push(error);
+                }
+              }
+              return errors;
+            };
             for (const name of expectedNames) {
               if (!fs.existsSync(path.join("release-assets", name))) {
                 throw new Error(`Verified release asset is missing: ${name}`);
               }
             }
-            const oldAssets = await github.paginate(
-              github.rest.repos.listReleaseAssets,
-              {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                release_id: releaseId,
-                per_page: 100
-              }
-            );
-            const candidates = [];
+            const oldAssets = await listAssets();
             for (const name of expectedNames) {
-              const candidateName = `${name}.candidate-${context.runId}`;
-              const staleCandidate = oldAssets.find(
-                (asset) => asset.name === candidateName
+              if (oldAssets.some((asset) => asset.name === name)) continue;
+              const backup = oldAssets.find(
+                (asset) => asset.name.startsWith(`${name}.backup-`)
               );
-              if (staleCandidate) {
-                await github.rest.repos.deleteReleaseAsset({
+              if (backup) {
+                await github.rest.repos.updateReleaseAsset({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  asset_id: staleCandidate.id
+                  asset_id: backup.id,
+                  name
                 });
+                backup.name = name;
               }
-              const data = fs.readFileSync(path.join("release-assets", name));
-              const uploaded = await github.rest.repos.uploadReleaseAsset({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                release_id: releaseId,
-                name: candidateName,
-                data,
-                headers: {
-                  "content-type": name.endsWith(".dmg")
-                    ? "application/x-apple-diskimage"
-                    : "text/plain",
-                  "content-length": data.length
-                }
-              });
-              candidates.push({ name, asset: uploaded.data });
             }
-            for (const candidate of candidates) {
-              const current = oldAssets.find(
-                (asset) => asset.name === candidate.name
-              );
-              if (current) {
-                await github.rest.repos.deleteReleaseAsset({
+            const candidates = [];
+            try {
+              for (const name of expectedNames) {
+                const candidateName = `${name}.candidate-${context.runId}`;
+                const staleCandidates = oldAssets.filter(
+                  (asset) => asset.name.startsWith(`${name}.candidate-`)
+                );
+                for (const staleCandidate of staleCandidates) {
+                  await github.rest.repos.deleteReleaseAsset({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    asset_id: staleCandidate.id
+                  });
+                }
+                const data = fs.readFileSync(path.join("release-assets", name));
+                const uploaded = await github.rest.repos.uploadReleaseAsset({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  asset_id: current.id
+                  release_id: releaseId,
+                  name: candidateName,
+                  data,
+                  headers: {
+                    "content-type": name.endsWith(".dmg")
+                      ? "application/x-apple-diskimage"
+                      : "text/plain",
+                    "content-length": data.length
+                  }
                 });
+                candidates.push({ name, asset: uploaded.data });
               }
-              await github.rest.repos.updateReleaseAsset({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                asset_id: candidate.asset.id,
-                name: candidate.name
-              });
+            } catch (error) {
+              const runCandidates = (await listAssets()).filter(
+                (asset) => asset.name.endsWith(`.candidate-${context.runId}`)
+              );
+              const cleanupErrors = await deleteEvery(runCandidates);
+              if (cleanupErrors.length) {
+                throw new AggregateError(
+                  [error, ...cleanupErrors],
+                  "Candidate upload and cleanup failed"
+                );
+              }
+              throw error;
+            }
+            const promotions = [];
+            try {
+              for (const candidate of candidates) {
+                const current = oldAssets.find(
+                  (asset) => asset.name === candidate.name
+                );
+                let backup;
+                if (current) {
+                  const backupName =
+                    `${candidate.name}.backup-${context.runId}`;
+                  backup = (await github.rest.repos.updateReleaseAsset({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    asset_id: current.id,
+                    name: backupName
+                  })).data;
+                  current.name = backupName;
+                }
+                const promotion = {
+                  ...candidate,
+                  candidateName:
+                    `${candidate.name}.candidate-${context.runId}`,
+                  backup,
+                  promoted: false
+                };
+                promotions.push(promotion);
+                await github.rest.repos.updateReleaseAsset({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  asset_id: candidate.asset.id,
+                  name: candidate.name
+                });
+                promotion.promoted = true;
+              }
+            } catch (error) {
+              const rollbackErrors = [];
+              for (const promotion of promotions.reverse()) {
+                if (promotion.promoted) {
+                  try {
+                    await github.rest.repos.updateReleaseAsset({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      asset_id: promotion.asset.id,
+                      name: promotion.candidateName
+                    });
+                  } catch (renameError) {
+                    try {
+                      await github.rest.repos.deleteReleaseAsset({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        asset_id: promotion.asset.id
+                      });
+                    } catch (deleteError) {
+                      rollbackErrors.push(renameError, deleteError);
+                    }
+                  }
+                }
+                if (promotion.backup) {
+                  try {
+                    await github.rest.repos.updateReleaseAsset({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      asset_id: promotion.backup.id,
+                      name: promotion.name
+                    });
+                  } catch (restoreError) {
+                    rollbackErrors.push(restoreError);
+                  }
+                }
+              }
+              const runCandidates = (await listAssets()).filter(
+                (asset) => asset.name.endsWith(`.candidate-${context.runId}`)
+              );
+              rollbackErrors.push(...await deleteEvery(runCandidates));
+              if (rollbackErrors.length) {
+                throw new AggregateError(
+                  [error, ...rollbackErrors],
+                  "Release asset promotion and rollback failed"
+                );
+              }
+              throw error;
             }
             const keep = new Set(expectedNames);
-            const finalAssets = await github.paginate(
-              github.rest.repos.listReleaseAssets,
-              {
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                release_id: releaseId,
-                per_page: 100
-              }
+            const cleanupErrors = await deleteEvery(
+              (await listAssets()).filter((asset) => !keep.has(asset.name))
             );
-            for (const asset of finalAssets) {
-              if (!keep.has(asset.name)) {
-                await github.rest.repos.deleteReleaseAsset({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  asset_id: asset.id
-                });
-              }
+            const finalAssets = await listAssets();
+            const finalNames = finalAssets.map((asset) => asset.name).sort();
+            if (
+              finalNames.length !== expectedNames.length ||
+              expectedNames.some((name) => !finalNames.includes(name))
+            ) {
+              cleanupErrors.push(
+                new Error(`Draft asset set is incomplete: ${finalNames.join(", ")}`)
+              );
+            }
+            if (cleanupErrors.length) {
+              throw new AggregateError(
+                cleanupErrors,
+                "Release asset cleanup failed"
+              );
             }

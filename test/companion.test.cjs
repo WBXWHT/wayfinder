@@ -17,6 +17,10 @@ test("companion web bundle reuses the final map and project navigation", () => {
     path.join(root, "companion", "dist", "index.html"),
     "utf8"
   );
+  const builder = fs.readFileSync(
+    path.join(root, "scripts", "build-companion-web.cjs"),
+    "utf8"
+  );
   assert.match(html, /id="projectSidebar"/);
   assert.match(html, /id="projectList"/);
   assert.match(html, /id="toggleProjects"/);
@@ -36,6 +40,9 @@ test("companion web bundle reuses the final map and project navigation", () => {
   assert.match(html, /const focusedProjectId =/);
   assert.match(html, /data-project-id="\$\{focusedProjectId\}"/);
   assert.match(html, /setInterval\(\(\) => \{[\s\S]*refreshIfChanged/);
+  assert.match(builder, /await lockfile\.lock\(companionRoot/);
+  assert.match(builder, /await fs\.promises\.rename\(output, finalOutput\)/);
+  assert.match(builder, /await fs\.promises\.rename\(backupOutput, finalOutput\)/);
   const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];
   assert.equal(scripts.length, 3);
   for (const script of scripts) {
@@ -155,6 +162,14 @@ test("zero-cost alpha workflow uses ad-hoc signing and a prerelease tag", () => 
   assert.match(workflow, /Release tag points to/);
   assert.doesNotMatch(workflow, /Draft release exists without its expected tag/);
   assert.match(workflow, /candidate-\$\{context\.runId\}/);
+  assert.match(workflow, /backup-\$\{context\.runId\}/);
+  assert.match(workflow, /catch \(error\)/);
+  assert.match(workflow, /for \(const promotion of promotions\.reverse\(\)\)/);
+  assert.match(workflow, /rollbackErrors\.push/);
+  assert.match(workflow, /new AggregateError/);
+  assert.match(workflow, /const deleteEvery = async \(assets\)/);
+  assert.match(workflow, /const finalAssets = await listAssets\(\)/);
+  assert.match(workflow, /finalNames\.length !== expectedNames\.length/);
   assert.match(workflow, /Publish verified release assets/);
   assert.match(workflow, /target_commitish: context\.sha/);
   assert.match(workflow, /SHA256SUMS/);
@@ -194,6 +209,14 @@ test("SEA build uses the lockfile-pinned local postject CLI", () => {
 });
 
 test("companion release version declarations match", () => {
+  const verifier = fs.readFileSync(
+    path.join(root, "scripts", "verify-companion-version.cjs"),
+    "utf8"
+  );
+  assert.match(verifier, /package-lock\.json/);
+  assert.match(verifier, /packageLock\.packages\?\.\[""\]\?\.version/);
+  assert.match(verifier, /Cargo\.lock/);
+  assert.match(verifier, /wayfinder-companion/);
   assert.doesNotThrow(() => childProcess.execFileSync(
     process.execPath,
     [

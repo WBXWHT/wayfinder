@@ -1,9 +1,8 @@
 # Wayfinder Companion
 
-Wayfinder Companion is the macOS and Windows desktop surface for local Claude
-Code and Codex work. It watches the hosts' local JSONL session files, stores
-normalized turns under `~/.wayfinder`, and renders the complete visual voyage
-map.
+Wayfinder Companion is the macOS desktop surface for local Claude Code and
+Codex work. It watches the hosts' local JSONL session files, stores normalized
+turns under `~/.wayfinder`, and renders the complete visual voyage map.
 
 The desktop application is the supported Wayfinder product. Its collector runs
 at launch and then reacts to local session changes in the background without
@@ -160,9 +159,8 @@ requirements. They cannot be generated or committed by the project.
 
 Until Apple Developer membership is justified, use
 `.github/workflows/release-macos-alpha.yml`. It creates Apple Silicon and Intel
-DMGs plus a Windows x64 NSIS installer, marks the GitHub Release as a
-prerelease, and states the required operating-system warnings. It does not
-claim Apple notarization or Windows code signing.
+DMGs, marks the GitHub Release as a prerelease, and states the required macOS
+security warning. It does not claim Apple notarization.
 
 ## Sources
 
