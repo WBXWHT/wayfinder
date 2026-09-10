@@ -62,9 +62,18 @@ jobs:
             );
             const tagCommit = await resolveTagCommit(process.env.RELEASE_TAG);
             if (tagCommit && tagCommit !== context.sha) {
-              throw new Error(
-                `Release tag points to ${tagCommit}, not workflow commit ${context.sha}`
-              );
+              if (!release?.draft) {
+                throw new Error(
+                  `Release tag points to ${tagCommit}, not workflow commit ${context.sha}`
+                );
+              }
+              await github.rest.git.updateRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `tags/${process.env.RELEASE_TAG}`,
+                sha: context.sha,
+                force: true
+              });
             }
             if (release && !release.draft) {
               throw new Error(`Refusing to replace published release ${release.html_url}`);
