@@ -164,6 +164,7 @@ test("zero-cost alpha workflow uses ad-hoc signing and a prerelease tag", () => 
   assert.match(workflow, /RELEASE_ID: \$\{\{ needs\.prepare\.outputs\.release_id \}\}/);
   assert.match(workflow, /group: release-desktop-alpha\b/);
   assert.match(workflow, /Release tag points to/);
+  assert.match(workflow, /github\.rest\.repos\.getReleaseByTag/);
   assert.match(workflow, /if \(!release\?\.draft\)/);
   assert.match(workflow, /github\.rest\.git\.updateRef/);
   assert.match(workflow, /force: true/);
