@@ -1,9 +1,15 @@
 node_modules/
 out/
+/build/
 *.vsix
 .DS_Store
 .wayfinder/
 release/
+companion/dist/
+companion/generated/
+companion/src-tauri/binaries/
+companion/src-tauri/gen/
+companion/src-tauri/target/
 *.tgz
 *.mcpb
 *.log

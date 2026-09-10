@@ -1,0 +1,10 @@
+{
+  "identifier": "default",
+  "description": "Wayfinder Companion main window permissions",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default"
+  ]
+}

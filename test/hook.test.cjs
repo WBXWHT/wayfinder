@@ -91,6 +91,19 @@ test("Claude and Codex sessions with the same id remain isolated", async () => {
     wayfinder_host: "codex",
     hook_event_name: "PostToolUse",
     session_id: "shared",
+    tool_use_id: "codex-edit-1",
+    cwd: root,
+    tool_name: "apply_patch",
+    tool_input: { file_path: path.join(root, "app.js") },
+    tool_response: { ok: true }
+  });
+  // A Plugin and the Companion connector may both deliver the same Hook.
+  // Host tool ids make that delivery idempotent.
+  await processHookEvent({
+    wayfinder_host: "codex",
+    hook_event_name: "PostToolUse",
+    session_id: "shared",
+    tool_use_id: "codex-edit-1",
     cwd: root,
     tool_name: "apply_patch",
     tool_input: { file_path: path.join(root, "app.js") },
@@ -102,6 +115,76 @@ test("Claude and Codex sessions with the same id remain isolated", async () => {
   assert.equal(state.pending["claude:shared"].sourceHost, "claude");
   assert.equal(state.pending["codex:shared"].sourceHost, "codex");
   assert.equal(state.pending["codex:shared"].actions[0].kind, "edit");
+  assert.equal(state.pending["codex:shared"].actions.length, 1);
+});
+
+test("Claude PostToolUseFailure is recorded as failed action evidence", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wayfinder-tool-fail-"));
+  const root = path.join(sandbox, "project");
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  fs.mkdirSync(root, { recursive: true });
+  fs.writeFileSync(path.join(root, "app.js"), "one\n");
+  await writeProjectConfig(root, {
+    validationCommand: "",
+    validationTimeoutSeconds: 10,
+    maxFileSizeMB: 20
+  });
+
+  await processHookEvent({
+    wayfinder_host: "claude",
+    hook_event_name: "UserPromptSubmit",
+    session_id: "failed-tool",
+    cwd: root,
+    prompt: "Run a failing command"
+  });
+  await processHookEvent({
+    wayfinder_host: "claude",
+    hook_event_name: "PostToolUseFailure",
+    session_id: "failed-tool",
+    tool_use_id: "failed-bash-1",
+    cwd: root,
+    tool_name: "Bash",
+    tool_input: { command: "exit 2" },
+    error: "command failed"
+  });
+
+  const pending = (await readProjectState(root)).pending["claude:failed-tool"];
+  assert.equal(pending.actions.length, 1);
+  assert.equal(pending.actions[0].tool, "Bash");
+  assert.equal(pending.actions[0].ok, false);
+});
+
+test("session lifecycle writes only local companion activity", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wayfinder-lifecycle-"));
+  const root = path.join(sandbox, "project");
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  fs.mkdirSync(root, { recursive: true });
+
+  await processHookEvent({
+    wayfinder_host: "claude",
+    hook_event_name: "SessionStart",
+    session_id: "claude-new",
+    cwd: root
+  });
+  let activity = JSON.parse(fs.readFileSync(
+    path.join(process.env.WAYFINDER_HOME, "activity.json"),
+    "utf8"
+  ));
+  assert.equal(activity.status, "active");
+  assert.equal(activity.sourceHost, "claude");
+
+  await processHookEvent({
+    wayfinder_host: "claude",
+    hook_event_name: "SessionEnd",
+    session_id: "claude-new",
+    cwd: root
+  });
+  activity = JSON.parse(fs.readFileSync(
+    path.join(process.env.WAYFINDER_HOME, "activity.json"),
+    "utf8"
+  ));
+  assert.equal(activity.status, "ended");
+  assert.equal(activity.root, fs.realpathSync(root));
 });
 
 test("a failed command becomes a failed validation node", async () => {

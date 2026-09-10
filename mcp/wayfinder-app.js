@@ -1,26 +1,31 @@
-import { App } from "@modelcontextprotocol/ext-apps";
 import { hierarchy, tree as d3Tree } from "d3";
 import { WAYFINDER_VERSION } from "../src/version";
 
 const CARD_WIDTH = 128;
 const CARD_GAP = 14;
 const DEPTH_GAP = 112;
+const MIN_SCALE = 0.75;
 
-const app = new App(
-  { name: "Wayfinder", version: WAYFINDER_VERSION },
-  { availableDisplayModes: ["inline", "fullscreen"] }
-);
-
+let app;
 let latestPayload = {};
 let activeTree = 0;
+let activeProjectKey = "";
 let resizeFrame;
 let renderedWidth = 0;
 
-app.ontoolresult = (result) => {
-  latestPayload = result.structuredContent || {};
-  activeTree = 0;
+function setPayload(payload) {
+  const previousTreeId = latestPayload.forest?.trees?.[activeTree]?.id;
+  const nextProjectKey = projectKey(payload);
+  const nextTrees = payload?.forest?.trees || [];
+  latestPayload = payload || {};
+  activeTree = nextProjectKey === activeProjectKey && previousTreeId
+    ? Math.max(0, nextTrees.findIndex((tree) => tree.id === previousTreeId))
+    : 0;
+  activeProjectKey = nextProjectKey;
   render();
-};
+}
+
+globalThis.__WAYFINDER_SET_PAYLOAD__ = setPayload;
 
 document.querySelector("#previous").addEventListener("click", () => {
   const count = latestPayload.forest?.trees?.length || 0;
@@ -37,9 +42,9 @@ document.querySelector("#next").addEventListener("click", () => {
 });
 
 document.querySelector("#expand").addEventListener("click", async () => {
-  const modes = app.getHostContext()?.availableDisplayModes || [];
+  const modes = app?.getHostContext()?.availableDisplayModes || [];
   if (modes.includes("fullscreen")) {
-    await app.requestDisplayMode({ mode: "fullscreen" });
+    await app?.requestDisplayMode({ mode: "fullscreen" });
   }
 });
 
@@ -55,6 +60,9 @@ function render() {
   renderedWidth = Math.round(map.clientWidth);
   const trees = latestPayload.forest?.trees || [];
   const tree = trees[activeTree];
+  const assessment = (latestPayload.assessments || []).find(
+    (item) => item.topicId === tree?.id
+  );
   document.querySelector("#title").textContent =
     tree?.title || latestPayload.project || "Wayfinder 航海图";
   document.querySelector("#treeCount").textContent = trees.length > 1
@@ -63,7 +71,10 @@ function render() {
   document.querySelector("#previous").hidden = trees.length < 2;
   document.querySelector("#next").hidden = trees.length < 2;
   if (!tree?.sessions?.length) {
-    map.innerHTML = '<div class="empty">当前项目还没有航迹</div>';
+    map.innerHTML = globalThis.__WAYFINDER_DESKTOP__
+      ? '<div class="empty"><strong>还没有新的航迹</strong>' +
+        '<span>连接 Codex 或 Claude Code 后，下一次会话会自动出现在这里。</span></div>'
+      : '<div class="empty">当前项目还没有航迹</div>';
     return;
   }
 
@@ -73,11 +84,6 @@ function render() {
     .filter((session) => session.verdict !== "failure")
     .sort((a, b) => a.completedAt.localeCompare(b.completedAt))
     .at(-1) || tree.sessions.at(-1);
-  const failedNodes = new Set(
-    tree.sessions
-      .filter((session) => session.verdict === "failure")
-      .map((session) => session.id)
-  );
   const paths = geometry.ordered.map((session) => {
     const target = geometry.positions.get(session.id);
     const parent = session.parentId
@@ -91,7 +97,6 @@ function render() {
     return `<path class="route-bed${tone}" d="${d}"/>` +
       `<path class="route route-${route}${tone}" d="${d}"/>`;
   }).join("");
-  const waves = wavePaths(geometry.width, geometry.height);
   const nodes = geometry.ordered.map((session) => {
     const point = geometry.positions.get(session.id);
     const bad = session.verdict === "failure";
@@ -104,37 +109,34 @@ function render() {
       `<tspan x="0" y="${textY + index * lineHeight}">` +
       `${escapeHtml(line)}</tspan>`
     ).join("");
-    const reef = failedNodes.has(session.id)
-      ? '<path class="reef" d="M-20 11 l7-16 7 9 6-14 8 21z"/>'
+    const errorMark = bad
+      ? '<g transform="translate(16 -15)"><circle class="error-mark" r="8"/>' +
+        '<path class="error-cross" d="M-3-3L3 3M3-3L-3 3"/></g>'
       : "";
-    const boat = current
-      ? '<g class="boat" transform="translate(13 -20)"><path class="sail" d="M0 0 L0 18 L13 15 Z"/><path class="hull" d="M-5 19 H16 L11 25 H0 Z"/></g>'
+    const currentRing = current
+      ? '<circle class="current-ring" r="13"/>'
       : "";
     return `<g class="node${bad ? " bad" : ""}${current ? " current" : ""}" ` +
       `data-id="${escapeHtml(session.id)}" tabindex="0" ` +
       `role="button" aria-label="${escapeHtml(session.shortTitle)}" ` +
       `transform="translate(${point.x} ${point.y})">` +
-      `${reef}${boat}<circle r="10"/>` +
-      '<rect x="-64" y="16" width="128" height="52" rx="7"/>' +
+      `${currentRing}<circle r="7"/>${errorMark}` +
+      '<rect x="-64" y="16" width="128" height="48" rx="5"/>' +
       `<text text-anchor="middle" style="font-size:${fontSize}px">` +
       `${labels}</text></g>`;
   }).join("");
-  const shorePad = Math.max(geometry.width, 1200);
-  const shore = `M${-shorePad},27 C${geometry.width * 0.16},18 ` +
-    `${geometry.width / 2 - 62},34 ${geometry.width / 2},25 ` +
-    `C${geometry.width / 2 + 30},17 ${geometry.width * 0.84},31 ` +
-    `${geometry.width + shorePad},24`;
   const rootPoint = geometry.positions.get(geometry.ordered[0].id);
   map.innerHTML =
     `<div class="viewport"><div class="stage" style="width:${geometry.width}px;` +
     `height:${geometry.height}px"><svg viewBox="0 0 ${geometry.width} ` +
     `${geometry.height}" role="img" aria-label="${escapeHtml(tree.title)} 航海图">` +
-    `<rect class="ocean" width="${geometry.width}" height="${geometry.height}"/>` +
-    `<g class="terrain"><path class="shore-fill" d="${shore} V0 H${-shorePad}Z"/>` +
-    `<path class="shore-line" d="${shore}"/><path class="waves far" d="${waves.far}"/>` +
-    `<path class="waves near" d="${waves.near}"/></g><g class="routes">${paths}</g>` +
-    `<g class="port" transform="translate(${rootPoint.x} 2)"><path class="pole" d="M0 24V1"/>` +
-    '<path class="flag" d="M0 1 L13 5 L0 10 Z"/></g>' +
+    '<defs><pattern id="wayfinder-grid" width="24" height="24" ' +
+    'patternUnits="userSpaceOnUse"><path class="grid-line" d="M24 0H0V24"/></pattern></defs>' +
+    `<rect class="workspace" width="${geometry.width}" height="${geometry.height}"/>` +
+    `<rect width="${geometry.width}" height="${geometry.height}" fill="url(#wayfinder-grid)"/>` +
+    `<g class="routes">${paths}</g>` +
+    `<g class="root" transform="translate(${rootPoint.x} 27)">` +
+    '<circle class="root-ring" r="8"/><circle class="root-core" r="3"/></g>' +
     `<g class="nodes">${nodes}</g></svg></div></div><aside id="detail" hidden></aside>`;
 
   const viewport = map.querySelector(".viewport");
@@ -148,7 +150,9 @@ function render() {
         `<div class="detail-head"><strong>${escapeHtml(session.shortTitle)}</strong>` +
         '<button class="close" title="关闭详情" aria-label="关闭详情">×</button></div>' +
         `<p>${escapeHtml(session.preview)}</p><small>${escapeHtml(session.stage)}` +
-        `${source ? ` · ${escapeHtml(source)}` : ""}</small>`;
+        `${source ? ` · ${escapeHtml(source)}` : ""}</small>` +
+        `${assessment ? `<span class="assessment ${assessment.status}">` +
+          `${escapeHtml(assessmentText(assessment.status))}</span>` : ""}`;
       detail.querySelector(".close").addEventListener("click", () => {
         detail.hidden = true;
       });
@@ -162,6 +166,14 @@ function render() {
     });
   });
   enableViewport(viewport, map.querySelector(".stage"), geometry);
+}
+
+function assessmentText(status) {
+  return status === "conflicting"
+    ? "证据冲突"
+    : status === "superseded"
+      ? "后续已替代"
+      : "失败候选";
 }
 
 function geometryFor(sessions, availableWidth) {
@@ -260,32 +272,6 @@ function routeIndexes(sessions) {
   );
 }
 
-function wavePaths(width, height) {
-  let near = "";
-  let far = "";
-  const seed = (a, b) => {
-    const value = Math.sin(a * 127.1 + b * 311.7) * 43758.5453;
-    return value - Math.floor(value);
-  };
-  for (let row = 0; row < Math.ceil(height / 62); row += 1) {
-    for (let column = 0; column < Math.ceil(width / 78); column += 1) {
-      if (seed(row * 131.7 + column, column * 17.3 - row) < 0.48) continue;
-      const x = column * 78 + 39 + (seed(row + 11, column * 3 + 1) - 0.5) * 70;
-      const y = 48 + row * 62 + (seed(row * 3 + 2, column + 7) - 0.5) * 48;
-      if (y > height) continue;
-      const length = 18 + seed(row + 5, column * 7 + 3) * 32;
-      const amplitude = 2.4 + seed(row * 2 + 1, column + 9) * 3.6;
-      const segment = ` M${x.toFixed(1)} ${y.toFixed(1)} c` +
-        `${(length * 0.3).toFixed(1)} ${(-amplitude).toFixed(1)},` +
-        `${(length * 0.7).toFixed(1)} ${(-amplitude).toFixed(1)},` +
-        `${length.toFixed(1)} 0`;
-      if (y > height * 0.5) near += segment;
-      else far += segment;
-    }
-  }
-  return { near, far };
-}
-
 function wrapTitle(value) {
   const text = String(value || "未命名航点").trim();
   if (text.length <= 10) return [text];
@@ -317,9 +303,12 @@ function sessionSources(session, state) {
 
 function enableViewport(viewport, stage, geometry) {
   const pointers = new Map();
-  let x = Math.max(0, (viewport.clientWidth - geometry.width) / 2);
+  let scale = Math.min(
+    1,
+    Math.max(MIN_SCALE, viewport.clientWidth / geometry.width)
+  );
+  let x = (viewport.clientWidth - geometry.width * scale) / 2;
   let y = 0;
-  let scale = Math.min(1, viewport.clientWidth / geometry.width);
   let mouseDragging = false;
   let lastMouse;
   let touchSnapshot;
@@ -331,7 +320,7 @@ function enableViewport(viewport, stage, geometry) {
     const rect = viewport.getBoundingClientRect();
     const px = clientX - rect.left;
     const py = clientY - rect.top;
-    const next = Math.max(0.4, Math.min(3.2, scale * factor));
+    const next = Math.max(MIN_SCALE, Math.min(3.2, scale * factor));
     x = px - (px - x) * next / scale;
     y = py - (py - y) * next / scale;
     scale = next;
@@ -360,11 +349,18 @@ function enableViewport(viewport, stage, geometry) {
   });
   viewport.addEventListener("pointermove", (event) => {
     if (!pointers.has(event.pointerId)) return;
+    const previous = pointers.get(event.pointerId);
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (event.pointerType === "mouse" && mouseDragging) {
       x += event.clientX - lastMouse.x;
       y += event.clientY - lastMouse.y;
       lastMouse = { x: event.clientX, y: event.clientY };
+      apply();
+      return;
+    }
+    if (event.pointerType !== "mouse" && pointers.size === 1) {
+      x += event.clientX - previous.x;
+      y += event.clientY - previous.y;
       apply();
       return;
     }
@@ -392,6 +388,10 @@ function enableViewport(viewport, stage, geometry) {
   apply();
 }
 
+function projectKey(payload) {
+  return payload?.state?.root || payload?.project || "";
+}
+
 function touchState(pointers) {
   const [a, b] = [...pointers.values()];
   return {
@@ -411,8 +411,19 @@ function escapeHtml(value) {
 }
 
 if (globalThis.__WAYFINDER_MCP_PREVIEW__) {
-  latestPayload = globalThis.__WAYFINDER_MCP_PREVIEW__;
-  render();
-} else {
-  app.connect();
+  setPayload(globalThis.__WAYFINDER_MCP_PREVIEW__);
+} else if (!globalThis.__WAYFINDER_DESKTOP__) {
+  void connectMcp();
+}
+
+async function connectMcp() {
+  const { App } = await import("@modelcontextprotocol/ext-apps");
+  app = new App(
+    { name: "Wayfinder", version: WAYFINDER_VERSION },
+    { availableDisplayModes: ["inline", "fullscreen"] }
+  );
+  app.ontoolresult = (result) => {
+    setPayload(result.structuredContent || {});
+  };
+  await app.connect();
 }

@@ -23,6 +23,7 @@ API key is required by Wayfinder.
 | --- | --- |
 | TraeCode / VS Code-compatible IDE | Activity-bar sidebar, with an optional wide in-IDE map |
 | Claude Code / Codex inside a compatible IDE | The same Wayfinder sidebar |
+| Claude Code / Codex on macOS | Wayfinder Companion, reading the same local voyage data |
 | MCP Apps-capable clients | An interactive map inside the conversation |
 | Claude Code / Codex terminal workflows | A text tree inside the terminal |
 
@@ -32,7 +33,22 @@ into Claude Web or Claude Desktop.
 
 ## Install
 
-Node.js 22.13+ and Git are required for the Core and capture adapters.
+The Core and ordinary Claude/Codex Plugins need Git and Node.js 22.13+. The
+macOS Companion DMG embeds the Node runtime, so Companion users only need Git.
+See the [Install Guide](docs/INSTALL.md#macos-companion).
+
+### macOS Companion
+
+Download the macOS Alpha DMG for your Mac architecture from
+[GitHub Releases](https://github.com/WBXWHT/wayfinder/releases). The current
+zero-cost Alpha uses an ad-hoc signature, so macOS requires **Open Anyway** on
+first launch. Open Wayfinder, connect Claude Code and/or Codex once, then work
+normally. Both hosts write into the same project map; host identity remains
+visible as provenance rather than splitting the voyage.
+
+The Companion and complete voyage history stay local under `~/.wayfinder`.
+It only captures sessions created after a host is connected. See
+[Companion architecture and release notes](docs/COMPANION.md).
 
 ### IDE Sidebar
 

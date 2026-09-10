@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Wayfinder 本地数据与隐私边界。">
+  <title>数据边界 — Wayfinder</title>
+  <link rel="icon" href="./wayfinder-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body class="document-page">
+  <header class="site-header document-header">
+    <a class="brand" href="./">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path d="M4 5.5 7.2 18 12 9.3 16.8 18 20 5.5"/>
+          <path class="branch" d="M12 9.3 17.5 6.8"/>
+          <circle cx="12" cy="9.3" r="1.5"/>
+        </svg>
+      </span>
+      <span>Wayfinder</span>
+    </a>
+    <a class="header-link" href="./">返回下载页</a>
+  </header>
+  <main class="document">
+    <p class="eyebrow">PRIVACY</p>
+    <h1>数据边界</h1>
+    <p class="document-lead">Wayfinder 的完整会话、代码快照和航海图保存在你的电脑上。</p>
+    <section>
+      <h2>本地保存</h2>
+      <p>Prompt、回复、工具摘要、验证结果和快照存储在 <code>~/.wayfinder</code>。当前版本没有账号、遥测、广告或云同步。</p>
+    </section>
+    <section>
+      <h2>自动采集</h2>
+      <p>只有用户连接并批准 Claude Code 或 Codex Hook 后，新会话才会被记录。Wayfinder 不导入安装前历史，也不扫描其他应用的私有数据库。</p>
+    </section>
+    <section>
+      <h2>规则分析</h2>
+      <p>当前版本只在本地根据测试失败、工具失败、用户否决和回滚等明确证据整理失败候选，不调用云端模型。</p>
+    </section>
+    <section>
+      <h2>MCP 边界</h2>
+      <p>主动调用 MCP 航海图时，宿主可能把工具结果交给它自己的模型服务。严格本地使用应通过 Wayfinder Companion 查看。</p>
+    </section>
+  </main>
+  <footer>
+    <span>Wayfinder</span>
+    <span>Local-first by default</span>
+    <a href="https://github.com/WBXWHT/wayfinder/blob/main/PRIVACY.md">完整政策 ↗</a>
+  </footer>
+</body>
+</html>

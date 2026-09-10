@@ -1,8 +1,14 @@
+import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import { buildConversationForest } from "./conversationForest";
 import {
+  globalHostHooksEnabled,
+  globalHostHooksInstalled,
+  installGlobalHostHooks,
   installHostHooks,
   hostHooksInstalled,
+  uninstallGlobalHostHooks,
   uninstallHostHooks
 } from "./hostInstaller";
 import { AgentHost } from "./models";
@@ -11,7 +17,7 @@ import { readProjectState, wayfinderHome } from "./storage";
 import { renderTerminalMap } from "./terminalMap";
 import { WAYFINDER_VERSION } from "./version";
 
-async function main(): Promise<void> {
+export async function runCli(): Promise<void> {
   const [command = "help", ...args] = process.argv.slice(2);
   const root = path.resolve(valueAfter(args, "--root") || process.cwd());
   if (command === "--version" || command === "-v") {
@@ -20,6 +26,24 @@ async function main(): Promise<void> {
   }
   if (command === "hook") {
     await runHookCli(hostAfter(args));
+    return;
+  }
+  if (command === "mcp") {
+    const { runMcpServer } = await import("./mcpServer");
+    await runMcpServer();
+    return;
+  }
+  if (command === "connect" || command === "disconnect") {
+    const host = args[0];
+    if (host !== "claude" && host !== "codex") {
+      throw new Error(`Select a host: ${command} <claude|codex>`);
+    }
+    const file = command === "connect"
+      ? await installGlobalHostHooks(host, currentExecutable())
+      : await uninstallGlobalHostHooks(host);
+    process.stdout.write(
+      `${command === "connect" ? "Configured" : "Disconnected"} ${host}: ${file}\n`
+    );
     return;
   }
   if (command === "install" || command === "uninstall") {
@@ -43,11 +67,37 @@ async function main(): Promise<void> {
     return;
   }
   if (command === "doctor") {
+    if (args.includes("--global")) {
+      const hosts = await Promise.all(
+        (["claude", "codex"] as const).map(async (host) => {
+          const [configured, expectedRuntime, enabled] = await Promise.all([
+            globalHostHooksInstalled(host),
+            globalHostHooksInstalled(host, currentExecutable()),
+            globalHostHooksEnabled(host)
+          ]);
+          return {
+            host,
+            available: executableAvailable(host),
+            configured,
+            enabled,
+            runtimeMatches: expectedRuntime,
+            approvalRequired: configured && expectedRuntime && enabled,
+            healthy: false
+          };
+        })
+      );
+      process.stdout.write(`${JSON.stringify({
+        dataHome: wayfinderHome(),
+        git: { available: executableAvailable("git") },
+        hosts
+      }, null, 2)}\n`);
+      return;
+    }
     const checks = await Promise.all(
-      (["trae", "claude", "codex"] as AgentHost[]).map(async (host) => ({
-        host,
-        connected: await hostHooksInstalled(root, host)
-      }))
+      (["trae", "claude", "codex"] as AgentHost[]).map(async (host) => {
+        const configured = await hostHooksInstalled(root, host);
+        return { host, configured };
+      })
     );
     process.stdout.write(`${JSON.stringify({
       root,
@@ -68,9 +118,41 @@ async function main(): Promise<void> {
   }
   process.stdout.write(
     "Usage: wayfinder <install|uninstall> <trae|claude|codex|all> [--root <project>]\n" +
+    "       wayfinder <connect|disconnect> <claude|codex>\n" +
     "       wayfinder <doctor|map> [--root <project>]\n" +
+    "       wayfinder doctor --global\n" +
     "       wayfinder --version\n"
   );
+}
+
+function currentExecutable(): string {
+  return /\.(?:c?js|mjs)$/i.test(__filename) ? __filename : process.execPath;
+}
+
+function executableAvailable(name: "claude" | "codex" | "git"): boolean {
+  const home = os.homedir();
+  const directories = new Set([
+    ...(process.env.PATH || "").split(path.delimiter),
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    path.join(home, ".local", "bin"),
+    path.join(home, ".npm-global", "bin"),
+    path.join(home, ".bun", "bin")
+  ]);
+  return [...directories]
+    .filter(Boolean)
+    .some((directory) => {
+      const executable = path.join(
+        directory,
+        process.platform === "win32" ? `${name}.exe` : name
+      );
+      try {
+        fs.accessSync(executable, fs.constants.X_OK);
+        return true;
+      } catch {
+        return false;
+      }
+    });
 }
 
 function valueAfter(args: string[], name: string): string | undefined {
@@ -86,7 +168,7 @@ function hostAfter(args: string[]): AgentHost | undefined {
 }
 
 if (require.main === module) {
-  void main().catch((error) => {
+  void runCli().catch((error) => {
     console.error(String(error));
     process.exitCode = 1;
   });

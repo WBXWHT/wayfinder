@@ -2315,18 +2315,60 @@ async function processHookEvent(payload) {
     return;
   }
   switch (payload.hook_event_name) {
+    case "SessionStart":
+      await onSessionLifecycle(root, payload, "active");
+      break;
     case "UserPromptSubmit":
       await onPrompt(root, payload);
       break;
     case "PostToolUse":
       await onTool(root, payload);
       break;
+    case "PostToolUseFailure":
+      await onTool(root, payload, true);
+      break;
     case "Stop":
       await onStop(root, payload);
+      break;
+    case "SessionEnd":
+      await onSessionLifecycle(root, payload, "ended");
+      openCompanion();
       break;
     default:
       break;
   }
+}
+async function onSessionLifecycle(root, payload, status) {
+  const home = (0, storage_1.wayfinderHome)();
+  const file = path.join(home, "activity.json");
+  const temp = `${file}.${process.pid}.${(0, storage_1.createId)("activity")}.tmp`;
+  await fs.promises.mkdir(home, { recursive: true });
+  await fs.promises.writeFile(temp, `${JSON.stringify({
+    status,
+    root,
+    sourceHost: hostFor(payload),
+    sessionId: payload.session_id || "unknown",
+    updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+  }, null, 2)}
+`, "utf8");
+  await fs.promises.rename(temp, file);
+}
+function openCompanion() {
+  if (process.platform !== "darwin") {
+    return;
+  }
+  const marker = `${path.sep}Contents${path.sep}MacOS${path.sep}`;
+  const markerIndex = process.execPath.indexOf(marker);
+  const configured = process.env.WAYFINDER_COMPANION_APP;
+  const appPath = configured || (markerIndex >= 0 ? process.execPath.slice(0, markerIndex) : void 0);
+  if (!appPath?.endsWith(".app") || !fs.existsSync(appPath)) {
+    return;
+  }
+  const child = (0, child_process_1.spawn)("/usr/bin/open", [appPath], {
+    detached: true,
+    stdio: "ignore"
+  });
+  child.unref();
 }
 async function onPrompt(root, payload) {
   const prompt = (0, storage_1.clipText)(payload.prompt, 4e3);
@@ -2395,14 +2437,18 @@ async function onPrompt(root, payload) {
     state.pending[sessionId] = pending;
   });
 }
-async function onTool(root, payload) {
+async function onTool(root, payload, failedByEvent = false) {
   const sessionId = scopedSessionId(hostFor(payload), payload.session_id);
   await (0, storage_1.mutateProjectState)(root, (state) => {
     const pending = state.pending[sessionId];
     if (!pending) {
       return;
     }
-    pending.actions.push(toAction(payload));
+    const action = toAction(payload, failedByEvent);
+    if (action.id && pending.actions.some((existing) => existing.id === action.id)) {
+      return;
+    }
+    pending.actions.push(action);
   });
 }
 async function onStop(root, payload) {
@@ -2571,7 +2617,7 @@ ${stderr}`);
     });
   });
 }
-function toAction(payload) {
+function toAction(payload, failedByEvent = false) {
   const tool = payload.tool_name || payload.llm_tool_name || "Unknown";
   const input = payload.tool_input || {};
   const candidatePath = [
@@ -2588,7 +2634,7 @@ function toAction(payload) {
     tool,
     path: candidatePath ? (0, storage_1.clip)(candidatePath, 300) : void 0,
     detail: command ? (0, storage_1.clip)(command, 300) : void 0,
-    ok: !/"error"|"failed"|exception/i.test(responseText)
+    ok: !failedByEvent && !/"error"|"failed"|exception/i.test(responseText)
   };
 }
 function hostFor(payload) {

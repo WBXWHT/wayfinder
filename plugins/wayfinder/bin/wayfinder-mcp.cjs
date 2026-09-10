@@ -7428,7 +7428,7 @@ var require_schemas = __commonJS({
             doc.write(`
         if (${id}.issues.length) {${prefixStr(id, k)}
         }
-        
+
         if (${id}.value === undefined) {
           if (${isPresent}) {
             newResult[${k}] = undefined;
@@ -31164,13 +31164,13 @@ var require_zodToJsonSchema = __commonJS({
         }, true) ?? (0, any_js_1.parseAnyDef)(refs)
       }), {}) : void 0;
       const name = typeof options === "string" ? options : options?.nameStrategy === "title" ? void 0 : options?.name;
-      const main2 = (0, parseDef_js_1.parseDef)(schema._def, name === void 0 ? refs : {
+      const main = (0, parseDef_js_1.parseDef)(schema._def, name === void 0 ? refs : {
         ...refs,
         currentPath: [...refs.basePath, refs.definitionPath, name]
       }, false) ?? (0, any_js_1.parseAnyDef)(refs);
       const title = typeof options === "object" && options.name !== void 0 && options.nameStrategy === "title" ? options.name : void 0;
       if (title !== void 0) {
-        main2.title = title;
+        main.title = title;
       }
       if (refs.flags.hasReferencedOpenAiAnyType) {
         if (!definitions) {
@@ -31191,9 +31191,9 @@ var require_zodToJsonSchema = __commonJS({
         }
       }
       const combined = name === void 0 ? definitions ? {
-        ...main2,
+        ...main,
         [refs.definitionPath]: definitions
-      } : main2 : {
+      } : main : {
         $ref: [
           ...refs.$refStrategy === "relative" ? [] : refs.basePath,
           refs.definitionPath,
@@ -31201,7 +31201,7 @@ var require_zodToJsonSchema = __commonJS({
         ].join("/"),
         [refs.definitionPath]: {
           ...definitions,
-          [name]: main2
+          [name]: main
         }
       };
       if (refs.target === "jsonSchema7") {
@@ -41773,16 +41773,115 @@ var require_voyageEngine = __commonJS({
     function actionText(actions) {
       return actions.map((action) => [action.tool, action.detail].filter(Boolean).join(" ")).join(" ");
     }
+    var PATH_STOPWORDS = /* @__PURE__ */ new Set([
+      "src",
+      "test",
+      "tests",
+      "spec",
+      "index",
+      "lib",
+      "app",
+      "main",
+      "ts",
+      "tsx",
+      "js",
+      "jsx",
+      "json",
+      "md",
+      "go",
+      "rs",
+      "py",
+      "config",
+      "configuration",
+      "shared",
+      "common",
+      "utils",
+      "types",
+      "constants",
+      "service",
+      "services"
+    ]);
+    var CROSS_CONVERSATION_STOPWORDS = /* @__PURE__ */ new Set([
+      "en:add",
+      "en:change",
+      "en:changes",
+      "en:code",
+      "en:config",
+      "en:configuration",
+      "en:continue",
+      "en:create",
+      "en:discuss",
+      "en:feature",
+      "en:file",
+      "en:fix",
+      "en:fixed",
+      "en:flow",
+      "en:handling",
+      "en:implement",
+      "en:implementation",
+      "en:improve",
+      "en:issue",
+      "en:module",
+      "en:plan",
+      "en:process",
+      "en:refactor",
+      "en:retry",
+      "en:review",
+      "en:run",
+      "en:setup",
+      "en:support",
+      "en:system",
+      "en:task",
+      "en:test",
+      "en:tests",
+      "en:update",
+      "en:updated",
+      "en:updating",
+      "en:work"
+    ]);
+    function fileTerms(files) {
+      const terms = /* @__PURE__ */ new Set();
+      for (const file of files) {
+        for (const term of file.toLowerCase().split(/[/_.-]+/)) {
+          if (term.length > 1 && !PATH_STOPWORDS.has(term)) {
+            terms.add(term);
+          }
+        }
+      }
+      return terms;
+    }
+    function hasPathSemanticBridge(previous, next) {
+      if (jaccard(previous.pathTerms, next.pathTerms) < 0.25) {
+        return false;
+      }
+      const previousText = new Set(previous.tokens.filter((token) => token.startsWith("en:")).map((token) => token.slice(3)));
+      const nextText = new Set(next.tokens.filter((token) => token.startsWith("en:")).map((token) => token.slice(3)));
+      return jaccard(previous.pathTerms, previousText) > 0 || jaccard(next.pathTerms, nextText) > 0;
+    }
+    function hasDistinctiveSemanticBridge(previous, next) {
+      const previousTerms = new Set(previous.tokens.filter((token) => !CROSS_CONVERSATION_STOPWORDS.has(token)));
+      const nextTerms = new Set(next.tokens.filter((token) => !CROSS_CONVERSATION_STOPWORDS.has(token)));
+      const sharedTerms = [...previousTerms].filter((term) => nextTerms.has(term));
+      return sharedTerms.length >= 2 && jaccard(previousTerms, nextTerms) >= 0.6 && cosineSimilarity(previous.vector, next.vector) >= 0.3;
+    }
+    function crossesConversation(previous, next) {
+      const hostsAreKnown = previous.sourceHosts.size > 0 && next.sourceHosts.size > 0;
+      return hostsAreKnown && jaccard(previous.sourceHosts, next.sourceHosts) === 0 || jaccard(previous.sessionIds, next.sessionIds) === 0;
+    }
     function signalForNode(node, idf) {
       const files = new Set((node.files || []).map((file) => file.path));
       const dirs = new Set([...files].map(directoryOf));
+      const pathTerms = fileTerms(files);
       const tokens = tokenize([node.prompt, node.response, actionText(node.actions || [])].filter(Boolean).join(" "));
       const isRevert = node.kind === "safety" || REVERT_PATTERN.test(node.prompt || "") || (node.actions || []).some((action) => REVERT_PATTERN.test([action.tool, action.detail].join(" ")));
       return {
         id: node.id,
+        sourceHosts: new Set(node.sourceHost ? [node.sourceHost] : []),
+        sessionIds: /* @__PURE__ */ new Set([node.sessionId]),
         timestamp: Date.parse(node.completedAt) || 0,
         files,
         dirs,
+        pathTerms,
         tokens,
         vector: vectorize(tokens, idf),
         isRevert,
@@ -41796,6 +41895,10 @@ var require_voyageEngine = __commonJS({
       const lexical = cosineSimilarity(previous.vector, next.vector);
       const timeGap = Math.abs(next.timestamp - previous.timestamp);
       const time = Math.exp(-timeGap / GAP_TAU_MS);
+      const crossedConversation = crossesConversation(previous, next);
+      if (crossedConversation && !hasDistinctiveSemanticBridge(previous, next) && !hasPathSemanticBridge(previous, next)) {
+        return 0;
+      }
       if (!previous.hasFileSignal || !next.hasFileSignal) {
         return 0.68 * lexical + 0.32 * time;
       }
@@ -41822,9 +41925,12 @@ var require_voyageEngine = __commonJS({
       function lastNodeSignal(waypoint) {
         return {
           id: waypoint.id,
+          sourceHosts: waypoint.sourceHosts,
+          sessionIds: waypoint.sessionIds,
           timestamp: waypoint.completedAt,
           files: waypoint.files,
           dirs: waypoint.dirs,
+          pathTerms: waypoint.pathTerms,
           tokens: waypoint.tokens,
           vector: waypoint.vector,
           isRevert: waypoint.isRevert,
@@ -41837,8 +41943,11 @@ var require_voyageEngine = __commonJS({
       return {
         id: signal.id,
         nodeIds: [signal.id],
+        sourceHosts: new Set(signal.sourceHosts),
+        sessionIds: new Set(signal.sessionIds),
         files: new Set(signal.files),
         dirs: new Set(signal.dirs),
+        pathTerms: new Set(signal.pathTerms),
         tokens: [...signal.tokens],
         vector: vectorize(signal.tokens, idf),
         startedAt: signal.timestamp,
@@ -41850,10 +41959,16 @@ var require_voyageEngine = __commonJS({
     }
     function mergeSignal(waypoint, signal, idf) {
       waypoint.nodeIds.push(signal.id);
+      for (const host of signal.sourceHosts)
+        waypoint.sourceHosts.add(host);
+      for (const sessionId of signal.sessionIds)
+        waypoint.sessionIds.add(sessionId);
       for (const file of signal.files)
         waypoint.files.add(file);
       for (const dir of signal.dirs)
         waypoint.dirs.add(dir);
+      for (const term of signal.pathTerms)
+        waypoint.pathTerms.add(term);
       waypoint.tokens.push(...signal.tokens);
       waypoint.vector = vectorize(waypoint.tokens, idf);
       waypoint.completedAt = Math.max(waypoint.completedAt, signal.timestamp);
@@ -41866,9 +41981,13 @@ var require_voyageEngine = __commonJS({
     function relatedness(current, candidate) {
       const lexical = cosineSimilarity(current.vector, candidate.vector);
       const time = Math.exp(-Math.abs(current.startedAt - candidate.completedAt) / RELATE_TAU_MS);
+      if (crossesConversation(current, candidate) && !hasDistinctiveSemanticBridge(current, candidate) && !hasPathSemanticBridge(current, candidate)) {
+        return 0;
+      }
       if (current.hasFileSignal && candidate.hasFileSignal) {
         const file = jaccard(current.files, candidate.files);
-        return 0.4 * file + 0.4 * lexical + 0.2 * time;
+        const path2 = jaccard(current.pathTerms, candidate.pathTerms);
+        return 0.35 * file + 0.35 * lexical + 0.2 * path2 + 0.1 * time;
       }
       return 0.7 * lexical + 0.3 * time;
     }
@@ -42175,6 +42294,7 @@ var require_conversationForest = __commonJS({
       return {
         id: `forest-session:${first.id}`,
         treeId: "",
+        sourceHosts: sourceHostsFor(waypointNodes),
         stage,
         stageOrder: 0,
         branch: void 0,
@@ -42277,6 +42397,7 @@ var require_conversationForest = __commonJS({
       return {
         id: `forest-session:${first.id}`,
         treeId: treeId(metadata.tree),
+        sourceHosts: sourceHostsFor(nodes),
         stage: metadata.stage,
         stageOrder: metadata.stageOrder,
         branch: metadata.branch,
@@ -42293,6 +42414,9 @@ var require_conversationForest = __commonJS({
         depth: 0,
         ...metadata.parentStage ? { parentStage: metadata.parentStage } : {}
       };
+    }
+    function sourceHostsFor(nodes) {
+      return [...new Set(nodes.map((node) => node.sourceHost).filter((host) => Boolean(host)))];
     }
     function connectSessions(sessions) {
       const byStage = /* @__PURE__ */ new Map();
@@ -42444,6 +42568,64 @@ var require_conversationForest = __commonJS({
     }
     function normalizeText(value) {
       return value.replace(/\s+/g, " ").replace(/^[，。；、\s]+|[，。；、\s]+$/g, "").trim();
+    }
+  }
+});
+
+// out/localExperience.js
+var require_localExperience = __commonJS({
+  "out/localExperience.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    exports2.buildLocalTopicAssessments = buildLocalTopicAssessments;
+    var conversationForest_12 = require_conversationForest();
+    function buildLocalTopicAssessments(state, forest = (0, conversationForest_12.buildConversationForest)(state)) {
+      const abandoned = (0, conversationForest_12.abandonedNodeIds)(state);
+      const nodes = new Map(state.nodes.map((node) => [node.id, node]));
+      const assessments = [];
+      for (const tree of forest.trees) {
+        const topicNodes = tree.sessions.flatMap((session) => session.nodeIds).map((nodeId) => nodes.get(nodeId)).filter((node) => Boolean(node)).sort((a, b) => a.completedAt.localeCompare(b.completedAt));
+        const evidenceNodeIds = topicNodes.filter((node) => isFailureNode(node, abandoned)).map((node) => node.id);
+        if (evidenceNodeIds.length === 0) {
+          continue;
+        }
+        const unresolvedFailures = /* @__PURE__ */ new Map();
+        const recoveredHosts = /* @__PURE__ */ new Set();
+        const healthyAttempts = /* @__PURE__ */ new Map();
+        const sourceHosts = /* @__PURE__ */ new Set();
+        for (const node of topicNodes) {
+          if (!node.sourceHost || node.kind === "manual" || node.kind === "safety") {
+            continue;
+          }
+          sourceHosts.add(node.sourceHost);
+          if (isFailureNode(node, abandoned)) {
+            unresolvedFailures.set(node.sourceHost, node.completedAt);
+            healthyAttempts.delete(node.sourceHost);
+            continue;
+          }
+          if (isResolvedAttempt(node)) {
+            healthyAttempts.set(node.sourceHost, node.completedAt);
+            if (unresolvedFailures.delete(node.sourceHost)) {
+              recoveredHosts.add(node.sourceHost);
+            }
+          }
+        }
+        const conflicting = [...unresolvedFailures].some(([failedHost, failedAt]) => [...healthyAttempts].some(([healthyHost, healthyAt]) => healthyHost !== failedHost && healthyAt > failedAt));
+        const superseded = !conflicting && unresolvedFailures.size === 0 && recoveredHosts.size > 0;
+        assessments.push({
+          topicId: tree.id,
+          status: conflicting ? "conflicting" : superseded ? "superseded" : "failed-candidate",
+          evidenceNodeIds,
+          sourceHosts: [...sourceHosts]
+        });
+      }
+      return assessments;
+    }
+    function isFailureNode(node, abandoned) {
+      return node.verdict === "failure" || node.validation?.status === "failed" || node.validation?.status === "timeout" || (node.actions || []).some((action) => action.ok === false) || abandoned.has(node.id);
+    }
+    function isResolvedAttempt(node) {
+      return node.validation?.status !== "running";
     }
   }
 });
@@ -44125,7 +44307,7 @@ var require_storage = __commonJS({
       if (existing) {
         return existing;
       }
-      const main2 = {
+      const main = {
         id: "main",
         name: "main",
         createdAt: (/* @__PURE__ */ new Date()).toISOString()
@@ -44134,8 +44316,8 @@ var require_storage = __commonJS({
         version: STATE_VERSION,
         projectId: projectIdFor(normalized),
         root: normalized,
-        activeBranchId: main2.id,
-        branches: [main2],
+        activeBranchId: main.id,
+        branches: [main],
         nodes: [],
         pending: {},
         updatedAt: (/* @__PURE__ */ new Date()).toISOString()
@@ -44301,12 +44483,14 @@ var __importStar = exports && exports.__importStar || /* @__PURE__ */ (function(
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createWayfinderMcpServer = createWayfinderMcpServer;
+exports.runMcpServer = runMcpServer;
 var fs = __importStar(require("fs"));
 var path = __importStar(require("path"));
 var mcp_js_1 = require_mcp();
 var stdio_js_1 = require_stdio2();
 var v4_1 = require_v4();
 var conversationForest_1 = require_conversationForest();
+var localExperience_1 = require_localExperience();
 var storage_1 = require_storage();
 var version_1 = require_version();
 var APP_URI = "ui://wayfinder/map";
@@ -44332,14 +44516,17 @@ function createWayfinderMcpServer() {
   }, async ({ root }) => {
     const projectRoot = path.resolve(root || process.env.WAYFINDER_PROJECT_DIR || process.cwd());
     const state = await (0, storage_1.readProjectState)(projectRoot);
+    const forest = state ? (0, conversationForest_1.buildConversationForest)(state) : void 0;
     const payload = state ? {
       project: path.basename(projectRoot),
       state,
-      forest: (0, conversationForest_1.buildConversationForest)(state)
+      forest,
+      assessments: (0, localExperience_1.buildLocalTopicAssessments)(state, forest)
     } : {
       project: path.basename(projectRoot),
       state: void 0,
-      forest: { trees: [], nodeCount: 0 }
+      forest: { trees: [], nodeCount: 0 },
+      assessments: []
     };
     return {
       content: [{
@@ -44352,25 +44539,35 @@ function createWayfinderMcpServer() {
   server.registerResource("Wayfinder Voyage Map", APP_URI, {
     description: "Interactive Wayfinder voyage map"
   }, async () => {
-    const installed = path.join(__dirname, "..", "mcp", "wayfinder-app.html");
-    const workspace = path.join(__dirname, "..", "plugins", "wayfinder", "mcp", "wayfinder-app.html");
-    const file = fs.existsSync(installed) ? installed : workspace;
     return {
       contents: [{
         uri: APP_URI,
         mimeType: APP_MIME_TYPE,
-        text: await fs.promises.readFile(file, "utf8")
+        text: await loadMapHtml()
       }]
     };
   });
   return server;
 }
-async function main() {
+async function loadMapHtml() {
+  try {
+    const sea = await Promise.resolve().then(() => __importStar(require("node:sea")));
+    if (sea.isSea?.() && sea.getAsset) {
+      return sea.getAsset("wayfinder-app.html", "utf8");
+    }
+  } catch {
+  }
+  const installed = path.join(__dirname, "..", "mcp", "wayfinder-app.html");
+  const workspace = path.join(__dirname, "..", "plugins", "wayfinder", "mcp", "wayfinder-app.html");
+  const file = fs.existsSync(installed) ? installed : workspace;
+  return fs.promises.readFile(file, "utf8");
+}
+async function runMcpServer() {
   const server = createWayfinderMcpServer();
   await server.connect(new stdio_js_1.StdioServerTransport());
 }
 if (require.main === module) {
-  void main().catch((error) => {
+  void runMcpServer().catch((error) => {
     console.error(String(error));
     process.exitCode = 1;
   });

@@ -1,4 +1,4 @@
-import { FileChange, TimelineNode, ToolAction } from "./models";
+import { AgentHost, FileChange, TimelineNode, ToolAction } from "./models";
 
 /**
  * Voyage content engine — the content-driven layer that decides how raw turns
@@ -128,9 +128,12 @@ export function jaccard<T>(a: Set<T>, b: Set<T>): number {
 
 export interface TurnSignal {
   id: string;
+  sourceHosts: Set<AgentHost>;
+  sessionIds: Set<string>;
   timestamp: number;
   files: Set<string>;
   dirs: Set<string>;
+  pathTerms: Set<string>;
   tokens: string[];
   vector: SparseVector;
   isRevert: boolean;
@@ -152,6 +155,87 @@ function actionText(actions: ToolAction[]): string {
     .join(" ");
 }
 
+const PATH_STOPWORDS = new Set([
+  "src", "test", "tests", "spec", "index", "lib", "app", "main", "ts", "tsx",
+  "js", "jsx", "json", "md", "go", "rs", "py", "config", "configuration",
+  "shared", "common", "utils", "types", "constants", "service", "services"
+]);
+
+const CROSS_CONVERSATION_STOPWORDS = new Set([
+  "en:add", "en:change", "en:changes", "en:code", "en:config",
+  "en:configuration", "en:continue", "en:create", "en:discuss",
+  "en:feature", "en:file", "en:fix", "en:fixed", "en:flow",
+  "en:handling", "en:implement", "en:implementation", "en:improve",
+  "en:issue", "en:module", "en:plan", "en:process", "en:refactor",
+  "en:retry", "en:review", "en:run", "en:setup", "en:support",
+  "en:system", "en:task", "en:test", "en:tests", "en:update",
+  "en:updated", "en:updating", "en:work"
+]);
+
+function fileTerms(files: Set<string>): Set<string> {
+  const terms = new Set<string>();
+  for (const file of files) {
+    for (const term of file.toLowerCase().split(/[/_.-]+/)) {
+      if (term.length > 1 && !PATH_STOPWORDS.has(term)) {
+        terms.add(term);
+      }
+    }
+  }
+  return terms;
+}
+
+function hasPathSemanticBridge(
+  previous: Pick<TurnSignal, "pathTerms" | "tokens">,
+  next: Pick<TurnSignal, "pathTerms" | "tokens">
+): boolean {
+  if (jaccard(previous.pathTerms, next.pathTerms) < 0.25) {
+    return false;
+  }
+  const previousText = new Set(
+    previous.tokens
+      .filter((token) => token.startsWith("en:"))
+      .map((token) => token.slice(3))
+  );
+  const nextText = new Set(
+    next.tokens
+      .filter((token) => token.startsWith("en:"))
+      .map((token) => token.slice(3))
+  );
+  return (
+    jaccard(previous.pathTerms, previousText) > 0 ||
+    jaccard(next.pathTerms, nextText) > 0
+  );
+}
+
+function hasDistinctiveSemanticBridge(
+  previous: Pick<TurnSignal, "tokens" | "vector">,
+  next: Pick<TurnSignal, "tokens" | "vector">
+): boolean {
+  const previousTerms = new Set(
+    previous.tokens.filter((token) =>
+      !CROSS_CONVERSATION_STOPWORDS.has(token)
+    )
+  );
+  const nextTerms = new Set(
+    next.tokens.filter((token) => !CROSS_CONVERSATION_STOPWORDS.has(token))
+  );
+  const sharedTerms = [...previousTerms].filter((term) => nextTerms.has(term));
+  return sharedTerms.length >= 2 &&
+    jaccard(previousTerms, nextTerms) >= 0.6 &&
+    cosineSimilarity(previous.vector, next.vector) >= 0.3;
+}
+
+function crossesConversation(
+  previous: Pick<TurnSignal, "sourceHosts" | "sessionIds">,
+  next: Pick<TurnSignal, "sourceHosts" | "sessionIds">
+): boolean {
+  const hostsAreKnown =
+    previous.sourceHosts.size > 0 && next.sourceHosts.size > 0;
+  return (hostsAreKnown &&
+      jaccard(previous.sourceHosts, next.sourceHosts) === 0) ||
+    jaccard(previous.sessionIds, next.sessionIds) === 0;
+}
+
 /** Turn a raw TimelineNode into the multi-modal signal the engine reasons on. */
 export function signalForNode(
   node: TimelineNode,
@@ -159,6 +243,7 @@ export function signalForNode(
 ): TurnSignal {
   const files = new Set((node.files || []).map((file: FileChange) => file.path));
   const dirs = new Set([...files].map(directoryOf));
+  const pathTerms = fileTerms(files);
   const tokens = tokenize(
     [node.prompt, node.response, actionText(node.actions || [])]
       .filter(Boolean)
@@ -172,9 +257,12 @@ export function signalForNode(
     );
   return {
     id: node.id,
+    sourceHosts: new Set(node.sourceHost ? [node.sourceHost] : []),
+    sessionIds: new Set([node.sessionId]),
     timestamp: Date.parse(node.completedAt) || 0,
     files,
     dirs,
+    pathTerms,
     tokens,
     vector: vectorize(tokens, idf),
     isRevert,
@@ -195,6 +283,14 @@ export function cohesion(previous: TurnSignal, next: TurnSignal): number {
   const lexical = cosineSimilarity(previous.vector, next.vector);
   const timeGap = Math.abs(next.timestamp - previous.timestamp);
   const time = Math.exp(-timeGap / GAP_TAU_MS);
+  const crossedConversation = crossesConversation(previous, next);
+  if (
+    crossedConversation &&
+    !hasDistinctiveSemanticBridge(previous, next) &&
+    !hasPathSemanticBridge(previous, next)
+  ) {
+    return 0;
+  }
   if (!previous.hasFileSignal || !next.hasFileSignal) {
     return 0.68 * lexical + 0.32 * time;
   }
@@ -206,8 +302,11 @@ export function cohesion(previous: TurnSignal, next: TurnSignal): number {
 export interface Waypoint {
   id: string;
   nodeIds: string[];
+  sourceHosts: Set<AgentHost>;
+  sessionIds: Set<string>;
   files: Set<string>;
   dirs: Set<string>;
+  pathTerms: Set<string>;
   tokens: string[];
   vector: SparseVector;
   startedAt: number;
@@ -254,9 +353,12 @@ export function aggregateWaypoints(
     // cohesion compares against accumulated context, not just the first turn.
     return {
       id: waypoint.id,
+      sourceHosts: waypoint.sourceHosts,
+      sessionIds: waypoint.sessionIds,
       timestamp: waypoint.completedAt,
       files: waypoint.files,
       dirs: waypoint.dirs,
+      pathTerms: waypoint.pathTerms,
       tokens: waypoint.tokens,
       vector: waypoint.vector,
       isRevert: waypoint.isRevert,
@@ -273,8 +375,11 @@ function waypointFromSignal(
   return {
     id: signal.id,
     nodeIds: [signal.id],
+    sourceHosts: new Set(signal.sourceHosts),
+    sessionIds: new Set(signal.sessionIds),
     files: new Set(signal.files),
     dirs: new Set(signal.dirs),
+    pathTerms: new Set(signal.pathTerms),
     tokens: [...signal.tokens],
     vector: vectorize(signal.tokens, idf),
     startedAt: signal.timestamp,
@@ -291,8 +396,11 @@ function mergeSignal(
   idf: (token: string) => number
 ): void {
   waypoint.nodeIds.push(signal.id);
+  for (const host of signal.sourceHosts) waypoint.sourceHosts.add(host);
+  for (const sessionId of signal.sessionIds) waypoint.sessionIds.add(sessionId);
   for (const file of signal.files) waypoint.files.add(file);
   for (const dir of signal.dirs) waypoint.dirs.add(dir);
+  for (const term of signal.pathTerms) waypoint.pathTerms.add(term);
   waypoint.tokens.push(...signal.tokens);
   waypoint.vector = vectorize(waypoint.tokens, idf);
   waypoint.completedAt = Math.max(waypoint.completedAt, signal.timestamp);
@@ -326,9 +434,17 @@ export function relatedness(current: Waypoint, candidate: Waypoint): number {
   const time = Math.exp(
     -Math.abs(current.startedAt - candidate.completedAt) / RELATE_TAU_MS
   );
+  if (
+    crossesConversation(current, candidate) &&
+    !hasDistinctiveSemanticBridge(current, candidate) &&
+    !hasPathSemanticBridge(current, candidate)
+  ) {
+    return 0;
+  }
   if (current.hasFileSignal && candidate.hasFileSignal) {
     const file = jaccard(current.files, candidate.files);
-    return 0.4 * file + 0.4 * lexical + 0.2 * time;
+    const path = jaccard(current.pathTerms, candidate.pathTerms);
+    return 0.35 * file + 0.35 * lexical + 0.2 * path + 0.1 * time;
   }
   return 0.7 * lexical + 0.3 * time;
 }

@@ -3,6 +3,11 @@
 Wayfinder has no analytics, advertising, account service, or cloud sync.
 Its capture and storage code does not send HTTP requests.
 
+Wayfinder Companion reads the same local data. The current build does not call
+a cloud analysis service. It prepares a redacted, evidence-only request format
+so that a future opt-in analysis feature has a testable privacy boundary before
+any provider is connected.
+
 ## Stored Locally
 
 Wayfinder stores prompts, assistant replies, tool summaries, paths, validation
@@ -26,11 +31,28 @@ The local MCP bundle is read-only at the tool interface. It can read Wayfinder
 history for a root explicitly provided by the caller; the project selector is
 a default, not a filesystem access sandbox.
 
+## Future Opt-In Analysis
+
+Cloud analysis must remain disabled until the user explicitly enables it for a
+project. The request format excludes complete conversations, source code,
+workspace roots, prompts, and raw error output. It sends hashed topic IDs plus
+locally generated fields such as failure kind, diagnostic category, exit code,
+file extensions, source host, and local conflict/superseded state. Only locally
+evidenced failures are eligible.
+
+No model conclusion becomes a Wayfinder fact unless it cites evidence IDs from
+the same topic in the local request. Conflict and superseded conclusions must
+also match the local state evidence. Provider choice, retention guarantees,
+transport security, and the consent screen must be completed before this
+feature can ship.
+
 ## Installation And Removal
 
 Project adapter setup writes `.trae/hooks.json`, `.claude/settings.json`, or
-`.codex/hooks.json`. It preserves unrelated Hooks. Capture does not begin until
-the host enables/trusts the adapter and emits supported events.
+`.codex/hooks.json`. Companion host connection writes only Wayfinder entries to
+the user's global Claude or Codex Hook file. Both paths preserve unrelated
+Hooks. Capture does not begin until the host enables/trusts the adapter and
+emits supported events.
 
 `wayfinder uninstall <host> --root <project>` removes project Hooks, not history.
 Remove the Plugin in your host to disable Plugin-supplied Hooks. You may delete

@@ -1,4 +1,4 @@
-import { exec } from "child_process";
+import { exec, spawn } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
 import {
@@ -21,6 +21,7 @@ import {
   projectDataDir,
   readProjectConfig,
   readProjectState,
+  wayfinderHome,
   writeProjectConfig
 } from "./storage";
 import { readLastAssistantMessage } from "./transcript";
@@ -32,18 +33,66 @@ export async function processHookEvent(payload: HookPayload): Promise<void> {
   }
 
   switch (payload.hook_event_name) {
+    case "SessionStart":
+      await onSessionLifecycle(root, payload, "active");
+      break;
     case "UserPromptSubmit":
       await onPrompt(root, payload);
       break;
     case "PostToolUse":
       await onTool(root, payload);
       break;
+    case "PostToolUseFailure":
+      await onTool(root, payload, true);
+      break;
     case "Stop":
       await onStop(root, payload);
+      break;
+    case "SessionEnd":
+      await onSessionLifecycle(root, payload, "ended");
+      openCompanion();
       break;
     default:
       break;
   }
+}
+
+async function onSessionLifecycle(
+  root: string,
+  payload: HookPayload,
+  status: "active" | "ended"
+): Promise<void> {
+  const home = wayfinderHome();
+  const file = path.join(home, "activity.json");
+  const temp = `${file}.${process.pid}.${createId("activity")}.tmp`;
+  await fs.promises.mkdir(home, { recursive: true });
+  await fs.promises.writeFile(temp, `${JSON.stringify({
+    status,
+    root,
+    sourceHost: hostFor(payload),
+    sessionId: payload.session_id || "unknown",
+    updatedAt: new Date().toISOString()
+  }, null, 2)}\n`, "utf8");
+  await fs.promises.rename(temp, file);
+}
+
+function openCompanion(): void {
+  if (process.platform !== "darwin") {
+    return;
+  }
+  const marker = `${path.sep}Contents${path.sep}MacOS${path.sep}`;
+  const markerIndex = process.execPath.indexOf(marker);
+  const configured = process.env.WAYFINDER_COMPANION_APP;
+  const appPath = configured ||
+    (markerIndex >= 0 ? process.execPath.slice(0, markerIndex) : undefined);
+  if (!appPath?.endsWith(".app") || !fs.existsSync(appPath)) {
+    return;
+  }
+  const child = spawn("/usr/bin/open", [appPath], {
+    detached: true,
+    stdio: "ignore"
+  });
+  child.unref();
 }
 
 async function onPrompt(root: string, payload: HookPayload): Promise<void> {
@@ -124,14 +173,25 @@ async function onPrompt(root: string, payload: HookPayload): Promise<void> {
   });
 }
 
-async function onTool(root: string, payload: HookPayload): Promise<void> {
+async function onTool(
+  root: string,
+  payload: HookPayload,
+  failedByEvent = false
+): Promise<void> {
   const sessionId = scopedSessionId(hostFor(payload), payload.session_id);
   await mutateProjectState(root, (state) => {
     const pending = state.pending[sessionId];
     if (!pending) {
       return;
     }
-    pending.actions.push(toAction(payload));
+    const action = toAction(payload, failedByEvent);
+    if (
+      action.id &&
+      pending.actions.some((existing) => existing.id === action.id)
+    ) {
+      return;
+    }
+    pending.actions.push(action);
   });
 }
 
@@ -340,7 +400,10 @@ async function validateTurn(
   });
 }
 
-function toAction(payload: HookPayload): ToolAction {
+function toAction(
+  payload: HookPayload,
+  failedByEvent = false
+): ToolAction {
   const tool = payload.tool_name || payload.llm_tool_name || "Unknown";
   const input = payload.tool_input || {};
   const candidatePath = [
@@ -370,7 +433,8 @@ function toAction(payload: HookPayload): ToolAction {
     tool,
     path: candidatePath ? clip(candidatePath, 300) : undefined,
     detail: command ? clip(command, 300) : undefined,
-    ok: !/"error"|"failed"|exception/i.test(responseText)
+    ok: !failedByEvent &&
+      !/"error"|"failed"|exception/i.test(responseText)
   };
 }
 

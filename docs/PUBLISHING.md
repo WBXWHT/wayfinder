@@ -8,7 +8,7 @@ Version: **0.3.3 early access**. Checked 2026-09-08.
 | --- | --- | --- |
 | GitHub source | https://github.com/WBXWHT/wayfinder | Public repository and CI |
 | GitHub Releases / VSIX | https://github.com/WBXWHT/wayfinder/releases/tag/v0.3.3 | Ten uploaded assets, SHA-256 manifest |
-| Claude Code self-hosted marketplace | `WBXWHT/wayfinder`, plugin `wayfinder@wayfinder` | Public catalog, complete Plugin bundle and Hook process checks |
+| Claude Code self-hosted marketplace | `WBXWHT/wayfinder`, plugin `wayfinder@wayfinder` | Official Claude Code 2.1.263 added the marketplace and installed the enabled 0.3.3 plugin from a clean temporary home; Hook process checks also pass |
 | Codex self-hosted marketplace | `codex plugin marketplace add WBXWHT/wayfinder` | Public catalog, complete Plugin bundle and Hook process checks |
 | Agent Skill distribution | https://skills.sh/wbxwht/wayfinder/wayfinder | Public `skills.sh` page, one recorded install, and actual isolated CLI install; bundled CLI reports 0.3.3 |
 | Homebrew Tap | https://github.com/WBXWHT/homebrew-tap | Clean macOS runner installed the formula and passed `brew test` |

@@ -1,11 +1,22 @@
 {
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/bin/wayfinder-hook.cjs\" --host codex --wayfinder-hook",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${PLUGIN_ROOT}/bin/wayfinder-hook.cjs\" --host codex",
+            "command": "node \"${PLUGIN_ROOT}/bin/wayfinder-hook.cjs\" --host codex --wayfinder-hook",
             "timeout": 30
           }
         ]
@@ -17,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${PLUGIN_ROOT}/bin/wayfinder-hook.cjs\" --host codex",
+            "command": "node \"${PLUGIN_ROOT}/bin/wayfinder-hook.cjs\" --host codex --wayfinder-hook",
             "timeout": 15
           }
         ]
@@ -28,8 +39,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${PLUGIN_ROOT}/bin/wayfinder-hook.cjs\" --host codex",
+            "command": "node \"${PLUGIN_ROOT}/bin/wayfinder-hook.cjs\" --host codex --wayfinder-hook",
             "timeout": 120
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${PLUGIN_ROOT}/bin/wayfinder-hook.cjs\" --host codex --wayfinder-hook",
+            "timeout": 3
           }
         ]
       }

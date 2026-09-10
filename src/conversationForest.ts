@@ -1,4 +1,4 @@
-import { ProjectState, TimelineNode, UserVerdict } from "./models";
+import { AgentHost, ProjectState, TimelineNode, UserVerdict } from "./models";
 import {
   aggregateWaypoints,
   buildIdf,
@@ -22,6 +22,7 @@ export interface ForestMetadata {
 export interface ForestSession {
   id: string;
   treeId: string;
+  sourceHosts: AgentHost[];
   stage: string;
   stageOrder: number;
   branch?: string;
@@ -376,6 +377,7 @@ function liveSessionFor(
   return {
     id: `forest-session:${first.id}`,
     treeId: "",
+    sourceHosts: sourceHostsFor(waypointNodes),
     stage,
     stageOrder: 0,
     branch: undefined,
@@ -514,6 +516,7 @@ function sessionFor(
   return {
     id: `forest-session:${first.id}`,
     treeId: treeId(metadata.tree),
+    sourceHosts: sourceHostsFor(nodes),
     stage: metadata.stage,
     stageOrder: metadata.stageOrder,
     branch: metadata.branch,
@@ -535,6 +538,14 @@ function sessionFor(
       ? { parentStage: metadata.parentStage }
       : {})
   } as ForestSession & { parentStage?: string };
+}
+
+function sourceHostsFor(nodes: TimelineNode[]): AgentHost[] {
+  return [...new Set(
+    nodes
+      .map((node) => node.sourceHost)
+      .filter((host): host is AgentHost => Boolean(host))
+  )];
 }
 
 function connectSessions(sessions: ForestSession[]): void {

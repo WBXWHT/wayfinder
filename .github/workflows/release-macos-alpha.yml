@@ -1,0 +1,198 @@
+name: Release macOS Alpha
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "alpha-v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-macos-alpha
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.release.outputs.result }}
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "22.13.1"
+      - name: Verify release version
+        id: version
+        run: node scripts/verify-companion-version.cjs --prefix alpha-v
+      - name: Create or reuse the draft release
+        id: release
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        with:
+          result-encoding: string
+          script: |
+            const resolveTagCommit = async (tag) => {
+              try {
+                let ref = (await github.rest.git.getRef({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  ref: `tags/${tag}`
+                })).data.object;
+                for (let depth = 0; ref.type === "tag" && depth < 5; depth += 1) {
+                  ref = (await github.rest.git.getTag({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    tag_sha: ref.sha
+                  })).data.object;
+                }
+                return ref.sha;
+              } catch (error) {
+                if (error.status === 404) return undefined;
+                throw error;
+              }
+            };
+            const releases = await github.paginate(
+              github.rest.repos.listReleases,
+              { owner: context.repo.owner, repo: context.repo.repo, per_page: 100 }
+            );
+            let release = releases.find(
+              (item) => item.tag_name === process.env.RELEASE_TAG
+            );
+            const tagCommit = await resolveTagCommit(process.env.RELEASE_TAG);
+            if (tagCommit && tagCommit !== context.sha) {
+              throw new Error(
+                `Release tag points to ${tagCommit}, not workflow commit ${context.sha}`
+              );
+            }
+            if (release && !release.draft) {
+              throw new Error(`Refusing to replace published release ${release.html_url}`);
+            }
+            if (release && !tagCommit) {
+              throw new Error("Draft release exists without its expected tag");
+            }
+            if (!release) {
+              const response = await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: process.env.RELEASE_TAG,
+                target_commitish: context.sha,
+                name: `Wayfinder Alpha v${process.env.RELEASE_VERSION}`,
+                body: [
+                  "Early-access macOS build. This build is not Apple-notarized.",
+                  "On first launch, use System Settings > Privacy & Security > Open Anyway."
+                ].join("\n"),
+                draft: true,
+                prerelease: true
+              });
+              release = response.data;
+            }
+            return String(release.id);
+
+  build:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            target: aarch64-apple-darwin
+            arch: aarch64
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "22.13.1"
+          cache: npm
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: companion/src-tauri
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build:agent-plugins
+      - run: node scripts/build-sea.cjs
+      - run: npm run generate:companion-licenses
+      - run: cargo test --manifest-path companion/src-tauri/Cargo.toml
+      - run: npm run build:companion:sidecar
+      - run: npm run build:companion:web
+      - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_SIGNING_IDENTITY: "-"
+        with:
+          projectPath: companion/src-tauri
+          tauriScript: ../../node_modules/.bin/tauri
+          args: --target ${{ matrix.target }}
+          releaseId: ${{ needs.prepare.outputs.release_id }}
+          tagName: ${{ needs.prepare.outputs.tag }}
+          releaseDraft: true
+          prerelease: true
+          releaseAssetNamePattern: "Wayfinder-Alpha-[version]-macOS-${{ matrix.arch }}.[ext]"
+          uploadWorkflowArtifacts: true
+          workflowArtifactNamePattern: "Wayfinder-Alpha-macOS-${{ matrix.arch }}-[bundle]"
+
+  checksums:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          pattern: Wayfinder-Alpha-macOS-*-dmg
+          path: artifacts
+      - name: Generate SHA256SUMS
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          : > SHA256SUMS
+          for arch in aarch64 x86_64; do
+            file="$(find artifacts -path "*${arch}*" -name '*.dmg' -print -quit)"
+            test -n "$file"
+            hash="$(sha256sum "$file" | cut -d' ' -f1)"
+            echo "$hash  Wayfinder-Alpha-${VERSION}-macOS-${arch}.dmg" \
+              >> SHA256SUMS
+          done
+      - name: Upload SHA256SUMS
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
+        with:
+          script: |
+            const fs = require("fs");
+            const releaseId = Number(process.env.RELEASE_ID);
+            const assets = await github.paginate(
+              github.rest.repos.listReleaseAssets,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: releaseId,
+                per_page: 100
+              }
+            );
+            const existing = assets.find((asset) => asset.name === "SHA256SUMS");
+            if (existing) {
+              await github.rest.repos.deleteReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                asset_id: existing.id
+              });
+            }
+            await github.rest.repos.uploadReleaseAsset({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+              name: "SHA256SUMS",
+              data: fs.readFileSync("SHA256SUMS"),
+              headers: { "content-type": "text/plain" }
+            });

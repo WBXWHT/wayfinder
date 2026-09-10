@@ -1,0 +1,63 @@
+name: Deploy Download Website
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "website/**"
+      - ".github/workflows/deploy-website.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "22.13.1"
+      - name: Validate Cloudflare project name
+        env:
+          PROJECT_NAME: ${{ vars.CLOUDFLARE_PROJECT_NAME }}
+        run: |
+          test -n "$PROJECT_NAME"
+          test "$PROJECT_NAME" != "wayfinder"
+      - name: Verify public release downloads
+        run: |
+          node <<'NODE' > "$RUNNER_TEMP/wayfinder-downloads.txt"
+          const release = require("./website/releases.json");
+          if (release.published !== true) {
+            throw new Error("Companion release is not marked public");
+          }
+          for (const architecture of ["arm64", "x64"]) {
+            const raw = release.downloads?.[architecture];
+            const url = new URL(raw);
+            if (
+              url.protocol !== "https:" ||
+              url.hostname !== "github.com" ||
+              !url.pathname.endsWith(".dmg")
+            ) {
+              throw new Error(`Invalid ${architecture} download URL`);
+            }
+            process.stdout.write(`${url.href}\n`);
+          }
+          NODE
+          while IFS= read -r url; do
+            curl \
+              --fail \
+              --silent \
+              --show-error \
+              --location \
+              --head \
+              --retry 4 \
+              --retry-all-errors \
+              "$url" > /dev/null
+          done < "$RUNNER_TEMP/wayfinder-downloads.txt"
+      - uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy website --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME }}

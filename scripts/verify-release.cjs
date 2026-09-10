@@ -45,7 +45,7 @@ async function main() {
   assert.equal(fs.existsSync(path.join(project, ".trae")), false);
   run("install", "all", "--root", project);
   run("install", "all", "--root", project);
-  assert.ok(JSON.parse(run("doctor", "--root", project)).hosts.every((host) => host.connected));
+  assert.ok(JSON.parse(run("doctor", "--root", project)).hosts.every((host) => host.configured));
   const locations = { trae: ".trae/hooks.json", claude: ".claude/settings.json", codex: ".codex/hooks.json" };
   for (const host of Object.keys(locations)) {
     const config = JSON.parse(fs.readFileSync(path.join(project, locations[host]), "utf8"));
@@ -88,7 +88,7 @@ async function main() {
   }
   assert.match(run("map", "--root", project), /Wayfinder/);
   run("uninstall", "all", "--root", project);
-  assert.ok(JSON.parse(run("doctor", "--root", project)).hosts.every((host) => !host.connected));
+  assert.ok(JSON.parse(run("doctor", "--root", project)).hosts.every((host) => !host.configured));
   const skill = path.join(root, "skills/wayfinder/scripts/wayfinder-cli.cjs");
   assert.equal(fs.readFileSync(skill, "utf8"), fs.readFileSync(cli, "utf8"));
   console.log("Release verified: hashes, isolated CLI install/uninstall, three host Hook processes, stdio MCP data/resource, Skill Core, privacy scan.");

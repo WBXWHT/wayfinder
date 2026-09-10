@@ -121,6 +121,15 @@ Wayfinder also retains its working self-hosted Claude Code marketplace. The
 official submission is pending review and must not be described as Anthropic
 approval or directory inclusion until Anthropic accepts it.
 
+The self-hosted path was re-tested from a clean temporary home with official
+Claude Code `2.1.263`. The following commands cloned and validated the public
+marketplace, then installed Wayfinder `0.3.3` in enabled state:
+
+```text
+claude plugin marketplace add WBXWHT/wayfinder
+claude plugin install wayfinder@wayfinder
+```
+
 The validated upload artifact and form copy are documented in
 [`OFFICIAL-PLUGIN-SUBMISSIONS-0.3.3.md`](OFFICIAL-PLUGIN-SUBMISSIONS-0.3.3.md).
 

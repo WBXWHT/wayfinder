@@ -29,7 +29,11 @@ for (const [entry, outfile] of [
     metafile: true
   });
   Object.keys(result.metafile.inputs).forEach((input) => bundledInputs.add(input));
-  fs.chmodSync(path.join(plugin, outfile), 0o755);
+  const bundledFile = path.join(plugin, outfile);
+  const normalized = fs.readFileSync(bundledFile, "utf8")
+    .replace(/[ \t]+$/gm, "");
+  fs.writeFileSync(bundledFile, normalized);
+  fs.chmodSync(bundledFile, 0o755);
 }
 
 const app = esbuild.buildSync({
@@ -46,9 +50,15 @@ const template = fs.readFileSync(
   path.join(root, "mcp", "wayfinder-app.template.html"),
   "utf8"
 );
+const appStyles = fs.readFileSync(
+  path.join(root, "mcp", "wayfinder-app.css"),
+  "utf8"
+);
 fs.writeFileSync(
   path.join(plugin, "mcp", "wayfinder-app.html"),
-  template.replace("/* WAYFINDER_APP */", () => app.outputFiles[0].text)
+  template
+    .replace("/* WAYFINDER_STYLES */", () => appStyles)
+    .replace("/* WAYFINDER_APP */", () => app.outputFiles[0].text)
 );
 
 const licenses = new Set();

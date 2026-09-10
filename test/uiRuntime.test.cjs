@@ -677,13 +677,15 @@ test(
           routes: document.querySelectorAll('.route').length,
           smoothRoutes: [...document.querySelectorAll('.route')]
             .every((element) => element.getAttribute('d').includes(' C')),
-          waves: document.querySelectorAll('.waves').length,
-          waveLength: [...document.querySelectorAll('.waves')]
-            .reduce((sum, element) => sum + element.getAttribute('d').length, 0),
-          flags: document.querySelectorAll('.port .flag').length,
-          boats: document.querySelectorAll('.boat').length,
-          reefs: document.querySelectorAll('.reef').length,
+          grids: document.querySelectorAll('#wayfinder-grid').length,
+          roots: document.querySelectorAll('.root-core').length,
+          currentRings: document.querySelectorAll('.current-ring').length,
+          errorMarks: document.querySelectorAll('.error-mark').length,
           cardWidth: document.querySelector('.node rect')?.getAttribute('width'),
+          cardHeight: document.querySelector('.node rect')?.getAttribute('height'),
+          renderedCardWidth: document.querySelector(
+            '.node rect'
+          )?.getBoundingClientRect().width,
           minSiblingCardGap: (() => {
             const cards = [...document.querySelectorAll('.node')].map((node) => ({
               top: Math.round(node.getBoundingClientRect().top),
@@ -712,12 +714,13 @@ test(
       assert.equal(mcp.nodes, 9);
       assert.equal(mcp.routes, 9);
       assert.equal(mcp.smoothRoutes, true);
-      assert.equal(mcp.waves, 2);
-      assert.ok(mcp.waveLength > 500);
-      assert.equal(mcp.flags, 1);
-      assert.equal(mcp.boats, 1);
-      assert.equal(mcp.reefs, 1);
+      assert.equal(mcp.grids, 1);
+      assert.equal(mcp.roots, 1);
+      assert.equal(mcp.currentRings, 1);
+      assert.equal(mcp.errorMarks, 1);
       assert.equal(mcp.cardWidth, "128");
+      assert.equal(mcp.cardHeight, "48");
+      assert.ok(mcp.renderedCardWidth >= 95);
       assert.ok(mcp.minSiblingCardGap >= 13.9);
 
       await cdp.send("Runtime.evaluate", {
@@ -752,6 +755,64 @@ test(
       assert.notEqual(
         await evaluate(cdp, "document.querySelector('.stage')?.style.transform"),
         beforeZoom
+      );
+      const beforeTouchPan = await evaluate(
+        cdp,
+        "document.querySelector('.stage')?.style.transform"
+      );
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [{ x: 160, y: 600 }]
+      });
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [{ x: 160, y: 420 }]
+      });
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: []
+      });
+      assert.notEqual(
+        await evaluate(cdp, "document.querySelector('.stage')?.style.transform"),
+        beforeTouchPan
+      );
+
+      await cdp.send("Runtime.evaluate", {
+        expression: `(() => {
+          const session = (id, title) => ({
+            id,
+            parentId: undefined,
+            shortTitle: title,
+            preview: title,
+            stage: '实现',
+            verdict: undefined,
+            nodeIds: [id],
+            startedAt: '2026-09-10T00:00:00.000Z',
+            completedAt: '2026-09-10T00:00:01.000Z'
+          });
+          const payload = {
+            project: 'selection-test',
+            state: { root: '/tmp/selection-test', nodes: [] },
+            forest: {
+              trees: [
+                { id: 'tree-a', title: 'A', sessions: [session('a', 'A')] },
+                { id: 'tree-b', title: 'B', sessions: [session('b', 'B')] }
+              ]
+            }
+          };
+          globalThis.__WAYFINDER_SET_PAYLOAD__(payload);
+          document.querySelector('#next').click();
+          globalThis.__WAYFINDER_SET_PAYLOAD__({
+            ...payload,
+            forest: {
+              trees: payload.forest.trees.map((tree) => ({ ...tree }))
+            }
+          });
+        })()`
+      });
+      assert.equal(
+        await evaluate(cdp, "document.querySelector('#treeCount')?.textContent"),
+        "2 / 2"
       );
       assert.deepEqual(exceptions, []);
       cdp.close();

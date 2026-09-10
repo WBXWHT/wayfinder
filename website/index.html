@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Wayfinder 把 Codex 与 Claude 的工作路径整理成一张本地航海图。">
+  <meta name="theme-color" content="#f6f7f9">
+  <title>Wayfinder — AI 协作航海图</title>
+  <link rel="icon" href="./wayfinder-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="Wayfinder 首页">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24">
+          <path d="M4 5.5 7.2 18 12 9.3 16.8 18 20 5.5"/>
+          <path class="branch" d="M12 9.3 17.5 6.8"/>
+          <circle cx="12" cy="9.3" r="1.5"/>
+        </svg>
+      </span>
+      <span>Wayfinder</span>
+    </a>
+    <a class="header-link" href="https://github.com/WBXWHT/wayfinder">GitHub ↗</a>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <canvas id="voyageCanvas" aria-hidden="true"></canvas>
+      <div class="hero-copy">
+        <p class="eyebrow">FOR CODEX · CLAUDE CODE</p>
+        <h1>Wayfinder</h1>
+        <p class="hero-line">把散落在不同 AI 工具里的尝试、分叉与证据，留在一张本地航海图里。</p>
+        <div class="download-row" aria-label="下载 Wayfinder">
+          <a class="download primary" data-download="arm64" href="#">
+            <span>下载 Apple Silicon 版</span>
+            <small data-version>macOS · Early Access</small>
+          </a>
+          <a class="download secondary" data-download="x64" href="#">
+            <span>Intel Mac</span>
+            <small>单独构建</small>
+          </a>
+        </div>
+        <p class="download-note">无需 Node。新会话自动记录。当前内测版首次打开需在系统设置中允许。</p>
+      </div>
+      <div class="hero-status" aria-label="产品状态">
+        <span><i class="status-dot"></i> 本地记录</span>
+        <span>Codex + Claude</span>
+        <span>一张航海图</span>
+      </div>
+    </section>
+
+    <section class="workflow" aria-labelledby="workflow-title">
+      <div class="section-heading">
+        <p class="eyebrow">WORKFLOW</p>
+        <h2 id="workflow-title">工作时不打扰，结束后看清路径。</h2>
+      </div>
+      <ol class="flow-list">
+        <li>
+          <span>01</span>
+          <div><strong>连接工具</strong><p>首次连接 Codex 或 Claude Code，批准一次本地 Hook。</p></div>
+        </li>
+        <li>
+          <span>02</span>
+          <div><strong>正常工作</strong><p>Prompt、工具动作、文件变化和验证结果在后台自动归档。</p></div>
+        </li>
+        <li>
+          <span>03</span>
+          <div><strong>回到航海图</strong><p>会话结束后聚焦本次新增路径，不需要记住查看命令。</p></div>
+        </li>
+      </ol>
+    </section>
+
+    <section class="local-band reveal" aria-labelledby="local-title">
+      <div class="local-visual" aria-hidden="true">
+        <span class="local-core"></span>
+        <span class="local-ring ring-one"></span>
+        <span class="local-ring ring-two"></span>
+      </div>
+      <div class="local-copy">
+        <p class="eyebrow">LOCAL FIRST</p>
+        <h2 id="local-title">完整历史不离开你的电脑。</h2>
+        <p>会话、快照和航迹保存在 <code>~/.wayfinder</code>。没有账号、遥测或云同步。</p>
+        <a href="./privacy.html">查看数据边界 →</a>
+      </div>
+    </section>
+
+    <section class="evidence reveal" aria-labelledby="evidence-title">
+      <div class="section-heading">
+        <p class="eyebrow">EVIDENCE, NOT VERDICTS</p>
+        <h2 id="evidence-title">失败保留证据，冲突保持诚实。</h2>
+      </div>
+      <div class="evidence-lines">
+        <div><span class="route-sample live"></span><strong>正在推进</strong><p>同一主题可跨 Codex 与 Claude 汇流。</p></div>
+        <div><span class="route-sample failed"></span><strong>验证失败</strong><p>测试、回滚和用户否决都关联原始证据。</p></div>
+        <div><span class="route-sample conflict"></span><strong>证据冲突</strong><p>一个工具排除、另一个仍使用时，不强行判断真假。</p></div>
+      </div>
+    </section>
+
+    <section class="final-cta reveal">
+      <p class="eyebrow">EARLY ACCESS</p>
+      <h2>从下一次会话开始记录。</h2>
+      <a class="download primary compact" data-download="arm64"
+        data-default-download href="#">下载 macOS 版</a>
+      <p>MIT Licensed · 数据默认保存在本地</p>
+    </section>
+  </main>
+
+  <footer>
+    <span>Wayfinder</span>
+    <span>© 2026 Wayfinder</span>
+    <a href="https://github.com/WBXWHT/wayfinder/issues">反馈问题</a>
+  </footer>
+  <script src="./app.js" defer></script>
+</body>
+</html>

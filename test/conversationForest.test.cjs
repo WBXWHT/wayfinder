@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+const { performance } = require("node:perf_hooks");
 const test = require("node:test");
 
 const {
@@ -239,6 +240,193 @@ test("live voyages with file signal route through the content engine", () => {
   assert.equal(tipsSession.parentId, authSession.id);
   // No invented failures on healthy live continuation/divergence.
   assert.equal(sessions.filter((s) => s.verdict === "failure").length, 0);
+});
+
+test("related turns from Claude and Codex share one waypoint with provenance", () => {
+  const first = liveTurn(
+    "cross-host-a",
+    "10:00",
+    "Implement token refresh for auth",
+    ["src/auth/token.ts"]
+  );
+  first.sourceHost = "codex";
+  first.sessionId = "codex-session";
+  const second = liveTurn(
+    "cross-host-b",
+    "10:01",
+    "Fix token refresh expiry handling",
+    ["src/auth/token.ts"]
+  );
+  second.sourceHost = "claude";
+  second.sessionId = "claude-session";
+
+  const forest = buildConversationForest(projectState([first, second]));
+  const sessions = forest.trees.flatMap((tree) => tree.sessions);
+
+  assert.equal(sessions.length, 1);
+  assert.deepEqual(sessions[0].nodeIds, ["cross-host-a", "cross-host-b"]);
+  assert.deepEqual(sessions[0].sourceHosts.sort(), ["claude", "codex"]);
+});
+
+test("unrelated cross-host work remains in separate topic trees", () => {
+  const codex = liveTurn(
+    "cross-host-auth",
+    "10:00",
+    "Implement OAuth callback validation",
+    ["src/auth/callback.ts"]
+  );
+  codex.sourceHost = "codex";
+  const claude = liveTurn(
+    "cross-host-docs",
+    "10:01",
+    "Rewrite invoice export documentation",
+    ["docs/invoices.md"]
+  );
+  claude.sourceHost = "claude";
+
+  const forest = buildConversationForest(projectState([codex, claude]));
+
+  assert.equal(forest.trees.length, 2);
+});
+
+test("cross-language implementation and test paths can share one topic", () => {
+  const codex = liveTurn(
+    "cross-language-code",
+    "10:00",
+    "Implement OAuth callback",
+    ["src/auth/callback.ts"]
+  );
+  codex.sourceHost = "codex";
+  const claude = liveTurn(
+    "cross-language-test",
+    "10:01",
+    "补充登录回调单元测试",
+    ["test/auth/callback.test.ts"]
+  );
+  claude.sourceHost = "claude";
+
+  const forest = buildConversationForest(projectState([codex, claude]));
+
+  assert.equal(forest.trees.length, 1);
+  assert.deepEqual(
+    forest.trees[0].sessions.flatMap((session) => session.sourceHosts).sort(),
+    ["claude", "codex"]
+  );
+});
+
+test("unrelated hosts editing one shared file do not collapse together", () => {
+  const codex = liveTurn(
+    "shared-oauth",
+    "10:00",
+    "Implement OAuth provider handshake",
+    ["src/shared/config.ts"]
+  );
+  codex.sourceHost = "codex";
+  const claude = liveTurn(
+    "shared-invoice",
+    "10:01",
+    "Format invoice currency output",
+    ["src/shared/config.ts"]
+  );
+  claude.sourceHost = "claude";
+
+  const forest = buildConversationForest(projectState([codex, claude]));
+
+  assert.equal(forest.nodeCount, 2);
+  assert.equal(
+    forest.trees.flatMap((tree) => tree.sessions).length,
+    2
+  );
+});
+
+test("generic shared-file words cannot merge unrelated cross-host tasks", () => {
+  const codex = liveTurn(
+    "shared-generic-oauth",
+    "10:00",
+    "Check OAuth provider status",
+    ["src/shared/config.ts"]
+  );
+  codex.sourceHost = "codex";
+  codex.sessionId = "codex-oauth";
+  const claude = liveTurn(
+    "shared-generic-invoice",
+    "10:01",
+    "Check invoice currency status",
+    ["src/shared/config.ts"]
+  );
+  claude.sourceHost = "claude";
+  claude.sessionId = "claude-invoice";
+
+  const forest = buildConversationForest(projectState([codex, claude]));
+
+  assert.equal(forest.trees.length, 2);
+  assert.equal(
+    forest.trees.flatMap((tree) => tree.sessions).length,
+    2
+  );
+});
+
+test("time alone cannot connect fileless tasks from separate conversations", () => {
+  const seed = liveTurn(
+    "live-seed",
+    "09:00",
+    "Implement authentication callback",
+    ["src/auth/callback.ts"]
+  );
+  const codex = liveTurn(
+    "fileless-typography",
+    "10:00",
+    "Check OAuth provider status",
+    []
+  );
+  codex.sourceHost = "codex";
+  codex.sessionId = "codex-typography";
+  const claude = liveTurn(
+    "fileless-release",
+    "10:01",
+    "Check invoice currency status",
+    []
+  );
+  claude.sourceHost = "claude";
+  claude.sessionId = "claude-release";
+
+  const forest = buildConversationForest(
+    projectState([seed, codex, claude])
+  );
+  const topicByNode = new Map(
+    forest.trees.flatMap((tree) =>
+      tree.sessions.flatMap((session) =>
+        session.nodeIds.map((nodeId) => [nodeId, tree.id])
+      )
+    )
+  );
+
+  assert.notEqual(
+    topicByNode.get("fileless-typography"),
+    topicByNode.get("fileless-release")
+  );
+});
+
+test("a large mixed-host voyage stays within an interactive build budget", () => {
+  const nodes = Array.from({ length: 600 }, (_, index) => {
+    const minute = String(index % 60).padStart(2, "0");
+    const hour = String(10 + Math.floor(index / 60)).padStart(2, "0");
+    const turn = liveTurn(
+      `scale-${index}`,
+      `${hour}:${minute}`,
+      `Implement module ${index} validation`,
+      [`src/module-${index}/index.ts`]
+    );
+    turn.sourceHost = index % 2 === 0 ? "codex" : "claude";
+    turn.sessionId = `${turn.sourceHost}-${index}`;
+    return turn;
+  });
+  const started = performance.now();
+  const forest = buildConversationForest(projectState(nodes));
+  const elapsed = performance.now() - started;
+
+  assert.equal(forest.nodeCount, 600);
+  assert.ok(elapsed < 5_000, `forest build took ${Math.round(elapsed)}ms`);
 });
 
 test("imported-only history keeps its curated chapter forest", () => {

@@ -1,5 +1,8 @@
+import { randomUUID } from "crypto";
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
+import * as lockfile from "proper-lockfile";
 import { AgentHost } from "./models";
 
 type HookCommand = Record<string, unknown> & {
@@ -16,8 +19,9 @@ type HookFile = {
   [key: string]: unknown;
 };
 
-const EVENTS = ["UserPromptSubmit", "PostToolUse", "Stop"] as const;
+const TURN_EVENTS = ["UserPromptSubmit", "PostToolUse", "Stop"] as const;
 const HOOK_MARKER = "--wayfinder-hook";
+const CONFIG_LOCK_STALE_MS = 10_000;
 
 export async function uninstallHostHooks(
   root: string,
@@ -25,11 +29,7 @@ export async function uninstallHostHooks(
 ): Promise<string> {
   const file = hookFileFor(root, host);
   if (!fs.existsSync(file)) return file;
-  const current = await readJson(file);
-  removeWayfinderHooks(current);
-  const temp = `${file}.${process.pid}.tmp`;
-  await fs.promises.writeFile(temp, `${JSON.stringify(current, null, 2)}\n`);
-  await fs.promises.rename(temp, file);
+  await updateHookFile(file, false, removeWayfinderHooks);
   return file;
 }
 
@@ -40,37 +40,117 @@ export async function installHostHooks(
   options: { stopTimeout?: number } = {}
 ): Promise<string> {
   const file = hookFileFor(root, host);
-  const current = await readJson(file);
-  if (host !== "claude") {
-    current.version ||= 1;
+  return installHooksAt(file, host, cliPath, options);
+}
+
+export async function installGlobalHostHooks(
+  host: Exclude<AgentHost, "trae">,
+  cliPath: string,
+  options: { stopTimeout?: number } = {}
+): Promise<string> {
+  return installHooksAt(globalHookFileFor(host), host, cliPath, options);
+}
+
+export async function uninstallGlobalHostHooks(
+  host: Exclude<AgentHost, "trae">
+): Promise<string> {
+  const file = globalHookFileFor(host);
+  if (!fs.existsSync(file)) return file;
+  await updateHookFile(file, false, removeWayfinderHooks);
+  return file;
+}
+
+export async function globalHostHooksInstalled(
+  host: Exclude<AgentHost, "trae">,
+  cliPath?: string
+): Promise<boolean> {
+  return hooksInstalledAt(globalHookFileFor(host), host, cliPath);
+}
+
+export async function globalHostHooksEnabled(
+  host: Exclude<AgentHost, "trae">
+): Promise<boolean> {
+  if (host === "claude") {
+    try {
+      const settings = await readJson(globalHookFileFor(host));
+      return settings.disableAllHooks !== true;
+    } catch {
+      return false;
+    }
   }
-  current.hooks ||= {};
-  removeWayfinderHooks(current);
-  const command = hookCommand(cliPath, host);
-  add(current, "UserPromptSubmit", command, 30);
-  add(
-    current,
-    "PostToolUse",
-    command,
-    15,
-    host === "trae"
-      ? "Write|Edit|RunCommand"
-      : host === "codex"
-        ? "Bash|apply_patch|Edit|Write"
-        : "Write|Edit|Bash"
-  );
-  add(
-    current,
-    "Stop",
-    command,
-    Math.max(120, options.stopTimeout || 120),
-    undefined,
-    host === "trae" ? { loop_limit: 1 } : undefined
-  );
-  await fs.promises.mkdir(path.dirname(file), { recursive: true });
-  const temp = `${file}.${process.pid}.tmp`;
-  await fs.promises.writeFile(temp, `${JSON.stringify(current, null, 2)}\n`);
-  await fs.promises.rename(temp, file);
+  const home = process.env.WAYFINDER_HOST_HOME || os.homedir();
+  const config = path.join(home, ".codex", "config.toml");
+  let raw: string;
+  try {
+    raw = await fs.promises.readFile(config, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
+    throw error;
+  }
+  let section = "";
+  for (const sourceLine of raw.split(/\r?\n/)) {
+    const line = sourceLine.replace(/\s+#.*$/, "").trim();
+    const header = line.match(/^\[([^\]]+)\]$/);
+    if (header) {
+      section = header[1].trim();
+      continue;
+    }
+    if (/^features\.hooks\s*=\s*false\b/i.test(line)) return false;
+    if (section === "features" && /^hooks\s*=\s*false\b/i.test(line)) {
+      return false;
+    }
+    if (/^features\s*=\s*\{[^}]*\bhooks\s*=\s*false\b/i.test(line)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+async function installHooksAt(
+  file: string,
+  host: AgentHost,
+  cliPath: string,
+  options: { stopTimeout?: number }
+): Promise<string> {
+  await updateHookFile(file, true, (current) => {
+    if (host === "trae") {
+      current.version ||= 1;
+    } else if (host === "codex") {
+      delete current.version;
+    }
+    current.hooks ||= {};
+    removeWayfinderHooks(current);
+    const command = hookCommand(cliPath, host);
+    if (host !== "trae") {
+      add(current, "SessionStart", command, 15);
+    }
+    add(current, "UserPromptSubmit", command, 30);
+    add(
+      current,
+      "PostToolUse",
+      command,
+      15,
+      host === "trae"
+        ? "Write|Edit|RunCommand"
+        : host === "codex"
+          ? "Bash|apply_patch|Edit|Write"
+          : "Write|Edit|Bash"
+    );
+    if (host === "claude") {
+      add(current, "PostToolUseFailure", command, 15, "Write|Edit|Bash");
+    }
+    if (host !== "trae") {
+      add(current, "SessionEnd", command, host === "codex" ? 3 : 15);
+    }
+    add(
+      current,
+      "Stop",
+      command,
+      Math.max(120, options.stopTimeout || 120),
+      undefined,
+      host === "trae" ? { loop_limit: 1 } : undefined
+    );
+  });
   return file;
 }
 
@@ -79,9 +159,18 @@ export async function hostHooksInstalled(
   host: AgentHost,
   cliPath?: string
 ): Promise<boolean> {
+  return hooksInstalledAt(hookFileFor(root, host), host, cliPath);
+}
+
+async function hooksInstalledAt(
+  file: string,
+  host: AgentHost,
+  cliPath?: string
+): Promise<boolean> {
   try {
-    const current = await readJson(hookFileFor(root, host));
-    return EVENTS.every((event) =>
+    const current = await readJson(file);
+    const events = requiredEvents(host);
+    return events.every((event) =>
       (current.hooks?.[event] || []).some((group) =>
         (group.hooks || []).some((hook) => {
           const command = typeof hook.command === "string"
@@ -98,11 +187,31 @@ export async function hostHooksInstalled(
   }
 }
 
+function requiredEvents(host: AgentHost): readonly string[] {
+  if (host === "trae") return TURN_EVENTS;
+  if (host === "claude") {
+    return [
+      "SessionStart",
+      ...TURN_EVENTS,
+      "PostToolUseFailure",
+      "SessionEnd"
+    ];
+  }
+  return ["SessionStart", ...TURN_EVENTS, "SessionEnd"];
+}
+
 function hookFileFor(root: string, host: AgentHost): string {
   if (host === "claude") {
     return path.join(root, ".claude", "settings.json");
   }
   return path.join(root, host === "codex" ? ".codex" : ".trae", "hooks.json");
+}
+
+function globalHookFileFor(host: Exclude<AgentHost, "trae">): string {
+  const home = process.env.WAYFINDER_HOST_HOME || os.homedir();
+  return host === "claude"
+    ? path.join(home, ".claude", "settings.json")
+    : path.join(home, ".codex", "hooks.json");
 }
 
 async function readJson(file: string): Promise<HookFile> {
@@ -113,6 +222,161 @@ async function readJson(file: string): Promise<HookFile> {
       return { hooks: {} };
     }
     throw new Error(`Cannot update invalid hook configuration: ${file}`);
+  }
+}
+
+async function updateHookFile(
+  file: string,
+  createIfMissing: boolean,
+  mutate: (current: HookFile) => void
+): Promise<void> {
+  await fs.promises.mkdir(path.dirname(file), {
+    recursive: true,
+    mode: 0o700
+  });
+  const release = await lockfile.lock(file, {
+    realpath: false,
+    lockfilePath: `${file}.wayfinder.lock`,
+    stale: CONFIG_LOCK_STALE_MS,
+    update: 2_000,
+    retries: {
+      retries: 50,
+      factor: 1,
+      minTimeout: 40,
+      maxTimeout: 40
+    }
+  });
+  try {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const snapshot = await readHookSnapshot(file);
+      if (snapshot.raw === undefined && !createIfMissing) return;
+      mutate(snapshot.current);
+      const serialized = `${JSON.stringify(snapshot.current, null, 2)}\n`;
+      const temp = `${file}.${process.pid}.${randomUUID()}.tmp`;
+      try {
+        await fs.promises.writeFile(temp, serialized, {
+          flag: "wx",
+          mode: snapshot.mode
+        });
+        if (process.platform !== "win32") {
+          await fs.promises.chmod(temp, snapshot.mode);
+        }
+        if (await readRaw(file) !== snapshot.raw) {
+          continue;
+        }
+        if (!await publishHookSnapshot(
+          file,
+          temp,
+          serialized,
+          snapshot.raw
+        )) {
+          continue;
+        }
+        if (process.platform !== "win32") {
+          await fs.promises.chmod(file, snapshot.mode);
+        }
+        return;
+      } finally {
+        await fs.promises.rm(temp, { force: true }).catch(() => undefined);
+      }
+    }
+    throw new Error(
+      `Hook configuration changed repeatedly while updating: ${file}`
+    );
+  } finally {
+    await release().catch(() => undefined);
+  }
+}
+
+async function publishHookSnapshot(
+  file: string,
+  temp: string,
+  serialized: string,
+  snapshotRaw: string | undefined
+): Promise<boolean> {
+  if (snapshotRaw === undefined) {
+    return linkIfAbsent(temp, file);
+  }
+  const backup = `${file}.${process.pid}.${randomUUID()}.previous`;
+  try {
+    try {
+      await fs.promises.rename(file, backup);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+      throw error;
+    }
+    if (await readRaw(backup) !== snapshotRaw) {
+      await linkIfAbsent(backup, file);
+      return false;
+    }
+    if (!await linkIfAbsent(temp, file)) {
+      return false;
+    }
+    if (await readRaw(backup) !== snapshotRaw) {
+      const current = await readRaw(file);
+      if (current === serialized) {
+        await fs.promises.rm(file, { force: true });
+        await linkIfAbsent(backup, file);
+        return false;
+      }
+      const conflict = `${file}.wayfinder-conflict-${randomUUID()}`;
+      await fs.promises.copyFile(
+        backup,
+        conflict,
+        fs.constants.COPYFILE_EXCL
+      );
+      throw new Error(
+        `Concurrent hook configuration updates were preserved at: ${conflict}`
+      );
+    }
+    return true;
+  } finally {
+    await fs.promises.rm(backup, { force: true }).catch(() => undefined);
+  }
+}
+
+async function linkIfAbsent(
+  source: string,
+  destination: string
+): Promise<boolean> {
+  try {
+    await fs.promises.link(source, destination);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
+    throw error;
+  }
+}
+
+async function readHookSnapshot(file: string): Promise<{
+  current: HookFile;
+  mode: number;
+  raw?: string;
+}> {
+  const raw = await readRaw(file);
+  if (raw === undefined) {
+    return { current: { hooks: {} }, mode: 0o600 };
+  }
+  let current: HookFile;
+  try {
+    current = JSON.parse(raw) as HookFile;
+  } catch {
+    throw new Error(`Cannot update invalid hook configuration: ${file}`);
+  }
+  const stat = await fs.promises.stat(file).catch((error: unknown) => {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  });
+  if (!stat) return readHookSnapshot(file);
+  return { current, mode: stat.mode & 0o777, raw };
+}
+
+async function readRaw(file: string): Promise<string | undefined> {
+  try {
+    return await fs.promises.readFile(file, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
   }
 }
 
@@ -151,11 +415,13 @@ function add(
 }
 
 function hookCommand(cliPath: string, host: AgentHost): string {
+  const isScript = /\.(?:c?js|mjs)$/i.test(cliPath);
   if (process.platform === "win32") {
     const quoted = `"${cliPath.replace(/"/g, '""')}"`;
-    return `node ${quoted} hook --host ${host} ${HOOK_MARKER}`;
+    return `${isScript ? "node " : ""}${quoted} hook --host ${host} ${HOOK_MARKER}`;
   }
-  return `/usr/bin/env node ${shellQuote(cliPath)} hook --host ${host} ${HOOK_MARKER}`;
+  return `${isScript ? "/usr/bin/env node " : ""}` +
+    `${shellQuote(cliPath)} hook --host ${host} ${HOOK_MARKER}`;
 }
 
 function shellQuote(value: string): string {

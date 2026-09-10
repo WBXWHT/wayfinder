@@ -4,6 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod/v4";
 import { buildConversationForest } from "./conversationForest";
+import { buildLocalTopicAssessments } from "./localExperience";
 import { readProjectState } from "./storage";
 import { WAYFINDER_VERSION } from "./version";
 
@@ -37,16 +38,19 @@ export function createWayfinderMcpServer(): McpServer {
         root || process.env.WAYFINDER_PROJECT_DIR || process.cwd()
       );
       const state = await readProjectState(projectRoot);
+      const forest = state ? buildConversationForest(state) : undefined;
       const payload = state
         ? {
             project: path.basename(projectRoot),
             state,
-            forest: buildConversationForest(state)
+            forest,
+            assessments: buildLocalTopicAssessments(state, forest)
           }
         : {
             project: path.basename(projectRoot),
             state: undefined,
-            forest: { trees: [], nodeCount: 0 }
+            forest: { trees: [], nodeCount: 0 },
+            assessments: []
           };
       return {
         content: [{
@@ -67,26 +71,11 @@ export function createWayfinderMcpServer(): McpServer {
       description: "Interactive Wayfinder voyage map"
     },
     async () => {
-      const installed = path.join(
-        __dirname,
-        "..",
-        "mcp",
-        "wayfinder-app.html"
-      );
-      const workspace = path.join(
-        __dirname,
-        "..",
-        "plugins",
-        "wayfinder",
-        "mcp",
-        "wayfinder-app.html"
-      );
-      const file = fs.existsSync(installed) ? installed : workspace;
       return {
         contents: [{
           uri: APP_URI,
           mimeType: APP_MIME_TYPE,
-          text: await fs.promises.readFile(file, "utf8")
+          text: await loadMapHtml()
         }]
       };
     }
@@ -95,13 +84,40 @@ export function createWayfinderMcpServer(): McpServer {
   return server;
 }
 
-async function main(): Promise<void> {
+// Load the interactive map HTML. Inside a Single Executable Application the
+// file is embedded as a SEA asset; otherwise it sits next to the bundle.
+async function loadMapHtml(): Promise<string> {
+  try {
+    const sea = (await import("node:sea")) as unknown as {
+      isSea?: () => boolean;
+      getAsset?: (name: string, encoding: string) => string;
+    };
+    if (sea.isSea?.() && sea.getAsset) {
+      return sea.getAsset("wayfinder-app.html", "utf8");
+    }
+  } catch {
+    // node:sea is unavailable on older runtimes; fall back to disk.
+  }
+  const installed = path.join(__dirname, "..", "mcp", "wayfinder-app.html");
+  const workspace = path.join(
+    __dirname,
+    "..",
+    "plugins",
+    "wayfinder",
+    "mcp",
+    "wayfinder-app.html"
+  );
+  const file = fs.existsSync(installed) ? installed : workspace;
+  return fs.promises.readFile(file, "utf8");
+}
+
+export async function runMcpServer(): Promise<void> {
   const server = createWayfinderMcpServer();
   await server.connect(new StdioServerTransport());
 }
 
 if (require.main === module) {
-  void main().catch((error) => {
+  void runMcpServer().catch((error) => {
     console.error(String(error));
     process.exitCode = 1;
   });
