@@ -56,6 +56,7 @@ test(
       }
     });
     await listen(server);
+    server.unref();
     const port = server.address().port;
     const origin = `http://127.0.0.1:${port}`;
 
@@ -93,6 +94,7 @@ test(
       ],
       { stdio: "ignore", detached: process.platform !== "win32" }
     );
+    browser.unref();
 
     try {
       const target = await waitForTarget(debugPort, "/sidebar.html");
@@ -837,8 +839,11 @@ test(
       }
       server.closeIdleConnections?.();
       server.closeAllConnections?.();
-      await new Promise((resolve) => server.close(resolve));
-      await fs.promises.rm(temp, {
+      await Promise.race([
+        new Promise((resolve) => server.close(resolve)),
+        delay(2_000)
+      ]);
+      fs.rmSync(temp, {
         recursive: true,
         force: true,
         maxRetries: 5,
