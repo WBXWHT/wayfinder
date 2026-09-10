@@ -1843,15 +1843,13 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
           selectedId = '';
           remember();
           render(latestPayload || payload);
-          requestAnimationFrame(() => {
-            if (opening) {
-              document.querySelector('.sheet-title')?.focus();
-            } else {
-              document.querySelector(
-                '[data-session-id="' + session.id + '"]'
-              )?.focus();
-            }
-          });
+          if (opening) {
+            document.querySelector('.sheet-title')?.focus();
+          } else {
+            document.querySelector(
+              '[data-session-id="' + session.id + '"]'
+            )?.focus();
+          }
         };
         const body = document.createElement('button');
         body.className =
@@ -2313,11 +2311,9 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
       remember();
       render(latestPayload || payload);
       if (restoreFocus && sessionId) {
-        requestAnimationFrame(() => {
-          document.querySelector(
-            '[data-session-id="' + sessionId + '"]'
-          )?.focus();
-        });
+        document.querySelector(
+          '[data-session-id="' + sessionId + '"]'
+        )?.focus();
       }
     }
 
