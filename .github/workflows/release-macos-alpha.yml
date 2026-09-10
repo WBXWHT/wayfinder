@@ -1,9 +1,6 @@
 name: Release macOS Alpha
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - "alpha-v*"
 
 permissions:
   contents: write
