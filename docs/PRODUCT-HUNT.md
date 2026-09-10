@@ -26,6 +26,6 @@ https://wayfinder-ai.pages.dev
 
 ## Listing Status
 
-The public listing URL and description use the standalone desktop positioning.
-The prepared launch media now shows the current desktop app, final voyage map,
-and current download-site workflow.
+The public listing URL, description, maker comment, and forum thread use the
+standalone macOS positioning. Its three-image gallery shows the current desktop
+app, final voyage map, and current download-site workflow.
