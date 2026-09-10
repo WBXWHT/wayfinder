@@ -125,8 +125,8 @@ jobs:
       - run: npm run build:agent-plugins
       - run: node scripts/build-sea.cjs
       - run: npm run generate:companion-licenses
-      - run: cargo test --manifest-path companion/src-tauri/Cargo.toml
       - run: npm run build:companion:sidecar
+      - run: cargo test --manifest-path companion/src-tauri/Cargo.toml
       - run: npm run build:companion:web
       - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:

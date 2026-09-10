@@ -96,6 +96,11 @@ test("release workflow requires signing and notarization credentials", () => {
   assert.match(workflow, /Release tag points to/);
   assert.match(workflow, /SHA256SUMS/);
   assert.match(workflow, /releaseDraft: true/);
+  assert.ok(
+    workflow.indexOf("npm run build:companion:sidecar") <
+      workflow.indexOf("cargo test --manifest-path"),
+    "release workflow must stage the sidecar before cargo test"
+  );
 });
 
 test("zero-cost alpha workflow uses ad-hoc signing and a prerelease tag", () => {
@@ -111,6 +116,11 @@ test("zero-cost alpha workflow uses ad-hoc signing and a prerelease tag", () => 
   assert.match(workflow, /SHA256SUMS/);
   assert.match(workflow, /prerelease: true/);
   assert.doesNotMatch(workflow, /APPLE_CERTIFICATE/);
+  assert.ok(
+    workflow.indexOf("npm run build:companion:sidecar") <
+      workflow.indexOf("cargo test --manifest-path"),
+    "alpha workflow must stage the sidecar before cargo test"
+  );
 });
 
 test("SEA build uses the lockfile-pinned local postject CLI", () => {

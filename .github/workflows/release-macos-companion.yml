@@ -122,8 +122,8 @@ jobs:
       - run: npm run build:agent-plugins
       - run: node scripts/build-sea.cjs
       - run: npm run generate:companion-licenses
-      - run: cargo test --manifest-path companion/src-tauri/Cargo.toml
       - run: npm run build:companion:sidecar
+      - run: cargo test --manifest-path companion/src-tauri/Cargo.toml
       - run: npm run build:companion:web
 
       - name: Prepare App Store Connect API key
