@@ -1483,7 +1483,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
         const target = document.querySelector(
           '[data-session-id="' + lastFocusedSessionId + '"]'
         );
-        requestAnimationFrame(() => target?.focus());
+        target?.focus();
       } else if (!restoreFocus) {
         lastFocusedSessionId = '';
       }
@@ -1640,11 +1640,9 @@ export class ExperienceMapPanel implements vscode.Disposable {
         );
       }
       if (focusKey) {
-        requestAnimationFrame(() => {
-          const target = [...document.querySelectorAll('[data-focus-key]')]
-            .find((element) => element.dataset.focusKey === focusKey);
-          target?.focus();
-        });
+        const target = [...document.querySelectorAll('[data-focus-key]')]
+          .find((element) => element.dataset.focusKey === focusKey);
+        target?.focus();
       }
     });
     const updateSearch = () => {
@@ -1675,9 +1673,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
       searchInput.value = '';
       showEmptyInspector();
       renderGraph();
-      requestAnimationFrame(() => {
-        document.getElementById('canvasTitle')?.focus();
-      });
+      document.getElementById('canvasTitle')?.focus();
     };
     projectPrevious.addEventListener('click', () => switchProject(-1));
     projectNext.addEventListener('click', () => switchProject(1));
