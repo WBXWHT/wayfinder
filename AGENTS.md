@@ -46,4 +46,4 @@ not the boundary of the product. The complete history stays under
 - Public/live release: `0.3.8` early access.
 - Public artifacts: Apple Silicon and Intel macOS DMGs plus a Windows x64 NSIS
   installer, with SHA-256 checksums.
-- Local source version: `0.3.8`.
+- Local source version: `0.3.9`.

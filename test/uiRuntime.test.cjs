@@ -2028,6 +2028,29 @@ test(
         cdp,
         "!document.querySelector('#inspector')?.classList.contains('open')"
       );
+      await cdp.send("Runtime.evaluate", {
+        expression:
+          "document.querySelector('.session-card')" +
+          "?.dispatchEvent(new MouseEvent('click', { bubbles: true }))"
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelector('#inspector')?.classList.contains('open')"
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression: `(() => {
+          document.querySelector('#toggleProjects')?.click();
+          document.querySelectorAll('.project-item')[0]?.click();
+        })()`
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelector('#currentProjectLabel')?.textContent === 'ui-test'"
+      );
+      await waitForExpression(
+        cdp,
+        "!document.querySelector('#inspector')?.classList.contains('open')"
+      );
 
       await cdp.send("Emulation.setDeviceMetricsOverride", {
         width: 1440,

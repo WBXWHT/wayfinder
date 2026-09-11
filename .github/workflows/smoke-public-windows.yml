@@ -6,7 +6,7 @@ on:
       tag:
         description: Published release tag to verify
         required: true
-        default: alpha-v0.3.8
+        default: alpha-v0.3.9
 
 permissions:
   contents: read
@@ -15,6 +15,7 @@ jobs:
   install_and_launch:
     runs-on: windows-latest
     steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - name: Download, install, and launch the public installer
         shell: pwsh
         env:
@@ -27,15 +28,39 @@ jobs:
             throw "Unsupported release tag: $env:RELEASE_TAG"
           }
 
+          $release = Get-Content "website/releases.json" -Raw |
+            ConvertFrom-Json
+          if ($release.version -ne $version -or $release.channel -ne "alpha") {
+            throw "Website release metadata does not match $env:RELEASE_TAG"
+          }
           $asset = "Wayfinder-Alpha-$version-Windows-x86_64.exe"
-          $url = "https://github.com/$env:REPOSITORY/releases/download/" +
+          $url = [string]$release.downloads.windowsX64
+          $expectedUrl = "https://github.com/$env:REPOSITORY/releases/download/" +
             "$env:RELEASE_TAG/$asset"
+          if ($url -ne $expectedUrl) {
+            throw "Website Windows URL does not match the requested release"
+          }
           $installer = Join-Path $env:RUNNER_TEMP $asset
+          $checksumFile = Join-Path $env:RUNNER_TEMP "SHA256SUMS"
           $installDir = Join-Path $env:RUNNER_TEMP "WayfinderSmoke"
 
           Invoke-WebRequest -Uri $url -OutFile $installer
+          Invoke-WebRequest `
+            -Uri "https://github.com/$env:REPOSITORY/releases/download/$env:RELEASE_TAG/SHA256SUMS" `
+            -OutFile $checksumFile
           if ((Get-Item $installer).Length -lt 1MB) {
             throw "Downloaded installer is unexpectedly small"
+          }
+          $checksumLine = Get-Content $checksumFile |
+            Where-Object { $_ -match [regex]::Escape($asset) } |
+            Select-Object -First 1
+          if (-not $checksumLine) {
+            throw "SHA256SUMS does not contain $asset"
+          }
+          $expectedHash = ($checksumLine -split "\s+")[0].ToUpperInvariant()
+          $actualHash = (Get-FileHash $installer -Algorithm SHA256).Hash
+          if ($actualHash -ne $expectedHash) {
+            throw "Downloaded installer checksum does not match SHA256SUMS"
           }
 
           $install = Start-Process -FilePath $installer -Wait -PassThru `

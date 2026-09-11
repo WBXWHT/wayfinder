@@ -53,9 +53,10 @@ workflows, and MCP directories were closed as withdrawn on the same date.
 3. Run the Rust test suite.
 4. Push the source commit and confirm the main CI workflow passes.
 5. Run `.github/workflows/release-macos-alpha.yml` for the zero-cost
-   cross-platform Alpha, or
-   `.github/workflows/release-macos-companion.yml` when signing credentials are
-   available.
+   cross-platform Alpha. The signed
+   `.github/workflows/release-macos-companion.yml` workflow builds only the two
+   macOS artifacts and is not a complete website release until a matching
+   Windows installer has also been produced.
 6. Verify both architecture DMGs, the Windows x64 installer, and
    `SHA256SUMS`, then publish the draft GitHub Release.
 7. Update `website/releases.json` only after all three download URLs return

@@ -4,12 +4,13 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "website/**"
-      - ".github/workflows/deploy-website.yml"
 
 permissions:
   contents: read
+
+concurrency:
+  group: deploy-wayfinder-website-production
+  cancel-in-progress: false
 
 jobs:
   deploy:
@@ -19,12 +20,54 @@ jobs:
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: "22.13.1"
+      - name: Require the latest main commit
+        run: |
+          latest="$(git ls-remote origin refs/heads/main | cut -f1)"
+          test "$latest" = "$GITHUB_SHA"
       - name: Validate Cloudflare project name
         env:
           PROJECT_NAME: ${{ vars.CLOUDFLARE_PROJECT_NAME }}
         run: |
           test -n "$PROJECT_NAME"
           test "$PROJECT_NAME" != "wayfinder"
+      - name: Prevent a public version rollback
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFile } from "node:fs/promises";
+          const candidate = JSON.parse(
+            await readFile("./website/releases.json", "utf8")
+          );
+          const response = await fetch(
+            "https://wayfinder-ai.pages.dev/releases.json",
+            { redirect: "follow" }
+          );
+          if (!response.ok) {
+            throw new Error(`Unable to read live release metadata: ${response.status}`);
+          }
+          const live = await response.json();
+          const parts = (value) => String(value).split(".").map(Number);
+          const compare = (left, right) => {
+            const a = parts(left);
+            const b = parts(right);
+            for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
+              const delta = (a[index] || 0) - (b[index] || 0);
+              if (delta) return delta;
+            }
+            return 0;
+          };
+          if (compare(candidate.version, live.version) < 0) {
+            throw new Error(
+              `Refusing to replace public ${live.version} with ${candidate.version}`
+            );
+          }
+          if (
+            candidate.version === live.version &&
+            live.channel === "stable" &&
+            candidate.channel !== "stable"
+          ) {
+            throw new Error("Refusing to replace a stable release with alpha");
+          }
+          NODE
       - name: Verify public release downloads
         run: |
           node <<'NODE' > "$RUNNER_TEMP/wayfinder-downloads.txt"

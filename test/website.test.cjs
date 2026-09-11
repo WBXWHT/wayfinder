@@ -117,6 +117,11 @@ test("Cloudflare deployment cannot silently claim the occupied project name", ()
     workflow,
     /`\$\{channel\.assetPrefix\}-Windows-x86_64\.exe`/
   );
+  assert.match(workflow, /group: deploy-wayfinder-website-production/);
+  assert.doesNotMatch(workflow, /^\s+paths:/m);
+  assert.match(workflow, /Require the latest main commit/);
+  assert.match(workflow, /Prevent a public version rollback/);
+  assert.match(workflow, /compare\(candidate\.version, live\.version\) < 0/);
   assert.match(workflow, /url\.pathname !== expectedPath/);
   assert.match(workflow, /--head/);
   assert.match(workflow, /--retry-all-errors/);
@@ -129,7 +134,10 @@ test("public Windows installer smoke test installs and launches the release", ()
   );
 
   assert.match(workflow, /runs-on: windows-latest/);
+  assert.match(workflow, /website\/releases\.json/);
   assert.match(workflow, /Invoke-WebRequest -Uri \$url -OutFile \$installer/);
+  assert.match(workflow, /SHA256SUMS/);
+  assert.match(workflow, /Get-FileHash \$installer -Algorithm SHA256/);
   assert.match(workflow, /ArgumentList @\("\/S", "\/D=\$installDir"\)/);
   assert.match(workflow, /Start-Process -FilePath \$app\.FullName -PassThru/);
   assert.match(workflow, /if \(\$process\.HasExited\)/);

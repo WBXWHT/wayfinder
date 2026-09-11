@@ -2431,9 +2431,15 @@ export class ExperienceMapPanel implements vscode.Disposable {
       const focusKey = document.activeElement?.dataset?.focusKey || '';
       const focusWasTitle =
         document.activeElement?.classList.contains('detail-title');
+      const previousProjectId = state?.projectId;
       state = event.data.state;
       forest = event.data.forest;
       projectName = event.data.projectName;
+      const projectChanged =
+        Boolean(previousProjectId) && previousProjectId !== state.projectId;
+      if (projectChanged) {
+        showEmptyInspector();
+      }
       if (event.data.focusTreeId) {
         activeTreeId = event.data.focusTreeId;
       }
@@ -2457,6 +2463,8 @@ export class ExperienceMapPanel implements vscode.Disposable {
           new Map(state.nodes.map((node) => [node.id, node])),
           focusWasTitle
         );
+      } else if (inspector.classList.contains('open')) {
+        showEmptyInspector();
       }
       if (focusKey) {
         const target = [...document.querySelectorAll('[data-focus-key]')]

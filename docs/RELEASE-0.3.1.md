@@ -1,5 +1,11 @@
 # Wayfinder 0.3.1: Early Access
 
+> **Historical plugin/CLI release.** These packages are retained for
+> reproducibility and are not supported installation paths. Wayfinder is now
+> distributed only as a macOS and Windows desktop application. Download the
+> current release from
+> [Wayfinder 0.3.8 Alpha](https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.8).
+
 A local voyage map for AI coding sessions, with an IDE sidebar, Claude/Codex
 capture adapters, an Agent Skill, an in-conversation MCP App, and a terminal
 text tree. The primary experience stays inside the host.

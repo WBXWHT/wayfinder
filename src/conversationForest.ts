@@ -191,38 +191,53 @@ function buildCuratedForest(
     string,
     {
       title: string;
+      treeKey: string;
       metadata: ForestMetadata;
       nodes: TimelineNode[];
     }
   >();
   for (const node of nodes) {
     const metadata = metadataForNode(node, firstBySession);
+    const treeKey = curatedTreeKey(node, metadata);
     const key = [
-      metadata.tree,
+      treeKey,
       metadata.stage,
       metadata.branch || ""
     ].join("\u0000");
     const group = grouped.get(key) || {
       title: metadata.tree,
+      treeKey,
       metadata,
       nodes: []
     };
+    group.title = metadata.tree;
+    group.metadata = metadata;
     group.nodes.push(node);
     grouped.set(key, group);
   }
 
-  const sessionsByTree = new Map<string, ForestSession[]>();
+  const sessionsByTree = new Map<
+    string,
+    {
+      title: string;
+      sessions: ForestSession[];
+    }
+  >();
   for (const group of grouped.values()) {
     const runs = splitIntoSessions(group.nodes);
     for (const run of runs) {
-      const session = sessionFor(group.metadata, run);
-      const sessions = sessionsByTree.get(group.title) || [];
-      sessions.push(session);
-      sessionsByTree.set(group.title, sessions);
+      const session = sessionFor(group.metadata, run, group.treeKey);
+      const tree = sessionsByTree.get(group.treeKey) || {
+        title: group.title,
+        sessions: []
+      };
+      tree.sessions.push(session);
+      sessionsByTree.set(group.treeKey, tree);
     }
   }
 
-  const trees = [...sessionsByTree.entries()].map(([title, sessions]) => {
+  const trees = [...sessionsByTree.entries()].map(([treeKey, tree]) => {
+    const { title, sessions } = tree;
     sessions.sort(compareSessions);
     connectSessions(sessions);
     const allNodeIds = sessions.flatMap((session) => session.nodeIds);
@@ -239,7 +254,7 @@ function buildCuratedForest(
       ""
     );
     return {
-      id: treeId(title),
+      id: treeId(treeKey),
       title,
       sessions,
       nodeCount: allNodeIds.length,
@@ -277,6 +292,21 @@ function emptyForest(): ConversationForest {
     sessionCount: 0,
     nodeCount: 0
   };
+}
+
+function curatedTreeKey(
+  node: TimelineNode,
+  metadata: ForestMetadata
+): string {
+  if (isSkillDefinitionImport(node) && node.source?.type === "folder-import") {
+    const relativePath = node.source.relativePath
+      .replaceAll("\\", "/")
+      .split("/")
+      .filter(Boolean)
+      .join("/");
+    return `folder-skill:${relativePath}`;
+  }
+  return metadata.tree;
 }
 
 function hasExplicitForestMetadata(node: TimelineNode): boolean {
@@ -583,14 +613,15 @@ function splitIntoSessions(nodes: TimelineNode[]): TimelineNode[][] {
 
 function sessionFor(
   metadata: ForestMetadata,
-  nodes: TimelineNode[]
+  nodes: TimelineNode[],
+  treeKey: string
 ): ForestSession {
   const first = nodes[0];
   const latest = nodes.at(-1) || first;
   const verdict = lastVerdict(nodes);
   return {
     id: `forest-session:${first.id}`,
-    treeId: treeId(metadata.tree),
+    treeId: treeId(treeKey),
     sourceHosts: sourceHostsFor(nodes),
     stage: metadata.stage,
     stageOrder: metadata.stageOrder,

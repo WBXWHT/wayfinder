@@ -484,6 +484,65 @@ test("unrelated Skill imports become independent voyages", () => {
   );
 });
 
+test("same-named Skill imports from different paths remain independent", () => {
+  const first = folderImport(
+    "first-review",
+    "2026-09-03T09:01:00.000Z",
+    "代码审查",
+    0,
+    undefined,
+    "group-a/SKILL.md"
+  );
+  const second = folderImport(
+    "second-review",
+    "2026-09-03T09:02:00.000Z",
+    "代码审查",
+    0,
+    undefined,
+    "group-b/SKILL.md"
+  );
+
+  const forest = buildConversationForest(projectState([first, second]));
+
+  assert.equal(forest.trees.length, 2);
+  assert.deepEqual(
+    forest.trees.map((tree) => tree.title),
+    ["代码审查", "代码审查"]
+  );
+  assert.equal(new Set(forest.trees.map((tree) => tree.id)).size, 2);
+  assert.ok(forest.trees.every((tree) => tree.nodeCount === 1));
+});
+
+test("a renamed Skill at the same path stays in one voyage", () => {
+  const first = folderImport(
+    "review-before-rename",
+    "2026-09-03T09:01:00.000Z",
+    "代码审查",
+    0,
+    undefined,
+    "shared/SKILL.md"
+  );
+  const second = folderImport(
+    "review-after-rename",
+    "2026-09-03T09:02:00.000Z",
+    "代码质量审查",
+    0,
+    undefined,
+    "shared/SKILL.md"
+  );
+
+  const forest = buildConversationForest(projectState([first, second]));
+
+  assert.equal(forest.trees.length, 1);
+  assert.equal(forest.trees[0].title, "代码质量审查");
+  assert.equal(forest.trees[0].nodeCount, 2);
+  assert.ok(
+    forest.trees[0].sessions.every(
+      (session) => session.treeId === forest.trees[0].id
+    )
+  );
+});
+
 test("folder imports keep explicit metadata beside live file sessions", () => {
   const root = folderImport(
     "skill-root-mixed",
@@ -582,7 +641,14 @@ function liveTurn(id, hhmm, prompt, files) {
   };
 }
 
-function folderImport(id, completedAt, stage, stageOrder, parentStage) {
+function folderImport(
+  id,
+  completedAt,
+  stage,
+  stageOrder,
+  parentStage,
+  relativePath
+) {
   const manifest = stage === "Skill 文件夹";
   return {
     id,
@@ -605,7 +671,7 @@ function folderImport(id, completedAt, stage, stageOrder, parentStage) {
     validation: { status: "skipped" },
     source: {
       type: "folder-import",
-      relativePath: manifest ? "." : `${stage}/SKILL.md`,
+      relativePath: manifest ? "." : relativePath || `${stage}/SKILL.md`,
       importedAt: completedAt,
       forest: {
         tree: "Skill 内容库",
