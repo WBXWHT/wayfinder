@@ -563,10 +563,10 @@ export class ExperienceMapPanel implements vscode.Disposable {
       display: none;
       width: min(560px, calc(100% - 24px));
       max-height: min(42vh, 360px);
-      grid-template-rows: auto minmax(0, 1fr);
       align-self: end;
       justify-self: center;
-      overflow: hidden;
+      overflow-x: hidden;
+      overflow-y: auto;
       margin: 0 12px 12px;
       border: 2px solid color-mix(
         in srgb,
@@ -587,16 +587,16 @@ export class ExperienceMapPanel implements vscode.Disposable {
           transparent
         ),
         0 10px 28px rgba(22, 69, 82, .14);
+      scrollbar-color: color-mix(in srgb, var(--inspector-accent) 55%, transparent) transparent;
+      scrollbar-width: thin;
       transform: none;
     }
     .inspector.open {
-      display: grid;
+      display: block;
       animation: inspector-sheet-in 170ms cubic-bezier(.2, .8, .2, 1);
     }
     .inspector-head {
-      position: sticky;
-      top: 0;
-      z-index: 1;
+      position: relative;
       display: grid;
       min-width: 0;
       grid-template-columns: 4px minmax(0, 1fr) 24px;
@@ -648,10 +648,8 @@ export class ExperienceMapPanel implements vscode.Disposable {
     .inspector-close:hover { transform: translateY(-1px) rotate(-3deg); }
     .inspector-turns {
       min-height: 0;
-      overflow: auto;
+      overflow: visible;
       padding: 4px 12px 12px;
-      scrollbar-width: thin;
-      scrollbar-color: color-mix(in srgb, var(--inspector-accent) 55%, transparent) transparent;
     }
     .detail-kicker { color: color-mix(in srgb, var(--inspector-accent) 78%, var(--ink)); font-size: 9px; font-weight: 700; }
     .detail-title { margin: 2px 0 0; overflow-wrap: anywhere; outline: 0; font-size: 14px; font-weight: 750; line-height: 1.35; }
@@ -689,7 +687,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
       50% { transform: translateY(-1.5px); }
     }
     .empty-graph { display: grid; min-height: 100%; place-content: center; color: var(--muted); font-size: 11px; }
-    @media (min-width: 1200px) {
+    @media (min-width: 720px) {
       .layout.inspector-open {
         grid-template-columns: minmax(0, 1fr) var(--inspector-width);
         grid-template-rows: minmax(0, 1fr);

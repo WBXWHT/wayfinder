@@ -112,7 +112,19 @@ test("full map keeps one project canvas with expandable voyages", () => {
   assert.match(html, /\.inspector-head/);
   assert.match(html, /\.inspector-turns/);
   assert.match(html, /\.layout\.inspector-open/);
-  assert.match(html, /@media \(min-width: 1200px\)/);
+  assert.match(html, /@media \(min-width: 720px\)/);
+  assert.match(
+    html,
+    /\.inspector \{[\s\S]*?overflow-y: auto;[\s\S]*?scrollbar-width: thin;/
+  );
+  assert.match(
+    html,
+    /\.inspector-head \{[\s\S]*?position: relative;/
+  );
+  assert.match(
+    html,
+    /\.inspector-turns \{[\s\S]*?overflow: visible;/
+  );
   assert.match(html, /--inspector-accent/);
   assert.match(html, /function captureViewport/);
   assert.match(html, /restoreViewport\(previousViewport\)/);

@@ -1666,6 +1666,30 @@ test(
       assert.equal(desktopInspector.selectedVisible, true);
       assert.ok(desktopInspector.titleSize <= 14);
       assert.equal(desktopInspector.accent, desktopInspector.expectedAccent);
+      const scrollingInspector = await evaluateJson(
+        cdp,
+        `(() => {
+          const panel = document.querySelector('#inspector');
+          const head = document.querySelector('.inspector-head');
+          const turns = document.querySelector('.inspector-turns');
+          panel.style.maxHeight = '140px';
+          const headTopBefore = head.getBoundingClientRect().top;
+          panel.scrollTop = 60;
+          const headTopAfter = head.getBoundingClientRect().top;
+          return {
+            panelOverflowY: getComputedStyle(panel).overflowY,
+            turnsOverflowY: getComputedStyle(turns).overflowY,
+            headPosition: getComputedStyle(head).position,
+            scrollTop: panel.scrollTop,
+            headMoved: headTopAfter < headTopBefore - 1
+          };
+        })()`
+      );
+      assert.equal(scrollingInspector.panelOverflowY, "auto");
+      assert.equal(scrollingInspector.turnsOverflowY, "visible");
+      assert.equal(scrollingInspector.headPosition, "relative");
+      assert.ok(scrollingInspector.scrollTop > 0);
+      assert.equal(scrollingInspector.headMoved, true);
       await cdp.send("Runtime.evaluate", {
         expression: "document.querySelector('.inspector-close')?.click()"
       });
@@ -1720,13 +1744,18 @@ test(
             columns: getComputedStyle(layout).gridTemplateColumns
               .split(' ').length,
             graphWidth: graph.width,
-            verticalOverlap: graph.bottom - panel.top
+            horizontalOverlap: graph.right - panel.left,
+            panelRight: panel.right
           };
         })()`
       );
-      assert.equal(mediumInspector.columns, 1);
-      assert.ok(mediumInspector.graphWidth >= 800);
-      assert.ok(mediumInspector.verticalOverlap <= 0.5);
+      assert.equal(mediumInspector.columns, 2);
+      assert.ok(
+        mediumInspector.graphWidth >= 500,
+        JSON.stringify(mediumInspector)
+      );
+      assert.ok(mediumInspector.horizontalOverlap <= 0.5);
+      assert.ok(mediumInspector.panelRight <= 1080);
       await cdp.send("Runtime.evaluate", {
         expression: "document.querySelector('.inspector-close')?.click()"
       });
