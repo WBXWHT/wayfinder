@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "projectId": "public-demo-atlas-dashboard",
+  "root": "/demo/atlas-dashboard",
+  "activeBranchId": "main",
+  "branches": [{"id": "main", "name": "main", "createdAt": "2026-09-11T09:00:00.000Z"}],
+  "pending": {},
+  "updatedAt": "2026-09-11T09:40:00.000Z",
+  "nodes": [
+    {
+      "id": "auth-boundary", "kind": "imported", "sessionId": "codex-auth-boundary",
+      "sourceHost": "codex", "branchId": "定位问题",
+      "prompt": "确认复现与边界", "response": "定位到第三方登录回调后会话状态丢失。",
+      "startedAt": "2026-09-11T09:00:00.000Z", "completedAt": "2026-09-11T09:00:00.000Z",
+      "snapshotBefore": "demo-before", "snapshotAfter": "demo-after",
+      "files": [{"path": "src/auth/callback.ts", "status": "M", "additions": 18, "deletions": 5}],
+      "actions": [], "validation": {"status": "skipped"},
+      "source": {
+        "type": "trae-memory", "messageId": "auth-boundary", "importedAt": "2026-09-11T09:00:00.000Z",
+        "chapter": "登录回跳稳定性",
+        "forest": {"tree": "登录回跳稳定性", "stage": "复现与边界", "stageOrder": 0, "branch": "定位问题"}
+      }
+    },
+    {
+      "id": "proxy-rewrite", "kind": "imported", "sessionId": "claude-proxy-rewrite",
+      "sourceHost": "claude", "branchId": "代理方案",
+      "prompt": "撰写代理重写", "response": "代理方案会破坏本地回调地址，停止采用。",
+      "startedAt": "2026-09-11T09:10:00.000Z", "completedAt": "2026-09-11T09:10:00.000Z",
+      "snapshotBefore": "demo-before", "snapshotAfter": "demo-after",
+      "files": [{"path": "src/proxy.ts", "status": "M", "additions": 31, "deletions": 12}],
+      "actions": [], "validation": {"status": "failed"}, "verdict": "failure",
+      "source": {
+        "type": "trae-memory", "messageId": "proxy-rewrite", "importedAt": "2026-09-11T09:10:00.000Z",
+        "chapter": "登录回跳稳定性",
+        "forest": {"tree": "登录回跳稳定性", "stage": "代理重写", "stageOrder": 1, "parentStage": "复现与边界", "branch": "代理方案"}
+      }
+    },
+    {
+      "id": "cookie-strategy", "kind": "imported", "sessionId": "codex-cookie-strategy",
+      "sourceHost": "codex", "branchId": "Cookie 修复",
+      "prompt": "推进 Cookie 策略", "response": "在 HTTPS 回调中恢复状态并保留本地开发兼容。",
+      "startedAt": "2026-09-11T09:20:00.000Z", "completedAt": "2026-09-11T09:20:00.000Z",
+      "snapshotBefore": "demo-before", "snapshotAfter": "demo-after",
+      "files": [{"path": "src/auth/session.ts", "status": "M", "additions": 24, "deletions": 7}],
+      "actions": [], "validation": {"status": "passed"}, "verdict": "success",
+      "source": {
+        "type": "trae-memory", "messageId": "cookie-strategy", "importedAt": "2026-09-11T09:20:00.000Z",
+        "chapter": "登录回跳稳定性",
+        "forest": {"tree": "登录回跳稳定性", "stage": "Cookie 策略", "stageOrder": 2, "parentStage": "复现与边界", "branch": "Cookie 修复"}
+      }
+    },
+    {
+      "id": "browser-validation", "kind": "imported", "sessionId": "claude-browser-validation",
+      "sourceHost": "claude", "branchId": "Cookie 修复",
+      "prompt": "推进跨浏览器验证", "response": "三个浏览器均通过登录、刷新与退出场景。",
+      "startedAt": "2026-09-11T09:30:00.000Z", "completedAt": "2026-09-11T09:30:00.000Z",
+      "snapshotBefore": "demo-before", "snapshotAfter": "demo-after",
+      "files": [{"path": "test/auth.e2e.ts", "status": "M", "additions": 46, "deletions": 3}],
+      "actions": [], "validation": {"status": "passed"}, "verdict": "success",
+      "source": {
+        "type": "trae-memory", "messageId": "browser-validation", "importedAt": "2026-09-11T09:30:00.000Z",
+        "chapter": "登录回跳稳定性",
+        "forest": {"tree": "登录回跳稳定性", "stage": "跨浏览器验证", "stageOrder": 3, "parentStage": "Cookie 策略", "branch": "Cookie 修复"}
+      }
+    },
+    {
+      "id": "release-learning", "kind": "imported", "sessionId": "codex-release-learning",
+      "sourceHost": "codex", "branchId": "Cookie 修复",
+      "prompt": "修复发布与沉淀", "response": "发布完成，复现条件、失败方案和验证证据均已归档。",
+      "startedAt": "2026-09-11T09:40:00.000Z", "completedAt": "2026-09-11T09:40:00.000Z",
+      "snapshotBefore": "demo-before", "snapshotAfter": "demo-after",
+      "files": [{"path": "docs/auth-regression.md", "status": "A", "additions": 52, "deletions": 0}],
+      "actions": [], "validation": {"status": "passed"}, "verdict": "success",
+      "source": {
+        "type": "trae-memory", "messageId": "release-learning", "importedAt": "2026-09-11T09:40:00.000Z",
+        "chapter": "登录回跳稳定性",
+        "forest": {"tree": "登录回跳稳定性", "stage": "发布与沉淀", "stageOrder": 4, "parentStage": "跨浏览器验证", "branch": "Cookie 修复"}
+      }
+    }
+  ]
+}

@@ -2441,9 +2441,14 @@ test(
                 return {
                   width: rect.width,
                   height: rect.height,
-                  routeAnimation: getComputedStyle(
-                    element.querySelector('.hero-route-main')
-                  ).animationName,
+                  scene: element.dataset.scene,
+                  endpointsInside: [...element.querySelectorAll(
+                    '.node-experience, .node-failed, .hero-reef'
+                  )].every((marker) => {
+                    const bounds = marker.getBoundingClientRect();
+                    return bounds.left >= 0 && bounds.right <= innerWidth &&
+                      bounds.top >= 0 && bounds.bottom <= innerHeight;
+                  }),
                   channelBases: element.querySelectorAll(
                     '.hero-route-base'
                   ).length,
@@ -2474,14 +2479,15 @@ test(
         assert.equal(layout.scrollWidth, viewport.width);
         assert.equal(layout.scrollSnapType, "none");
         assert.equal(layout.finalTitleFits, true);
-        assert.equal(layout.heroVoyage.routeAnimation, "route-main-draw");
+        assert.ok(layout.heroVoyage.scene);
+        assert.equal(layout.heroVoyage.endpointsInside, true);
         assert.equal(layout.heroVoyage.channelBases, 3);
         assert.equal(layout.heroVoyage.notes, 4);
         assert.equal(layout.heroVoyage.vessels, 1);
         assert.equal(layout.legacyWaypoints, 0);
         assert.equal(
           layout.productImageSource,
-          "./login-voyage-focus-4k.png?v=4k-2"
+          "./login-voyage-focus-4k.png?v=map-0.3.10"
         );
         assert.equal(layout.productImageInteractive, false);
         assert.ok(layout.heroVoyage.width > 0);
@@ -2518,6 +2524,44 @@ test(
           );
         }
       }
+
+      const voyageScenes = await evaluateJson(cdp, `(() => {
+        const samples = [0, 3500, 5000, 5200, 7500, 11250, 13000, 13500, 16000];
+        return samples.map(time => {
+          renderHeroVoyage(time);
+          const matrix = document.querySelector('.hero-vessel')
+            .transform.baseVal.consolidate().matrix;
+          return {
+            time,
+            scene: document.querySelector('.hero-voyage').dataset.scene,
+            course: document.querySelector('.hero-vessel').dataset.course,
+            boat: { x: matrix.e, y: matrix.f },
+            reefOpacity: Number(getComputedStyle(document.querySelector('.hero-reef')).opacity),
+            crossOpacity: Number(getComputedStyle(document.querySelector('.node-failed')).opacity),
+            checkOpacity: Number(getComputedStyle(document.querySelector('.node-experience')).opacity),
+            checkColor: getComputedStyle(document.querySelector('.node-experience circle')).stroke,
+            impactOpacity: Number(getComputedStyle(document.querySelector('.hero-impact')).opacity),
+            ringRadius: Number(document.querySelector('.arrival-ring').getAttribute('r')),
+            ringOpacity: Number(getComputedStyle(document.querySelector('.arrival-ring')).opacity)
+          };
+        });
+      })()`);
+      assert.equal(voyageScenes[1].course, "failure");
+      assert.equal(voyageScenes[1].reefOpacity, 1);
+      assert.equal(voyageScenes[1].crossOpacity, 0);
+      assert.deepEqual(voyageScenes[2].boat, { x: 496, y: 735 });
+      assert.ok(voyageScenes[3].impactOpacity > 0);
+      assert.equal(voyageScenes[4].reefOpacity, 0);
+      assert.equal(voyageScenes[4].crossOpacity, 1);
+      assert.equal(voyageScenes[5].course, "success");
+      assert.deepEqual(voyageScenes[6].boat, { x: 650, y: 760 });
+      assert.ok(voyageScenes[7].ringRadius > 24);
+      assert.ok(voyageScenes[7].ringOpacity > 0);
+      assert.deepEqual(voyageScenes[8].boat, voyageScenes[0].boat);
+      assert.equal(voyageScenes[8].reefOpacity, 1);
+      assert.ok(voyageScenes.every((scene) =>
+        scene.checkOpacity === 1 && scene.checkColor === "rgb(35, 143, 123)"
+      ));
 
       await cdp.send("Runtime.evaluate", {
         expression: `(() => {

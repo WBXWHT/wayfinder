@@ -1,6 +1,22 @@
 const canvas = document.querySelector("#voyageCanvas");
 const context = canvas?.getContext("2d");
 const heroVoyage = document.querySelector(".hero-voyage");
+const heroCourses = Object.fromEntries(
+  ["main", "failure", "success"].map((name) => {
+    const path = document.querySelector(`#hero-course-${name}`);
+    return [name, path ? {
+      path,
+      length: path.getTotalLength(),
+      trail: document.querySelector(`.hero-route-${name}`)
+    } : undefined];
+  })
+);
+const vessel = document.querySelector(".hero-vessel");
+const reef = document.querySelector(".hero-reef");
+const failedMarker = document.querySelector(".node-failed");
+const impact = document.querySelector(".hero-impact");
+const arrivalRings = document.querySelectorAll(".arrival-ring");
+const routeNotes = document.querySelectorAll(".route-note");
 let width = 0;
 let height = 0;
 let pointerX = 0;
@@ -8,10 +24,92 @@ let pointerY = 0;
 let startedAt = performance.now();
 let animationFrame;
 let scrollFrame;
+let hiddenAt;
 const motionPreference = globalThis.matchMedia?.(
   "(prefers-reduced-motion: reduce)"
 );
 let reducedMotion = motionPreference?.matches || false;
+
+// One clock controls both attempts so the boat and outcome markers cannot drift.
+function voyageFrame(elapsed) {
+  const time = ((elapsed % 16000) + 16000) % 16000;
+  const retry = time >= 7500;
+  const attemptTime = retry ? time - 7500 : time;
+  const mainProgress = Math.min(1, attemptTime / 2000);
+  const branchProgress = Math.max(
+    0, Math.min(1, (attemptTime - 2000) / (retry ? 3500 : 3000))
+  );
+  const collision = !retry && time >= 5000 && time < 5600
+    ? (time - 5000) / 600 : -1;
+  const arrival = retry && time >= 13000 ? time - 13000 : -1;
+  return {
+    phase: retry
+      ? arrival >= 0 ? "arrival" : mainProgress < 1 ? "retry" : "green-sailing"
+      : time >= 5000 ? "impact" : "red-sailing",
+    course: mainProgress < 1 ? "main" : retry ? "success" : "failure",
+    boatProgress: mainProgress < 1 ? mainProgress : branchProgress,
+    mainProgress,
+    redProgress: retry ? 1 : branchProgress,
+    greenProgress: retry ? branchProgress : 0,
+    reefVisible: !retry,
+    boatOpacity: retry
+      ? Math.min(1, attemptTime / 240)
+      : Math.min(1, Math.max(0, (6500 - time) / 500)),
+    collision,
+    arrival
+  };
+}
+
+function renderHeroVoyage(elapsed) {
+  if (!heroVoyage || !vessel || !heroCourses.main) return;
+  const frame = voyageFrame(reducedMotion ? 14500 : elapsed);
+  heroVoyage.dataset.scene = frame.phase;
+  vessel.dataset.course = frame.course;
+  const course = heroCourses[frame.course];
+  const point = course.path.getPointAtLength(course.length * frame.boatProgress);
+  const bump = frame.collision < 0
+    ? 0 : Math.sin(frame.collision * Math.PI * 5) * (1 - frame.collision);
+  const dock = frame.arrival < 0 ? 0 : Math.min(1, frame.arrival / 600);
+  const bowOffset = frame.course === "failure"
+    ? Math.max(0, (frame.boatProgress - .88) / .12) * 24 : 0;
+  vessel.setAttribute("transform",
+    `translate(${point.x + bump * 10 - dock * 58 - bowOffset},${point.y - Math.abs(bump) * 12 - dock * 12})`
+  );
+  vessel.style.opacity = frame.boatOpacity;
+  reef.style.opacity = frame.reefVisible ? 1 : 0;
+  failedMarker.style.opacity = frame.reefVisible ? 0 : 1;
+  impact.style.opacity = frame.collision < 0 ? 0 : 1 - frame.collision;
+  for (const [name, progress] of [
+    ["main", frame.mainProgress],
+    ["failure", frame.redProgress],
+    ["success", frame.greenProgress]
+  ]) {
+    heroCourses[name].trail.style.strokeDashoffset = 1 - progress;
+  }
+  arrivalRings.forEach((ring, index) => {
+    const progress = (frame.arrival - index * 320) / 1500;
+    const visible = !reducedMotion && progress >= 0 && progress <= 1;
+    ring.style.opacity = visible ? (1 - progress) * .8 : 0;
+    ring.setAttribute("r", 24 + Math.max(0, Math.min(1, progress)) * 44);
+  });
+  const activeNote = frame.arrival >= 0 ? 3
+    : frame.mainProgress < 1 ? 0 : frame.reefVisible ? 1 : 2;
+  routeNotes.forEach((note, index) => {
+    note.classList.toggle("is-current", index === activeNote);
+  });
+}
+
+for (const [name, selector, progress] of [
+  ["main", ".mark-main", .55],
+  ["success", ".mark-success", .55],
+  ["failure", ".mark-failure", .5]
+]) {
+  const course = heroCourses[name];
+  const mark = document.querySelector(selector);
+  if (!course || !mark) continue;
+  const point = course.path.getPointAtLength(course.length * progress);
+  mark.setAttribute("transform", `translate(${point.x},${point.y})`);
+}
 
 function resize() {
   if (!canvas || !context) return;
@@ -25,6 +123,7 @@ function resize() {
 }
 
 function draw(time) {
+  renderHeroVoyage(time - startedAt);
   if (!context) return;
   context.clearRect(0, 0, width, height);
   drawMapSurface(time);
@@ -215,9 +314,14 @@ window.addEventListener?.("pointermove", (event) => {
 });
 document.addEventListener?.("visibilitychange", () => {
   if (document.hidden) {
+    hiddenAt = performance.now();
     if (animationFrame !== undefined) cancelAnimationFrame(animationFrame);
     animationFrame = undefined;
     return;
+  }
+  if (hiddenAt !== undefined) {
+    startedAt += performance.now() - hiddenAt;
+    hiddenAt = undefined;
   }
   if (!reducedMotion && animationFrame === undefined) {
     animationFrame = requestAnimationFrame(draw);

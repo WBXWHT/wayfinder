@@ -291,22 +291,19 @@ h1 {
 .hero-route-main {
   stroke: #65b5cd;
   stroke-width: 22;
-  animation: route-main-draw 7.2s cubic-bezier(.35, .05, .2, 1) infinite;
 }
 
 .hero-route-success {
   stroke: #67b99e;
-  animation: route-success-draw 7.2s cubic-bezier(.35, .05, .2, 1) infinite;
 }
 
 .hero-route-failure {
   stroke: #e68a83;
-  animation: route-failure-draw 7.2s cubic-bezier(.35, .05, .2, 1) infinite;
 }
 
 .hero-channel-mark {
   color: var(--blue);
-  opacity: .3;
+  opacity: .85;
 }
 
 .hero-channel-mark path {
@@ -325,18 +322,12 @@ h1 {
   vector-effect: non-scaling-stroke;
 }
 
-.mark-main {
-  animation: note-goal-focus 7.2s ease-in-out infinite;
-}
-
 .mark-success {
   color: var(--green);
-  animation: note-proof-focus 7.2s ease-in-out infinite;
 }
 
 .mark-failure {
   color: var(--coral);
-  animation: note-experience-focus 7.2s ease-in-out infinite;
 }
 
 .hero-map-node circle:first-child {
@@ -363,6 +354,7 @@ h1 {
 
 .node-failed {
   color: var(--coral);
+  opacity: 0;
 }
 
 .hero-map-node path {
@@ -374,14 +366,52 @@ h1 {
   vector-effect: non-scaling-stroke;
 }
 
-.node-experience {
-  animation: experience-pulse 2.2s ease-in-out infinite;
-  transform-box: fill-box;
-  transform-origin: center;
+.hero-reef {
+  filter: drop-shadow(3px 4px 0 rgba(64, 103, 112, .22));
+}
+
+.hero-reef-outline {
+  fill: #ffffff;
+  stroke: #ffffff;
+  stroke-width: 10;
+  stroke-linejoin: round;
+}
+
+.hero-reef-rock {
+  fill: #dd8c81;
+  stroke: #28505d;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
+.hero-reef-facet {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.hero-impact {
+  opacity: 0;
+  fill: none;
+  stroke: var(--coral);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.arrival-ring {
+  opacity: 0;
+  fill: none;
+  stroke: var(--green);
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.arrival-ring-late {
+  stroke: #ffffff;
 }
 
 .hero-vessel {
-  animation: vessel-cycle 7.2s ease-in-out infinite;
   filter: drop-shadow(3px 5px 0 rgba(64, 103, 112, .22));
 }
 
@@ -441,6 +471,11 @@ h1 {
     transform 220ms ease;
 }
 
+.route-note.is-current {
+  opacity: 1;
+  transform: translateX(7px);
+}
+
 .route-note::before {
   position: absolute;
   top: 28px;
@@ -473,25 +508,21 @@ h1 {
 .note-goal {
   top: 12%;
   left: 25%;
-  animation: note-goal-focus 7.2s ease-in-out infinite;
 }
 
 .note-branch {
-  top: 38%;
-  left: 55%;
-  animation: note-branch-focus 7.2s ease-in-out infinite;
+  top: 43%;
+  left: 12%;
 }
 
 .note-proof {
-  top: 54%;
-  left: 69%;
-  animation: note-proof-focus 7.2s ease-in-out infinite;
+  top: 62%;
+  left: 12%;
 }
 
 .note-experience {
-  top: 78%;
+  top: 86%;
   left: 50%;
-  animation: note-experience-focus 7.2s ease-in-out infinite;
 }
 
 .hero-status {
@@ -665,13 +696,6 @@ h1 {
   border-radius: 8px;
   background: #202a30;
   box-shadow: 0 28px 70px rgba(0, 0, 0, .28);
-  transform:
-    perspective(1200px)
-    rotateX(var(--tilt-y, 0deg))
-    rotateY(var(--tilt-x, 0deg))
-    translateY(var(--media-shift, 0px));
-  transform-origin: center;
-  transition: transform 180ms ease-out;
 }
 
 .product-visual::after {
@@ -1027,70 +1051,6 @@ footer a {
   }
 }
 
-@keyframes route-main-draw {
-  0%,
-  7% {
-    opacity: .28;
-    stroke-dashoffset: 1;
-  }
-  38%,
-  90% {
-    opacity: 1;
-    stroke-dashoffset: 0;
-  }
-  100% {
-    opacity: .28;
-    stroke-dashoffset: -1;
-  }
-}
-
-@keyframes route-success-draw {
-  0%,
-  30% {
-    opacity: .2;
-    stroke-dashoffset: 1;
-  }
-  62%,
-  90% {
-    opacity: 1;
-    stroke-dashoffset: 0;
-  }
-  100% {
-    opacity: .2;
-    stroke-dashoffset: -1;
-  }
-}
-
-@keyframes route-failure-draw {
-  0%,
-  49% {
-    opacity: .18;
-    stroke-dashoffset: 1;
-  }
-  72%,
-  90% {
-    opacity: 1;
-    stroke-dashoffset: 0;
-  }
-  100% {
-    opacity: .18;
-    stroke-dashoffset: -1;
-  }
-}
-
-@keyframes vessel-cycle {
-  0%,
-  5%,
-  96%,
-  100% {
-    opacity: 0;
-  }
-  10%,
-  88% {
-    opacity: 1;
-  }
-}
-
 @keyframes hero-boat-bob {
   0%,
   100% {
@@ -1098,81 +1058,6 @@ footer a {
   }
   50% {
     transform: translateY(-2px);
-  }
-}
-
-@keyframes experience-pulse {
-  0%,
-  68%,
-  100% {
-    opacity: .62;
-    transform: scale(.86);
-  }
-  76% {
-    opacity: 1;
-    transform: scale(1.24);
-  }
-  84% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes note-goal-focus {
-  0%,
-  31%,
-  100% {
-    opacity: .46;
-    transform: translateX(0);
-  }
-  7%,
-  25% {
-    opacity: 1;
-    transform: translateX(7px);
-  }
-}
-
-@keyframes note-branch-focus {
-  0%,
-  25%,
-  54%,
-  100% {
-    opacity: .46;
-    transform: translateX(0);
-  }
-  31%,
-  48% {
-    opacity: 1;
-    transform: translateX(7px);
-  }
-}
-
-@keyframes note-proof-focus {
-  0%,
-  48%,
-  77%,
-  100% {
-    opacity: .46;
-    transform: translateX(0);
-  }
-  55%,
-  71% {
-    opacity: 1;
-    transform: translateX(7px);
-  }
-}
-
-@keyframes note-experience-focus {
-  0%,
-  69%,
-  100% {
-    opacity: .46;
-    transform: translateX(0);
-  }
-  76%,
-  91% {
-    opacity: 1;
-    transform: translateX(7px);
   }
 }
 
@@ -1256,11 +1141,19 @@ footer a {
   }
 
   .hero-voyage {
-    top: 42px;
-    right: -8%;
-    bottom: 47%;
-    left: 38%;
-    opacity: .86;
+    top: 58px;
+    right: 5%;
+    bottom: 50%;
+    left: 5%;
+    opacity: 1;
+  }
+
+  .hero-vessel > g {
+    transform: translate(0, -8px) scale(3.3);
+  }
+
+  .hero-map-node circle:first-child {
+    stroke-width: 3;
   }
 
   .hero-route-rail {
@@ -1328,7 +1221,6 @@ footer a {
   .product-visual {
     width: min(100%, 760px);
     justify-self: center;
-    transform: translateY(var(--media-shift, 0px));
   }
 
   .local-copy {
@@ -1426,7 +1318,7 @@ footer a {
     right: -2%;
     bottom: 12%;
     left: 56%;
-    opacity: .52;
+    opacity: .86;
   }
 
   .hero-status {
@@ -1454,9 +1346,9 @@ footer a {
   }
 
   .hero-voyage {
-    right: -17%;
-    bottom: 53%;
-    left: 45%;
+    right: 4%;
+    bottom: 50%;
+    left: 4%;
   }
 
   .hero-status {
@@ -1515,10 +1407,6 @@ footer a {
   .hero-route {
     opacity: 1;
     stroke-dashoffset: 0;
-  }
-
-  .hero-vessel {
-    display: none;
   }
 
   .route-note {

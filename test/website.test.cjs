@@ -34,10 +34,14 @@ test("download website exposes architecture-specific release links", () => {
   assert.equal((html.match(/class="hero-route-base /g) || []).length, 3);
   assert.match(html, /class="vessel-sticker"/);
   assert.match(html, /translate\(0,-8\) scale\(2\.25\)/);
-  assert.match(html, /<animateMotion[\s\S]*?dur="7\.2s"/);
+  assert.match(html, /id="hero-course-failure"/);
+  assert.match(html, /class="hero-reef"/);
+  assert.match(html, /class="hero-arrival"/);
+  assert.doesNotMatch(html, /<animateMotion/);
   assert.doesNotMatch(html, /hero-waypoint|data-waypoint/);
   assert.match(html, /src="\.\/wayfinder-icon\.svg"/);
-  assert.match(html, /src="\.\/login-voyage-focus-4k\.png\?v=4k-2"/);
+  assert.match(html, /src="\.\/login-voyage-focus-4k\.png\?v=map-0\.3\.10"/);
+  assert.match(html, /<figure class="product-visual">/);
   assert.doesNotMatch(html, /class="product-image-link"/);
   assert.doesNotMatch(html, /href="\.\/login-voyage-focus-4k\.png/);
   assert.match(html, />\s*示例航程 · 登录回跳稳定性\s*</);
@@ -95,9 +99,9 @@ test("website scripts parse and visual CSS avoids decorative gradients", () => {
   assert.match(script, /const workflowProgress = Math\.min\(1, progress \* 2\)/);
   assert.match(script, /const heroVoyage/);
   assert.doesNotMatch(script, /drawRouteSignals|updateActiveWaypoint/);
-  assert.match(styles, /@keyframes route-main-draw/);
-  assert.match(styles, /@keyframes route-success-draw/);
-  assert.match(styles, /@keyframes route-failure-draw/);
+  assert.doesNotMatch(styles, /@keyframes route-(main|success|failure)-draw/);
+  assert.match(script, /function voyageFrame\(elapsed\)/);
+  assert.match(script, /getPointAtLength/);
   assert.match(styles, /animation: final-route-move 2\.667s linear infinite/);
   assert.match(styles, /\.hero-route-rail\s*\{[\s\S]*?stroke-width: 31/);
   assert.match(styles, /\.hero-route\s*\{[\s\S]*?stroke-width: 21/);
@@ -187,6 +191,56 @@ test("canvas redraws when resized after its entrance animation", async () => {
   runtime.finishAnimation();
 
   assert.ok(runtime.clears > clearsBeforeResize);
+});
+
+test("hero replays reef collision, recorded failure, and successful arrival", async () => {
+  const runtime = await runWebsiteScript();
+  const red = runtime.frameAt(3500);
+  assert.equal(red.course, "failure");
+  assert.equal(red.reefVisible, true);
+  assert.equal(red.boatProgress, .5);
+  assert.equal(red.greenProgress, 0);
+
+  const hit = runtime.frameAt(5000);
+  assert.equal(hit.phase, "impact");
+  assert.equal(hit.collision, 0);
+  assert.equal(hit.boatProgress, 1);
+  assert.equal(runtime.frameAt(6500).boatOpacity, 0);
+
+  const retry = runtime.frameAt(7500);
+  assert.equal(retry.phase, "retry");
+  assert.equal(retry.course, "main");
+  assert.equal(retry.reefVisible, false);
+  assert.equal(retry.redProgress, 1);
+  const green = runtime.frameAt(11250);
+  assert.equal(green.course, "success");
+  assert.equal(green.boatProgress, .5);
+  assert.equal(green.reefVisible, false);
+
+  const arrived = runtime.frameAt(13500);
+  assert.equal(arrived.phase, "arrival");
+  assert.equal(arrived.arrival, 500);
+  assert.equal(arrived.greenProgress, 1);
+  assert.deepEqual(runtime.frameAt(16000), runtime.frameAt(0));
+  assert.deepEqual(runtime.frameAt(48000 + 3500), red);
+});
+
+test("website capture preserves all five waypoints and their branch ancestry", () => {
+  const state = JSON.parse(fs.readFileSync(
+    path.join(root, "scripts/fixtures/website-voyage.json"), "utf8"
+  ));
+  const parents = state.nodes.map((node) => node.source.forest.parentStage);
+  const stages = new Set(state.nodes.map((node) => node.source.forest.stage));
+  assert.equal(state.nodes.length, 5);
+  assert.equal(parents.filter((parent) => !parent).length, 1);
+  assert.ok(parents.filter(Boolean).every((parent) => stages.has(parent)));
+  assert.equal(state.nodes.filter((node) => node.verdict === "failure").length, 1);
+  const capture = fs.readFileSync(
+    path.join(root, "scripts/capture-website-map.cjs"), "utf8"
+  );
+  assert.match(capture, /generate-companion-preview\.cjs/);
+  assert.match(capture, /Page\.captureScreenshot/);
+  assert.match(capture, /resampled: false/);
 });
 
 async function runWebsiteScript(
@@ -299,6 +353,9 @@ async function runWebsiteScript(
     x64Link,
     windowsLink,
     animationFrames,
+    frameAt(elapsed) {
+      return JSON.parse(JSON.stringify(context.voyageFrame(elapsed)));
+    },
     get clears() {
       return clears;
     },

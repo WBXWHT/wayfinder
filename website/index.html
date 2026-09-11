@@ -11,7 +11,7 @@
   <title>Wayfinder — 看清你与 AI 的协作如何走到结果</title>
   <link rel="icon" href="./wayfinder-icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./wayfinder-icon.png">
-  <link rel="stylesheet" href="./styles.css?v=0.3.10">
+  <link rel="stylesheet" href="./styles.css?v=0.3.10-voyage">
 </head>
 <body>
   <header class="site-header">
@@ -32,33 +32,32 @@
       <div class="hero-voyage" aria-hidden="true">
         <svg class="hero-route-map" viewBox="0 0 720 900"
           preserveAspectRatio="xMidYMid meet">
-          <path class="hero-route-rail hero-route-rail-main"
-            d="M130 150 C140 285 300 245 300 390 C300 520 385 530 410 680"></path>
-          <path class="hero-route-rail hero-route-rail-success"
-            d="M300 390 C445 378 545 355 600 500 C640 605 620 700 650 760"></path>
-          <path class="hero-route-rail hero-route-rail-failure"
-            d="M410 610 C505 570 570 620 600 740"></path>
-          <path class="hero-route-base hero-route-base-main"
-            d="M130 150 C140 285 300 245 300 390 C300 520 385 530 410 680"></path>
-          <path class="hero-route-base hero-route-base-success"
-            d="M300 390 C445 378 545 355 600 500 C640 605 620 700 650 760"></path>
-          <path class="hero-route-base hero-route-base-failure"
-            d="M410 610 C505 570 570 620 600 740"></path>
-          <path class="hero-route hero-route-main" pathLength="1"
-            d="M130 150 C140 285 300 245 300 390 C300 520 385 530 410 680"></path>
-          <path class="hero-route hero-route-success" pathLength="1"
-            d="M300 390 C445 378 545 355 600 500 C640 605 620 700 650 760"></path>
-          <path class="hero-route hero-route-failure" pathLength="1"
-            d="M410 610 C505 570 570 620 600 740"></path>
+          <defs>
+            <path id="hero-course-main" pathLength="1"
+              d="M130 150 C140 285 300 245 300 390"></path>
+            <path id="hero-course-success" pathLength="1"
+              d="M300 390 C445 378 545 355 600 500 C640 605 620 700 650 760"></path>
+            <path id="hero-course-failure" pathLength="1"
+              d="M300 390 C300 510 375 505 410 610 C445 715 500 650 520 735"></path>
+          </defs>
+          <use class="hero-route-rail" href="#hero-course-main"></use>
+          <use class="hero-route-rail" href="#hero-course-success"></use>
+          <use class="hero-route-rail" href="#hero-course-failure"></use>
+          <use class="hero-route-base hero-route-base-main" href="#hero-course-main"></use>
+          <use class="hero-route-base hero-route-base-success" href="#hero-course-success"></use>
+          <use class="hero-route-base hero-route-base-failure" href="#hero-course-failure"></use>
+          <use class="hero-route hero-route-main" href="#hero-course-main"></use>
+          <use class="hero-route hero-route-success" href="#hero-course-success"></use>
+          <use class="hero-route hero-route-failure" href="#hero-course-failure"></use>
           <g class="hero-channel-mark mark-main">
-            <circle cx="232" cy="294" r="3"></circle>
-            <circle cx="244" cy="302" r="3"></circle>
+            <circle cx="-5" r="3"></circle>
+            <circle cx="5" r="3"></circle>
           </g>
           <g class="hero-channel-mark mark-success">
-            <path d="M455 405 L463 413 L455 421 L447 413 Z"></path>
+            <path d="M0-7 L7 0 L0 7 L-7 0 Z"></path>
           </g>
           <g class="hero-channel-mark mark-failure">
-            <path d="M510 639 Q520 629 530 639 T550 639"></path>
+            <path d="M-10 0 Q-5-5 0 0 T10 0"></path>
           </g>
           <g class="hero-map-node node-goal">
             <circle cx="130" cy="150" r="17"></circle>
@@ -72,15 +71,11 @@
             <circle cx="600" cy="500" r="17"></circle>
             <circle cx="600" cy="500" r="6"></circle>
           </g>
-          <g class="hero-map-node node-failed">
-            <circle cx="600" cy="740" r="17"></circle>
-            <path d="M594 734 L606 746 M606 734 L594 746"></path>
+          <g class="hero-arrival" transform="translate(650,760)">
+            <circle class="arrival-ring" r="24"></circle>
+            <circle class="arrival-ring arrival-ring-late" r="24"></circle>
           </g>
-          <g class="hero-map-node node-experience">
-            <circle cx="650" cy="760" r="21"></circle>
-            <path d="M640 760 L648 768 L662 751"></path>
-          </g>
-          <g class="hero-vessel">
+          <g class="hero-vessel" transform="translate(130,150)">
             <g transform="translate(0,-8) scale(2.25)">
               <g class="hero-vessel-bob">
                 <path class="vessel-sticker"
@@ -99,9 +94,22 @@
                   d="M-11 5 H12 Q7 12 0 12 Q-7 12-11 5 Z"></path>
               </g>
             </g>
-            <animateMotion dur="7.2s" repeatCount="indefinite"
-              rotate="0"
-              path="M130 150 C140 285 300 245 300 390 C445 378 545 355 600 500 C640 605 620 700 650 760"></animateMotion>
+          </g>
+          <g class="hero-reef" transform="translate(520,735)">
+            <path class="hero-reef-outline" d="M-24 17 L-16-16 L-5-5 L5-27 L24 17 Z"></path>
+            <path class="hero-reef-rock" d="M-24 17 L-16-16 L-5-5 L5-27 L24 17 Z"></path>
+            <path class="hero-reef-facet" d="M5-27 L0 9 L-5-5 M-16-16 L-11 6"></path>
+          </g>
+          <g class="hero-impact" transform="translate(520,735)">
+            <path d="M-33-18 L-41-26 M-7-37 L-7-48 M25-25 L34-34"></path>
+          </g>
+          <g class="hero-map-node node-failed">
+            <circle cx="520" cy="735" r="17"></circle>
+            <path d="M514 729 L526 741 M526 729 L514 741"></path>
+          </g>
+          <g class="hero-map-node node-experience">
+            <circle cx="650" cy="760" r="21"></circle>
+            <path d="M640 760 L648 768 L662 751"></path>
           </g>
         </svg>
         <div class="route-note note-goal">
@@ -176,8 +184,8 @@
 
     <section class="story-section local-band reveal"
       aria-labelledby="local-title">
-      <figure class="product-visual" data-parallax>
-        <img src="./login-voyage-focus-4k.png?v=4k-2"
+      <figure class="product-visual">
+        <img src="./login-voyage-focus-4k.png?v=map-0.3.10"
           alt="Wayfinder 示例航程细节，清晰展示登录问题的失败分支、有效路径、验证节点与沉淀结果"
           loading="lazy" decoding="async" draggable="false">
         <figcaption>
@@ -252,6 +260,6 @@
       <a href="https://github.com/StayCurious-Xuan/wayfinder/issues">反馈</a>
     </span>
   </footer>
-  <script src="./app.js?v=0.3.10" defer></script>
+  <script src="./app.js?v=0.3.10-voyage" defer></script>
 </body>
 </html>
