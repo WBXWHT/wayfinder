@@ -342,6 +342,7 @@ motionPreference?.addEventListener?.("change", (event) => {
 });
 
 resize();
+renderHeroVoyage(0);
 updateScrollState();
 void loadDownloads();
 if (reducedMotion) draw(startedAt + 1_250);

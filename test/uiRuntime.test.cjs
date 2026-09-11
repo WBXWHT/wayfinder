@@ -2400,7 +2400,8 @@ test(
             ).length === 3 &&
             getComputedStyle(
               document.querySelector('.hero-downloads')
-            ).display === 'grid'`
+            ).display === 'grid' &&
+            document.querySelector('.hero-voyage')?.dataset.scene`
         );
         const layout = await evaluateJson(
           cdp,
