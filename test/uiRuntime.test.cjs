@@ -2148,6 +2148,9 @@ test(
                   routeAnimation: getComputedStyle(
                     element.querySelector('.hero-route-main')
                   ).animationName,
+                  channelBases: element.querySelectorAll(
+                    '.hero-route-base'
+                  ).length,
                   notes: element.querySelectorAll('.route-note').length,
                   vessels: element.querySelectorAll('.hero-vessel').length
                 };
@@ -2161,6 +2164,9 @@ test(
               productImageWidth: document.querySelector(
                 '.product-visual img'
               ).getBoundingClientRect().width,
+              productImageInteractive: Boolean(
+                document.querySelector('.product-visual img').closest('a')
+              ),
               downloads,
               storyHeights: [...document.querySelectorAll(
                 '.story-section'
@@ -2173,13 +2179,15 @@ test(
         assert.equal(layout.scrollSnapType, "none");
         assert.equal(layout.finalTitleFits, true);
         assert.equal(layout.heroVoyage.routeAnimation, "route-main-draw");
+        assert.equal(layout.heroVoyage.channelBases, 3);
         assert.equal(layout.heroVoyage.notes, 4);
         assert.equal(layout.heroVoyage.vessels, 1);
         assert.equal(layout.legacyWaypoints, 0);
         assert.equal(
           layout.productImageSource,
-          "./login-voyage-focus-2k.png?v=2k"
+          "./login-voyage-focus-4k.png?v=4k"
         );
+        assert.equal(layout.productImageInteractive, false);
         assert.ok(layout.heroVoyage.width > 0);
         assert.ok(layout.heroVoyage.height > 0);
         assert.ok(

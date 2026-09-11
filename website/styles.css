@@ -233,7 +233,7 @@ h1 {
   top: 0;
   right: 0;
   bottom: 0;
-  left: 50%;
+  left: 47%;
   transform: translate(
     var(--route-shift-x, 0),
     var(--route-shift-y, 0)
@@ -250,6 +250,7 @@ h1 {
 }
 
 .hero-route-rail,
+.hero-route-base,
 .hero-route {
   fill: none;
   vector-effect: non-scaling-stroke;
@@ -258,37 +259,91 @@ h1 {
 }
 
 .hero-route-rail {
-  stroke: rgba(80, 104, 111, .16);
-  stroke-width: 13;
+  stroke: rgba(255, 255, 255, .94);
+  stroke-width: 31;
+  filter: drop-shadow(3px 4px 0 rgba(64, 103, 112, .2));
+}
+
+.hero-route-base {
+  stroke-width: 21;
+}
+
+.hero-route-base-main {
+  stroke: #b4dfe9;
+  stroke-width: 22;
+}
+
+.hero-route-base-success {
+  stroke: #b8ded2;
+}
+
+.hero-route-base-failure {
+  stroke: #f0c5c1;
 }
 
 .hero-route {
-  stroke-width: 5;
+  stroke-width: 21;
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  filter: drop-shadow(0 3px 0 rgba(54, 92, 101, .13));
+  filter: drop-shadow(1px 2px 0 rgba(54, 92, 101, .12));
 }
 
 .hero-route-main {
-  stroke: var(--blue);
+  stroke: #65b5cd;
+  stroke-width: 22;
   animation: route-main-draw 7.2s cubic-bezier(.35, .05, .2, 1) infinite;
 }
 
 .hero-route-success {
-  stroke: var(--green);
+  stroke: #67b99e;
   animation: route-success-draw 7.2s cubic-bezier(.35, .05, .2, 1) infinite;
 }
 
 .hero-route-failure {
-  stroke: var(--coral);
-  stroke-dasharray: .035 .025;
+  stroke: #e68a83;
   animation: route-failure-draw 7.2s cubic-bezier(.35, .05, .2, 1) infinite;
+}
+
+.hero-channel-mark {
+  color: var(--blue);
+  opacity: .3;
+}
+
+.hero-channel-mark path {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.hero-channel-mark circle {
+  fill: #ffffff;
+  stroke: color-mix(in srgb, currentColor 64%, transparent);
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
+}
+
+.mark-main {
+  animation: note-goal-focus 7.2s ease-in-out infinite;
+}
+
+.mark-success {
+  color: var(--green);
+  animation: note-proof-focus 7.2s ease-in-out infinite;
+}
+
+.mark-failure {
+  color: var(--coral);
+  animation: note-experience-focus 7.2s ease-in-out infinite;
 }
 
 .hero-map-node circle:first-child {
   fill: #fffdf8;
   stroke: currentColor;
-  stroke-width: 4;
+  stroke-width: 5;
+  filter: drop-shadow(2px 3px 0 rgba(64, 103, 112, .2));
   vector-effect: non-scaling-stroke;
 }
 
@@ -327,24 +382,50 @@ h1 {
 
 .hero-vessel {
   animation: vessel-cycle 7.2s ease-in-out infinite;
-  filter: drop-shadow(0 2px 5px rgba(22, 141, 181, .48));
+  filter: drop-shadow(3px 5px 0 rgba(64, 103, 112, .22));
 }
 
 .hero-vessel path {
   vector-effect: non-scaling-stroke;
 }
 
-.vessel-hull {
-  fill: #fffdf8;
-  stroke: var(--blue);
-  stroke-width: 3;
+.hero-vessel-bob {
+  animation: hero-boat-bob 1.9s ease-in-out infinite;
+}
+
+.vessel-sticker {
+  fill: #ffffff;
+  stroke: #ffffff;
+  stroke-width: 7;
+  stroke-linecap: round;
   stroke-linejoin: round;
 }
 
-.vessel-sail {
-  fill: var(--blue);
-  stroke: #fffdf8;
+.vessel-wake {
+  fill: none;
+  stroke: #ffffff;
   stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.vessel-mast {
+  fill: none;
+  stroke: #176f89;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.vessel-sail {
+  fill: #f3bd4f;
+  stroke: #af7d34;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.vessel-hull {
+  fill: var(--blue);
+  stroke: #176f89;
+  stroke-width: 1.8;
   stroke-linejoin: round;
 }
 
@@ -354,7 +435,7 @@ h1 {
   width: 220px;
   grid-template-columns: 28px 1fr;
   color: var(--ink);
-  opacity: .28;
+  opacity: .46;
   transition:
     opacity 220ms ease,
     transform 220ms ease;
@@ -378,14 +459,14 @@ h1 {
 }
 
 .route-note strong {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.25;
 }
 
 .route-note small {
   margin-top: 16px;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.45;
 }
 
@@ -629,11 +710,9 @@ h1 {
   width: 100%;
   aspect-ratio: 16 / 9;
   object-fit: cover;
-}
-
-.product-image-link {
-  display: block;
-  cursor: zoom-in;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .product-visual figcaption {
@@ -645,16 +724,7 @@ h1 {
   border-radius: 5px;
   color: #eef2f4;
   background: rgba(23, 26, 30, .82);
-  display: flex;
-  align-items: center;
-  gap: 14px;
   font-size: 9px;
-}
-
-.product-visual figcaption a {
-  padding-left: 14px;
-  border-left: 1px solid rgba(255, 255, 255, .2);
-  color: #ffffff;
 }
 
 .local-copy {
@@ -1045,6 +1115,16 @@ footer a {
   }
 }
 
+@keyframes hero-boat-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
 @keyframes experience-pulse {
   0%,
   68%,
@@ -1066,7 +1146,7 @@ footer a {
   0%,
   31%,
   100% {
-    opacity: .28;
+    opacity: .46;
     transform: translateX(0);
   }
   7%,
@@ -1081,7 +1161,7 @@ footer a {
   25%,
   54%,
   100% {
-    opacity: .28;
+    opacity: .46;
     transform: translateX(0);
   }
   31%,
@@ -1096,7 +1176,7 @@ footer a {
   48%,
   77%,
   100% {
-    opacity: .28;
+    opacity: .46;
     transform: translateX(0);
   }
   55%,
@@ -1110,7 +1190,7 @@ footer a {
   0%,
   69%,
   100% {
-    opacity: .28;
+    opacity: .46;
     transform: translateX(0);
   }
   76%,
@@ -1222,7 +1302,23 @@ footer a {
   }
 
   .hero-route-rail {
-    stroke-width: 10;
+    stroke-width: 23;
+  }
+
+  .hero-route {
+    stroke-width: 16;
+  }
+
+  .hero-route-base {
+    stroke-width: 16;
+  }
+
+  .hero-route-main {
+    stroke-width: 17;
+  }
+
+  .hero-route-base-main {
+    stroke-width: 17;
   }
 
   .route-note {
@@ -1450,6 +1546,8 @@ footer a {
   .hero-copy,
   .hero-route,
   .hero-vessel,
+  .hero-vessel-bob,
+  .hero-channel-mark,
   .node-experience,
   .route-note,
   .scroll-cue span,

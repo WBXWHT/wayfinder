@@ -18,7 +18,7 @@ test("download website exposes architecture-specific release links", () => {
     path.join(root, "website", "wayfinder-app-map.png")
   );
   const productFocusImage = fs.readFileSync(
-    path.join(root, "website", "login-voyage-focus-2k.png")
+    path.join(root, "website", "login-voyage-focus-4k.png")
   );
 
   assert.match(html, /<h1[^>]*>Wayfinder<\/h1>/);
@@ -30,14 +30,19 @@ test("download website exposes architecture-specific release links", () => {
   assert.doesNotMatch(html, />[^<]*0\.3\.7[^<]*</);
   assert.match(html, /class="hero-voyage"/);
   assert.match(html, /class="hero-vessel"/);
+  assert.equal((html.match(/class="hero-route-base /g) || []).length, 3);
+  assert.match(html, /class="vessel-sticker"/);
+  assert.match(html, /translate\(0,-8\) scale\(2\.25\)/);
   assert.match(html, /<animateMotion[\s\S]*?dur="7\.2s"/);
   assert.doesNotMatch(html, /hero-waypoint|data-waypoint/);
   assert.match(html, /src="\.\/wayfinder-icon\.svg"/);
-  assert.match(html, /src="\.\/login-voyage-focus-2k\.png\?v=2k"/);
+  assert.match(html, /src="\.\/login-voyage-focus-4k\.png\?v=4k"/);
+  assert.doesNotMatch(html, /class="product-image-link"/);
+  assert.doesNotMatch(html, /href="\.\/login-voyage-focus-4k\.png/);
   assert.equal(productImage.readUInt32BE(16), 2_560);
   assert.equal(productImage.readUInt32BE(20), 1_440);
-  assert.equal(productFocusImage.readUInt32BE(16), 2_560);
-  assert.equal(productFocusImage.readUInt32BE(20), 1_440);
+  assert.equal(productFocusImage.readUInt32BE(16), 3_840);
+  assert.equal(productFocusImage.readUInt32BE(20), 2_160);
   assert.match(
     html,
     /data-download="arm64"[\s\S]*?href="https:\/\/github\.com\/WBXWHT\/wayfinder\/releases"/
@@ -88,7 +93,11 @@ test("website scripts parse and visual CSS avoids decorative gradients", () => {
   assert.match(styles, /@keyframes route-main-draw/);
   assert.match(styles, /@keyframes route-success-draw/);
   assert.match(styles, /@keyframes route-failure-draw/);
+  assert.match(styles, /\.hero-route-rail\s*\{[\s\S]*?stroke-width: 31/);
+  assert.match(styles, /\.hero-route\s*\{[\s\S]*?stroke-width: 21/);
+  assert.match(styles, /\.hero-vessel-bob\s*\{/);
   assert.doesNotMatch(styles, /hero-waypoint|waypoint-enter/);
+  assert.doesNotMatch(styles, /\.product-image-link/);
   assert.match(script, /"windowsX64"/);
 });
 
