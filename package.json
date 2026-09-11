@@ -7,11 +7,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/WBXWHT/wayfinder"
+    "url": "https://github.com/StayCurious-Xuan/wayfinder"
   },
   "homepage": "https://wayfinder-ai.pages.dev",
   "bugs": {
-    "url": "https://github.com/WBXWHT/wayfinder/issues"
+    "url": "https://github.com/StayCurious-Xuan/wayfinder/issues"
   },
   "scripts": {
     "clean": "rimraf out",

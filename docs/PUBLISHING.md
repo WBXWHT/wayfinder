@@ -9,11 +9,11 @@ Wayfinder is distributed as a desktop application for macOS and Windows.
 | Channel | Public entry | Status |
 | --- | --- | --- |
 | Official website | https://wayfinder-ai.pages.dev | Live download site |
-| Desktop app | https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.9 | Apple Silicon and Intel DMGs plus Windows x64 NSIS installer |
-| Source | https://github.com/WBXWHT/wayfinder | Public repository and CI |
+| Desktop app | https://github.com/StayCurious-Xuan/wayfinder/releases/tag/alpha-v0.3.9 | Apple Silicon and Intel DMGs plus Windows x64 NSIS installer |
+| Source | https://github.com/StayCurious-Xuan/wayfinder | Public repository and CI |
 | Product Hunt | https://www.producthunt.com/products/wayfinder-5?launch=wayfinder-6 | Public listing updated to the macOS and Windows desktop positioning |
-| Issues | https://github.com/WBXWHT/wayfinder/issues | Public support channel |
-| Privacy | https://github.com/WBXWHT/wayfinder/blob/main/PRIVACY.md | Local-data policy |
+| Issues | https://github.com/StayCurious-Xuan/wayfinder/issues | Public support channel |
+| Privacy | https://github.com/StayCurious-Xuan/wayfinder/blob/main/PRIVACY.md | Local-data policy |
 
 The website, README, install guide, and future release notes must first explain
 Wayfinder's value across AI-assisted conversations, research, writing, design,
@@ -41,7 +41,7 @@ supported product surfaces:
 Historical release assets remain available for reproducibility. They must not
 be updated, relabeled as current, or linked as recommended installation paths.
 The self-hosted Homebrew and Scoop repositories were archived on 2026-09-10.
-The five open GitHub submissions owned by WBXWHT for plugins, Skills,
+The five open GitHub submissions owned by StayCurious-Xuan for plugins, Skills,
 workflows, and MCP directories were closed as withdrawn on the same date.
 
 ## Release Process

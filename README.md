@@ -11,11 +11,11 @@ Wayfinder is designed for AI collaboration across coding, research, writing,
 design, and other project work. The current early-access collectors support
 Codex and Claude Code.
 
-[Download Wayfinder](https://github.com/WBXWHT/wayfinder/releases) ·
+[Download Wayfinder](https://github.com/StayCurious-Xuan/wayfinder/releases) ·
 [Website](https://wayfinder-ai.pages.dev) ·
 [Install guide](docs/INSTALL.md) ·
 [Privacy](PRIVACY.md) ·
-[Report an issue](https://github.com/WBXWHT/wayfinder/issues)
+[Report an issue](https://github.com/StayCurious-Xuan/wayfinder/issues)
 
 ![Wayfinder showing several AI collaboration voyages on one project map](docs/assets/wayfinder-product-hunt-map.png)
 
@@ -53,7 +53,7 @@ Wayfinder early access is available for:
 | Windows | x64 |
 
 Download the latest installers and checksums from
-[GitHub Releases](https://github.com/WBXWHT/wayfinder/releases). The current
+[GitHub Releases](https://github.com/StayCurious-Xuan/wayfinder/releases). The current
 early-access builds are not store-signed; read the
 [install guide](docs/INSTALL.md) before first launch.
 

@@ -122,7 +122,7 @@ async function loadDownloads() {
     });
   } catch {
     document.querySelectorAll("[data-download]").forEach((link) => {
-      link.href = "https://github.com/WBXWHT/wayfinder/releases";
+      link.href = "https://github.com/StayCurious-Xuan/wayfinder/releases";
     });
   }
 }

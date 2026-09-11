@@ -48,7 +48,7 @@ test("download website exposes architecture-specific release links", () => {
   assert.equal(productFocusImage.readUInt32BE(20), 2_160);
   assert.match(
     html,
-    /data-download="arm64"[\s\S]*?href="https:\/\/github\.com\/WBXWHT\/wayfinder\/releases"/
+    /data-download="arm64"[\s\S]*?href="https:\/\/github\.com\/StayCurious-Xuan\/wayfinder\/releases"/
   );
   assert.doesNotMatch(html, /无需 Node、插件或 MCP/);
   assert.doesNotMatch(html, /首次打开需在系统设置中允许/);
@@ -62,17 +62,17 @@ test("download website exposes architecture-specific release links", () => {
     : `Wayfinder-${releases.version}`;
   assert.equal(
     releases.downloads.arm64,
-    `https://github.com/WBXWHT/wayfinder/releases/download/${tag}/` +
+    `https://github.com/StayCurious-Xuan/wayfinder/releases/download/${tag}/` +
       `${assetPrefix}-macOS-aarch64.dmg`
   );
   assert.equal(
     releases.downloads.x64,
-    `https://github.com/WBXWHT/wayfinder/releases/download/${tag}/` +
+    `https://github.com/StayCurious-Xuan/wayfinder/releases/download/${tag}/` +
       `${assetPrefix}-macOS-x86_64.dmg`
   );
   assert.equal(
     releases.downloads.windowsX64,
-    `https://github.com/WBXWHT/wayfinder/releases/download/${tag}/` +
+    `https://github.com/StayCurious-Xuan/wayfinder/releases/download/${tag}/` +
       `${assetPrefix}-Windows-x86_64.exe`
   );
 });
@@ -163,7 +163,7 @@ test("unpublished downloads fall back to the release page", async () => {
 
   assert.equal(
     runtime.arm64Link.href,
-    "https://github.com/WBXWHT/wayfinder/releases"
+    "https://github.com/StayCurious-Xuan/wayfinder/releases"
   );
   assert.equal(runtime.x64Link.href, runtime.arm64Link.href);
   assert.equal(runtime.windowsLink.href, runtime.arm64Link.href);
@@ -246,7 +246,7 @@ async function runWebsiteScript(
       json: async () => ({
         version: "0.3.3",
         published,
-        releasePage: "https://github.com/WBXWHT/wayfinder/releases",
+        releasePage: "https://github.com/StayCurious-Xuan/wayfinder/releases",
         downloads: {
           arm64: "https://example.test/macOS-aarch64.dmg",
           x64: "https://example.test/macOS-x86_64.dmg",

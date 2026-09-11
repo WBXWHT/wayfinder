@@ -4,7 +4,7 @@ Current public version: **0.3.9 early access**.
 
 Wayfinder is distributed as a desktop application for macOS and Windows:
 
-https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.9
+https://github.com/StayCurious-Xuan/wayfinder/releases/tag/alpha-v0.3.9
 
 ## Choose Your Installer
 

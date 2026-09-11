@@ -157,7 +157,7 @@ fn open_data_folder() -> Result<String, String> {
 #[tauri::command]
 fn open_release_page() -> Result<(), String> {
     open_with_system(
-        std::ffi::OsStr::new("https://github.com/WBXWHT/wayfinder/releases"),
+        std::ffi::OsStr::new("https://github.com/StayCurious-Xuan/wayfinder/releases"),
         "Wayfinder release page",
     )
 }

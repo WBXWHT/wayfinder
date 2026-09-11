@@ -109,7 +109,7 @@ jobs:
           for (const [architecture, raw, assetName] of downloads) {
             const url = new URL(raw);
             const expectedPath =
-              `/WBXWHT/wayfinder/releases/download/${channel.tag}/` +
+              `/StayCurious-Xuan/wayfinder/releases/download/${channel.tag}/` +
               assetName;
             if (
               url.protocol !== "https:" ||

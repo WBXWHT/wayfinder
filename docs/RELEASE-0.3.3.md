@@ -4,7 +4,7 @@
 > reproducibility and are not supported installation paths. Wayfinder is now
 > distributed only as a macOS and Windows desktop application. Download the
 > current release from
-> [Wayfinder 0.3.9 Alpha](https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.9).
+> [Wayfinder 0.3.9 Alpha](https://github.com/StayCurious-Xuan/wayfinder/releases/tag/alpha-v0.3.9).
 
 AI work is usually scattered across one chat after another. When the chat ends,
 the reasoning, failed attempts, and useful decisions are easy to lose.
@@ -40,7 +40,7 @@ build while preserving the multi-host distribution added in 0.3.1.
 - `server.json`, `SHA256SUMS`, and `artifacts.json`: registry metadata and
   integrity records.
 
-Install guide: https://github.com/WBXWHT/wayfinder#install
+Install guide: https://github.com/StayCurious-Xuan/wayfinder#install
 
 ## Verification
 

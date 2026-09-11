@@ -2,9 +2,9 @@
 name = "wayfinder-companion"
 version = "0.3.10"
 description = "Local voyage map for Wayfinder AI collaboration"
-authors = ["WBXWHT"]
+authors = ["StayCurious-Xuan"]
 license = "MIT"
-repository = "https://github.com/WBXWHT/wayfinder"
+repository = "https://github.com/StayCurious-Xuan/wayfinder"
 edition = "2021"
 
 [build-dependencies]

@@ -4,7 +4,7 @@
 > reproducibility and are not supported installation paths. Wayfinder is now
 > distributed only as a macOS and Windows desktop application. Download the
 > current release from
-> [Wayfinder 0.3.9 Alpha](https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.9).
+> [Wayfinder 0.3.9 Alpha](https://github.com/StayCurious-Xuan/wayfinder/releases/tag/alpha-v0.3.9).
 
 A local voyage map for AI coding sessions, with an IDE sidebar, Claude/Codex
 capture adapters, an Agent Skill, an in-conversation MCP App, and a terminal
@@ -21,7 +21,7 @@ text tree. The primary experience stays inside the host.
 - `server.json`: official MCP Registry submission metadata.
 - `SHA256SUMS` and `artifacts.json`: integrity and artifact inventory.
 
-Install guides: https://github.com/WBXWHT/wayfinder#install
+Install guides: https://github.com/StayCurious-Xuan/wayfinder#install
 
 ## Verification
 
@@ -43,5 +43,5 @@ MCP tool/resource calls. The MCP bundle passes the official manifest validator.
 
 No telemetry or Wayfinder cloud backend is included. MCP calls expose selected
 project content to the calling AI host. Read
-https://github.com/WBXWHT/wayfinder/blob/main/PRIVACY.md before connecting
+https://github.com/StayCurious-Xuan/wayfinder/blob/main/PRIVACY.md before connecting
 confidential projects.

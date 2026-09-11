@@ -2,10 +2,10 @@
   "version": "0.3.9",
   "channel": "alpha",
   "published": true,
-  "releasePage": "https://github.com/WBXWHT/wayfinder/releases",
+  "releasePage": "https://github.com/StayCurious-Xuan/wayfinder/releases",
   "downloads": {
-    "arm64": "https://github.com/WBXWHT/wayfinder/releases/download/alpha-v0.3.9/Wayfinder-Alpha-0.3.9-macOS-aarch64.dmg",
-    "x64": "https://github.com/WBXWHT/wayfinder/releases/download/alpha-v0.3.9/Wayfinder-Alpha-0.3.9-macOS-x86_64.dmg",
-    "windowsX64": "https://github.com/WBXWHT/wayfinder/releases/download/alpha-v0.3.9/Wayfinder-Alpha-0.3.9-Windows-x86_64.exe"
+    "arm64": "https://github.com/StayCurious-Xuan/wayfinder/releases/download/alpha-v0.3.9/Wayfinder-Alpha-0.3.9-macOS-aarch64.dmg",
+    "x64": "https://github.com/StayCurious-Xuan/wayfinder/releases/download/alpha-v0.3.9/Wayfinder-Alpha-0.3.9-macOS-x86_64.dmg",
+    "windowsX64": "https://github.com/StayCurious-Xuan/wayfinder/releases/download/alpha-v0.3.9/Wayfinder-Alpha-0.3.9-Windows-x86_64.exe"
   }
 }
