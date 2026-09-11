@@ -1,6 +1,6 @@
 # External Recognition
 
-Status reviewed: 2026-09-11.
+Status reviewed: 2026-09-12.
 
 Only externally verifiable outcomes may be described as recognition. A
 submission, open pull request, self-authored community post, or pending review
@@ -83,7 +83,7 @@ remain external decisions.
 The current listing uses three synthetic public-demo screenshots at
 2560x1280 or 2560x1440. The GitHub release and both official GitHub Show and
 Tell posts use the same public imagery and link to the current username and
-0.3.10 release.
+0.3.11 release.
 
 ## Resume Rule
 

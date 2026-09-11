@@ -1,6 +1,6 @@
 # Public Presentation Standard
 
-Reviewed: 2026-09-11.
+Reviewed: 2026-09-12.
 
 This document is the consistency contract for Wayfinder's public surfaces. It
 keeps positioning factual while applying patterns used by established
@@ -30,7 +30,7 @@ result.
 - macOS: Apple Silicon and Intel
 - Windows: x64
 - Current collectors: Codex and Claude Code
-- Current public release: 0.3.10 early access
+- Current public release: 0.3.11 early access
 
 Do not describe Codex and Claude Code as the product boundary. Do not claim
 support for an unreleased collector, package manager, plugin, Skill, or MCP

@@ -40,7 +40,9 @@ test("download website exposes architecture-specific release links", () => {
   assert.doesNotMatch(html, /<animateMotion/);
   assert.doesNotMatch(html, /hero-waypoint|data-waypoint/);
   assert.match(html, /src="\.\/wayfinder-icon\.svg"/);
-  assert.match(html, /src="\.\/login-voyage-focus-4k\.png\?v=map-0\.3\.10"/);
+  assert.match(html, /href="\.\/styles\.css\?v=0\.3\.11-anchored"/);
+  assert.match(html, /src="\.\/app\.js\?v=0\.3\.11-anchored"/);
+  assert.match(html, /src="\.\/login-voyage-focus-4k\.png\?v=map-0\.3\.11"/);
   assert.match(html, /<figure class="product-visual">/);
   assert.doesNotMatch(html, /class="product-image-link"/);
   assert.doesNotMatch(html, /href="\.\/login-voyage-focus-4k\.png/);

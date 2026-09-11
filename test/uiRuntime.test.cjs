@@ -2847,7 +2847,7 @@ test(
         assert.equal(layout.legacyWaypoints, 0);
         assert.equal(
           layout.productImageSource,
-          "./login-voyage-focus-4k.png?v=map-0.3.10"
+          "./login-voyage-focus-4k.png?v=map-0.3.11"
         );
         assert.equal(layout.productImageInteractive, false);
         assert.ok(layout.heroVoyage.width > 0);
