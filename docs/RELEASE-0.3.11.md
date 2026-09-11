@@ -20,7 +20,7 @@ short-window map behavior.
 
 ## Verification
 
-- JavaScript and Chromium suite: 159 tests.
+- JavaScript and Chromium suite: 160 tests.
 - Rust companion suite: 9 tests.
 - ESLint, TypeScript, Clippy, npm audit, and cargo audit passed.
 - Browser checks cover 320x568, 812x375, 1080x720, and 1440x900.

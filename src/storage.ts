@@ -201,7 +201,24 @@ function errorMessage(error: unknown): string {
 }
 
 async function commitTempFile(temp: string, target: string): Promise<void> {
-  await fs.promises.rename(temp, target);
+  const retryableCodes = new Set(["EACCES", "EBUSY", "EPERM"]);
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await fs.promises.rename(temp, target);
+      return;
+    } catch (error) {
+      const code =
+        typeof error === "object" && error !== null && "code" in error
+          ? String(error.code)
+          : "";
+      if (!retryableCodes.has(code) || attempt >= 7) {
+        throw error;
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.min(10 * (2 ** attempt), 160))
+      );
+    }
+  }
 }
 
 async function withProjectLock<T>(

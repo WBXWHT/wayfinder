@@ -11,7 +11,8 @@ const {
   projectDataDir,
   readProjectConfig,
   readProjectState,
-  statePathFor
+  statePathFor,
+  writeProjectState
 } = require("../out/storage.js");
 
 test("state commits replace the target with one rename on every platform", () => {
@@ -21,6 +22,33 @@ test("state commits replace the target with one rename on every platform", () =>
   );
   assert.match(source, /await fs\.promises\.rename\(temp, target\)/);
   assert.doesNotMatch(source, /copyFile\(temp, target\)/);
+});
+
+test("state commits retry transient rename failures", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wayfinder-rename-"));
+  const root = path.join(sandbox, "project");
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  fs.mkdirSync(root, { recursive: true });
+  const state = await ensureProjectState(root);
+  const originalRename = fs.promises.rename;
+  let attempts = 0;
+  fs.promises.rename = async (...args) => {
+    attempts += 1;
+    if (attempts < 3) {
+      const error = new Error("transient scanner lock");
+      error.code = "EPERM";
+      throw error;
+    }
+    return originalRename(...args);
+  };
+  try {
+    await writeProjectState(root, state);
+  } finally {
+    fs.promises.rename = originalRename;
+  }
+
+  assert.equal(attempts, 3);
+  assert.ok(await readProjectState(root));
 });
 
 test("concurrent callers recover one dead lock without losing updates", async () => {

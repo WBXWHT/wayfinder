@@ -26,7 +26,7 @@
     "watch": "tsc -w -p .",
     "import:history": "npm run compile && node scripts/import-memory-history.cjs",
     "lint": "eslint src test",
-    "test": "npm run compile && node --test test/*.test.cjs",
+    "test": "npm run compile && node --test --test-concurrency=1 test/*.test.cjs",
     "check": "npm run lint && npm test"
   },
   "dependencies": {
