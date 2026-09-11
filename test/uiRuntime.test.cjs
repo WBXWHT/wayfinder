@@ -1773,6 +1773,12 @@ test(
       assert.ok(singleVoyage.label.length > 0);
       assert.equal(singleVoyage.coastCoversCanvas, true);
 
+      await cdp.send("Emulation.setEmulatedMedia", {
+        media: "screen",
+        features: [
+          { name: "prefers-reduced-motion", value: "no-preference" }
+        ]
+      });
       for (const viewport of [
         { width: 320, height: 568 },
         { width: 812, height: 375 },
@@ -1789,23 +1795,46 @@ test(
         await waitForExpression(
           cdp,
           `location.search === '?viewport=${viewport.width}' &&
-            document.querySelectorAll('.hero-actions .action').length === 2`
+            document.querySelectorAll(
+              '.hero-downloads [data-download]'
+            ).length === 3 &&
+            getComputedStyle(
+              document.querySelector('.hero-downloads')
+            ).display === 'grid'`
         );
         const layout = await evaluateJson(
           cdp,
           `(() => {
             const hero = document.querySelector('.hero').getBoundingClientRect();
             const downloads = [...document.querySelectorAll(
-              '.hero-actions .action'
+              '.hero-downloads [data-download]'
             )].map((element) => {
               const rect = element.getBoundingClientRect();
-              return { top: rect.top, bottom: rect.bottom };
+              return {
+                top: rect.top,
+                right: rect.right,
+                bottom: rect.bottom,
+                left: rect.left
+              };
             });
             return {
               width: innerWidth,
               height: innerHeight,
               scrollWidth: document.documentElement.scrollWidth,
               heroBottom: hero.bottom,
+              heroHeight: getComputedStyle(
+                document.querySelector('.hero')
+              ).height,
+              downloadColumns: getComputedStyle(
+                document.querySelector('.hero-downloads')
+              ).gridTemplateColumns,
+              scrollSnapType: getComputedStyle(
+                document.documentElement
+              ).scrollSnapType,
+              finalTitleFits: (() => {
+                const title = document.querySelector('#download-title');
+                return title.scrollWidth <= title.clientWidth;
+              })(),
               downloads,
               storyHeights: [...document.querySelectorAll(
                 '.story-section'
@@ -1815,6 +1844,8 @@ test(
         );
         assert.equal(layout.width, viewport.width);
         assert.equal(layout.scrollWidth, viewport.width);
+        assert.equal(layout.scrollSnapType, "none");
+        assert.equal(layout.finalTitleFits, true);
         assert.ok(
           layout.heroBottom >= layout.height - .5,
           JSON.stringify({ viewport, layout })
@@ -1823,7 +1854,9 @@ test(
           layout.downloads.every(
             (download) =>
               download.top >= 0 &&
-              download.bottom <= layout.heroBottom + .5
+              download.bottom <= layout.heroBottom + .5 &&
+              download.left >= 0 &&
+              download.right <= layout.width + .5
           )
         );
         if (viewport.width >= 1000) {
@@ -1839,6 +1872,28 @@ test(
       }
 
       await delay(1_600);
+      const animatedSignature = async () =>
+        evaluate(
+          cdp,
+          `(() => {
+            const canvas = document.querySelector('#voyageCanvas');
+            const pixels = canvas.getContext('2d').getImageData(
+              0,
+              0,
+              canvas.width,
+              canvas.height
+            ).data;
+            let signature = 0;
+            for (let index = 0; index < pixels.length; index += 256) {
+              signature = (signature + pixels[index] + pixels[index + 1]) %
+                1_000_000_007;
+            }
+            return signature;
+          })()`
+        );
+      const firstMotionFrame = await animatedSignature();
+      await delay(260);
+      const secondMotionFrame = await animatedSignature();
       const canvasBeforeResize = await evaluate(
         cdp,
         `(() => {
@@ -1878,6 +1933,7 @@ test(
           return false;
         })()`
       );
+      assert.notEqual(firstMotionFrame, secondMotionFrame);
       assert.equal(canvasBeforeResize, true);
       assert.equal(canvasAfterResize, true);
 

@@ -11,7 +11,7 @@
   <title>Wayfinder — AI 协作航海图</title>
   <link rel="icon" href="./wayfinder-icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./wayfinder-icon.png">
-  <link rel="stylesheet" href="./styles.css?v=0.3.7">
+  <link rel="stylesheet" href="./styles.css?v=0.3.7-2">
 </head>
 <body>
   <header class="site-header">
@@ -44,18 +44,27 @@
         <p class="eyebrow">DESKTOP APP · MACOS + WINDOWS</p>
         <h1 id="hero-title">Wayfinder</h1>
         <p class="hero-line">把 Codex 与 Claude Code 的尝试、分叉和真实文件变更，留在一张本地航海图里。</p>
-        <div class="hero-actions">
-          <a class="action action-primary" data-default-download
+        <div class="download-grid hero-downloads" role="group"
+          aria-label="下载 Wayfinder">
+          <a class="download-option" data-download="arm64"
             href="https://github.com/WBXWHT/wayfinder/releases">
-            <span>下载桌面版</span>
-            <small data-default-version>macOS 与 Windows · Early Access</small>
+            <strong>macOS</strong>
+            <span>Apple Silicon</span>
           </a>
-          <a class="action action-secondary" href="#download">查看全部版本 ↓</a>
+          <a class="download-option" data-download="x64"
+            href="https://github.com/WBXWHT/wayfinder/releases">
+            <strong>macOS</strong>
+            <span>Intel</span>
+          </a>
+          <a class="download-option" data-download="windowsX64"
+            href="https://github.com/WBXWHT/wayfinder/releases">
+            <strong>Windows</strong>
+            <span>x64</span>
+          </a>
         </div>
-        <p class="platform-note" data-platform-note>Apple Silicon · Intel · Windows x64</p>
       </div>
       <div class="hero-status" role="group" aria-label="产品状态">
-        <span><i class="status-dot"></i> 本地记录</span>
+        <span><i class="status-dot"></i> 航程正在形成</span>
         <span>真实 Diff</span>
         <span>跨工具归并</span>
       </div>
@@ -90,19 +99,19 @@
     <section class="story-section local-band reveal"
       aria-labelledby="local-title">
       <figure class="product-visual" data-parallax>
-        <img src="./wayfinder-app-map.png"
-          alt="Wayfinder 桌面应用中的真实 Skill 航海图，显示项目、航迹节点和来源文件"
+        <img src="./wayfinder-app-map.png?v=2k"
+          alt="Wayfinder 示例航程，展示登录问题从复现、失败分支到验证成功和经验沉淀的完整路径"
           loading="lazy" decoding="async">
-        <figcaption>真实产品界面 · Skill 航海图</figcaption>
+        <figcaption>示例航程 · 登录回跳稳定性</figcaption>
       </figure>
       <div class="local-copy">
-        <p class="eyebrow">LOCAL BY DESIGN</p>
-        <h2 id="local-title">真实协作记录，只在本机重组。</h2>
-        <p>Wayfinder 直接读取本地会话，把来源、分支、文件变更和验证结果还原到对应航点；完整历史保存在 <code>~/.wayfinder</code>。</p>
-        <div class="fact-line" role="group" aria-label="隐私特性">
-          <span>无需账号</span>
-          <span>无云端分析</span>
-          <span>本地增量采集</span>
+        <p class="eyebrow">FROM WORK TO EXPERIENCE</p>
+        <h2 id="local-title">看见哪条路奏效，哪条路应该放弃。</h2>
+        <p>从复现问题，到排除错误方案，再到跨浏览器验证；每个结论都连着对应会话、文件与测试证据。</p>
+        <div class="fact-line" role="group" aria-label="航程价值">
+          <span>目标与分支</span>
+          <span>失败证据</span>
+          <span>可复用经验</span>
         </div>
         <a class="text-link" href="./privacy.html">查看数据边界 →</a>
       </div>
@@ -133,21 +142,22 @@
         <circle cx="480" cy="246" r="9"></circle>
       </svg>
       <div class="final-copy">
-        <p class="eyebrow">EARLY ACCESS</p>
-        <h2 id="download-title">下一次选择，不必从零开始。</h2>
-        <p>在 macOS 与 Windows 上，把已经走过的路径、证据和结果留给下一次决策。</p>
-        <div class="version-links" role="group" aria-label="下载 Wayfinder">
-          <a data-download="arm64"
+        <p class="eyebrow">TURN WORK INTO EXPERIENCE</p>
+        <h2 id="download-title">把每一次 AI 协作，沉淀成一张看得懂的航海图。</h2>
+        <p>目标、尝试、分叉、失败和真实文件变更都被保留下来，成为下一次可以直接复用的经验。</p>
+        <div class="download-grid final-downloads" role="group"
+          aria-label="下载 Wayfinder">
+          <a class="download-option" data-download="arm64"
             href="https://github.com/WBXWHT/wayfinder/releases">
-            <strong>Apple Silicon</strong><span data-version="macos">macOS · Early Access</span>
+            <strong>macOS</strong><span>Apple Silicon</span>
           </a>
-          <a data-download="x64"
+          <a class="download-option" data-download="x64"
             href="https://github.com/WBXWHT/wayfinder/releases">
-            <strong>Intel Mac</strong><span>macOS x64</span>
+            <strong>macOS</strong><span>Intel</span>
           </a>
-          <a data-download="windowsX64"
+          <a class="download-option" data-download="windowsX64"
             href="https://github.com/WBXWHT/wayfinder/releases">
-            <strong>Windows</strong><span data-version="windows">Windows x64 · Early Access</span>
+            <strong>Windows</strong><span>x64</span>
           </a>
         </div>
       </div>
@@ -162,6 +172,6 @@
       <a href="https://github.com/WBXWHT/wayfinder/issues">反馈</a>
     </span>
   </footer>
-  <script src="./app.js?v=0.3.7" defer></script>
+  <script src="./app.js?v=0.3.7-2" defer></script>
 </body>
 </html>

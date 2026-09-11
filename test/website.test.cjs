@@ -14,15 +14,22 @@ test("download website exposes architecture-specific release links", () => {
     path.join(root, "website", "releases.json"),
     "utf8"
   ));
+  const productImage = fs.readFileSync(
+    path.join(root, "website", "wayfinder-app-map.png")
+  );
 
   assert.match(html, /<h1[^>]*>Wayfinder<\/h1>/);
   assert.match(html, /data-download="arm64"/);
   assert.match(html, /data-download="x64"/);
   assert.match(html, /data-download="windowsX64"/);
-  assert.match(html, /data-default-download/);
+  assert.equal((html.match(/data-download="/g) || []).length, 6);
+  assert.doesNotMatch(html, /data-default-download|data-version=/);
+  assert.doesNotMatch(html, />[^<]*0\.3\.7[^<]*</);
   assert.match(html, /class="hero-waypoint waypoint-start"/);
   assert.match(html, /src="\.\/wayfinder-icon\.svg"/);
-  assert.match(html, /src="\.\/wayfinder-app-map\.png"/);
+  assert.match(html, /src="\.\/wayfinder-app-map\.png\?v=2k"/);
+  assert.equal(productImage.readUInt32BE(16), 2_560);
+  assert.equal(productImage.readUInt32BE(20), 1_440);
   assert.match(
     html,
     /data-download="arm64"[\s\S]*?href="https:\/\/github\.com\/WBXWHT\/wayfinder\/releases"/
@@ -66,11 +73,10 @@ test("website scripts parse and visual CSS avoids decorative gradients", () => {
   assert.match(styles, /a:focus-visible/);
   assert.match(styles, /\.hero\s*\{/);
   assert.match(styles, /#voyageCanvas/);
+  assert.doesNotMatch(styles, /scroll-snap-/);
   assert.match(script, /prefers-reduced-motion: reduce/);
-  assert.match(script, /data-default-download/);
-  assert.match(script, /release\.downloads\?\.\[target\]/);
-  assert.match(script, /detectDownloadTarget/);
-  assert.match(script, /"选择桌面版本"/);
+  assert.match(script, /drawRouteSignals/);
+  assert.match(script, /updateActiveWaypoint/);
   assert.match(script, /"windowsX64"/);
 });
 
@@ -95,44 +101,28 @@ test("Cloudflare deployment cannot silently claim the occupied project name", ()
   assert.match(workflow, /--retry-all-errors/);
 });
 
-test("Intel detection updates the generic CTA and reduced motion stops animation", async () => {
-  const runtime = await runWebsiteScript("x86");
+test("published downloads expose every desktop installer equally", async () => {
+  const runtime = await runWebsiteScript();
 
-  assert.match(runtime.defaultLink.href, /macOS-x86_64\.dmg$/);
-  assert.equal(runtime.defaultLink.textContent, "下载 macOS 版");
+  assert.match(runtime.arm64Link.href, /macOS-aarch64\.dmg$/);
+  assert.match(runtime.x64Link.href, /macOS-x86_64\.dmg$/);
+  assert.match(runtime.windowsLink.href, /Windows-x86_64\.exe$/);
   assert.equal(runtime.animationFrames, 0);
 });
 
-test("Windows detection selects the public NSIS installer", async () => {
-  const runtime = await runWebsiteScript(undefined, true, true, "Windows");
-
-  assert.match(runtime.defaultLink.href, /Windows-x86_64\.exe$/);
-  assert.equal(runtime.defaultLink.textContent, "下载 Windows 版");
-  assert.equal(runtime.windowsLink.hidden, false);
-});
-
-test("unknown Mac architecture keeps the generic release chooser", async () => {
-  const runtime = await runWebsiteScript(undefined);
-
-  assert.equal(
-    runtime.defaultLink.href,
-    "https://github.com/WBXWHT/wayfinder/releases"
-  );
-  assert.equal(runtime.defaultLink.textContent, "选择桌面版本");
-});
-
 test("unpublished downloads fall back to the release page", async () => {
-  const runtime = await runWebsiteScript("arm64", false);
+  const runtime = await runWebsiteScript(false);
 
   assert.equal(
     runtime.arm64Link.href,
     "https://github.com/WBXWHT/wayfinder/releases"
   );
-  assert.equal(runtime.defaultLink.href, runtime.arm64Link.href);
+  assert.equal(runtime.x64Link.href, runtime.arm64Link.href);
+  assert.equal(runtime.windowsLink.href, runtime.arm64Link.href);
 });
 
 test("runtime reduced-motion changes cancel the active canvas frame", async () => {
-  const runtime = await runWebsiteScript("arm64", true, false);
+  const runtime = await runWebsiteScript(true, false);
   assert.equal(runtime.animationFrames, 1);
 
   runtime.setReducedMotion(true);
@@ -141,7 +131,7 @@ test("runtime reduced-motion changes cancel the active canvas frame", async () =
 });
 
 test("canvas redraws when resized after its entrance animation", async () => {
-  const runtime = await runWebsiteScript("arm64", true, false);
+  const runtime = await runWebsiteScript(true, false);
 
   runtime.finishAnimation();
   const clearsBeforeResize = runtime.clears;
@@ -152,10 +142,8 @@ test("canvas redraws when resized after its entrance animation", async () => {
 });
 
 async function runWebsiteScript(
-  architecture,
   published = true,
-  initiallyReduced = true,
-  platform = "macOS"
+  initiallyReduced = true
 ) {
   const script = fs.readFileSync(path.join(root, "website", "app.js"), "utf8");
   const drawingContext = new Proxy({}, {
@@ -192,16 +180,12 @@ async function runWebsiteScript(
       owner: undefined
     }
   });
-  const arm64Link = link("arm64", ["download", "primary"]);
-  const x64Link = link("x64", ["download", "secondary"]);
-  const windowsLink = link("windowsX64", ["download", "secondary"]);
-  const defaultLink = link("arm64", ["download", "primary", "compact"]);
-  for (const item of [arm64Link, x64Link, windowsLink, defaultLink]) {
+  const arm64Link = link("arm64", ["download-option"]);
+  const x64Link = link("x64", ["download-option"]);
+  const windowsLink = link("windowsX64", ["download-option"]);
+  for (const item of [arm64Link, x64Link, windowsLink]) {
     item.classList.owner = item;
   }
-  const macVersion = { textContent: "" };
-  const windowsVersion = { textContent: "" };
-  const defaultVersion = { textContent: "" };
   let animationFrames = 0;
   let cancelledFrames = 0;
   let motionListener;
@@ -231,13 +215,7 @@ async function runWebsiteScript(
         if (event === "change") motionListener = listener;
       }
     }),
-    navigator: {
-      userAgentData: {
-        platform,
-        getHighEntropyValues: async () => ({ architecture })
-      },
-      userAgent: platform
-    },
+    navigator: {},
     performance: { now: () => 1_000 },
     requestAnimationFrame: (callback) => {
       animationFrames += 1;
@@ -250,19 +228,12 @@ async function runWebsiteScript(
     document: {
       querySelector(selector) {
         if (selector === "#voyageCanvas") return canvas;
-        if (selector === "[data-default-version]") return defaultVersion;
-        if (selector.includes("arm64")) return arm64Link;
-        if (selector.includes("windowsX64")) return windowsLink;
-        if (selector.includes("x64")) return x64Link;
         return undefined;
       },
       querySelectorAll(selector) {
-        if (selector === "[data-version='macos']") return [macVersion];
-        if (selector === "[data-version='windows']") return [windowsVersion];
         if (selector === "[data-download]") {
           return [arm64Link, x64Link, windowsLink];
         }
-        if (selector === "[data-default-download]") return [defaultLink];
         return [];
       }
     },
@@ -279,7 +250,6 @@ async function runWebsiteScript(
     arm64Link,
     x64Link,
     windowsLink,
-    defaultLink,
     animationFrames,
     get clears() {
       return clears;

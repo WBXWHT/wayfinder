@@ -7,6 +7,7 @@ let pointerY = 0;
 let startedAt = performance.now();
 let animationFrame;
 let scrollFrame;
+let activeWaypoint;
 const motionPreference = globalThis.matchMedia?.(
   "(prefers-reduced-motion: reduce)"
 );
@@ -73,7 +74,7 @@ function positionWaypoints() {
 function draw(time) {
   if (!context) return;
   context.clearRect(0, 0, width, height);
-  drawMapSurface();
+  drawMapSurface(time);
   const progress = Math.min(1, (time - startedAt) / 1_250);
   const shiftX = pointerX * 8;
   const shiftY = pointerY * 8;
@@ -82,7 +83,9 @@ function draw(time) {
   for (const route of routes) {
     drawRoute(route, progress, time);
   }
+  drawRouteSignals(time, progress);
   context.restore();
+  updateActiveWaypoint(time);
   document.querySelector(".hero-waypoints")?.style.setProperty(
     "--route-shift-x",
     `${shiftX}px`
@@ -94,7 +97,7 @@ function draw(time) {
   animationFrame = reducedMotion ? undefined : requestAnimationFrame(draw);
 }
 
-function drawMapSurface() {
+function drawMapSurface(time) {
   const coastBase = width <= 820 ? width * .86 : width * .5;
   const coastX = (y) =>
     coastBase + Math.sin(y / 142) * 10 + Math.sin(y / 57) * 4;
@@ -164,6 +167,7 @@ function drawMapSurface() {
   context.strokeStyle = "#acdce7";
   context.lineWidth = 1.2;
   context.setLineDash([4, 10]);
+  context.lineDashOffset = -(time - startedAt) / 120;
   context.stroke();
   context.setLineDash([]);
 }
@@ -218,21 +222,109 @@ function drawRoute(route, progress, time) {
   });
 }
 
+function pointOnRoute(route, progress) {
+  const points = route.points.map(mapPoint);
+  const scaled = Math.max(0, Math.min(.9999, progress)) * (points.length - 1);
+  const index = Math.min(points.length - 2, Math.floor(scaled));
+  const t = scaled - index;
+  const [x0, y0] = points[index];
+  const [x3, y3] = points[index + 1];
+  const middleY = y0 + (y3 - y0) * .5;
+  const x1 = x0;
+  const y1 = middleY;
+  const x2 = x3;
+  const y2 = middleY;
+  const inverse = 1 - t;
+  const x =
+    inverse ** 3 * x0 +
+    3 * inverse ** 2 * t * x1 +
+    3 * inverse * t ** 2 * x2 +
+    t ** 3 * x3;
+  const y =
+    inverse ** 3 * y0 +
+    3 * inverse ** 2 * t * y1 +
+    3 * inverse * t ** 2 * y2 +
+    t ** 3 * y3;
+  const dx =
+    3 * inverse ** 2 * (x1 - x0) +
+    6 * inverse * t * (x2 - x1) +
+    3 * t ** 2 * (x3 - x2);
+  const dy =
+    3 * inverse ** 2 * (y1 - y0) +
+    6 * inverse * t * (y2 - y1) +
+    3 * t ** 2 * (y3 - y2);
+  return { x, y, angle: Math.atan2(dy, dx) };
+}
+
+function drawRouteSignals(time, entranceProgress) {
+  if (entranceProgress < .82) return;
+  const cycle = ((time - startedAt) % 7_200) / 7_200;
+  const primaryProgress = Math.min(1, cycle / .54);
+  drawSignal(routes[0], primaryProgress, true);
+  if (cycle >= .28 && cycle <= .78) {
+    drawSignal(routes[1], (cycle - .28) / .5);
+  }
+  if (cycle >= .52) {
+    drawSignal(routes[2], (cycle - .52) / .48);
+  }
+}
+
+function drawSignal(route, progress, boat = false) {
+  const point = pointOnRoute(route, progress);
+  context.save();
+  context.translate(point.x, point.y);
+  context.rotate(point.angle);
+  context.shadowColor = route.color;
+  context.shadowBlur = 14;
+  if (boat) {
+    context.beginPath();
+    context.moveTo(-9, 5);
+    context.lineTo(9, 5);
+    context.lineTo(5, 10);
+    context.lineTo(-6, 10);
+    context.closePath();
+    context.fillStyle = "#fffdf8";
+    context.fill();
+    context.lineWidth = 2;
+    context.strokeStyle = route.color;
+    context.stroke();
+    context.beginPath();
+    context.moveTo(-1, 4);
+    context.lineTo(-1, -10);
+    context.lineTo(8, 3);
+    context.closePath();
+    context.fillStyle = route.color;
+    context.fill();
+  } else {
+    context.beginPath();
+    context.arc(0, 0, 7, 0, Math.PI * 2);
+    context.fillStyle = "#fffdf8";
+    context.fill();
+    context.lineWidth = 3;
+    context.strokeStyle = route.color;
+    context.stroke();
+  }
+  context.restore();
+}
+
+function updateActiveWaypoint(time) {
+  const cycle = ((time - startedAt) % 7_200) / 7_200;
+  const next = cycle < .3 ? "start" : cycle < .65 ? "branch" : "failed";
+  if (next === activeWaypoint) return;
+  activeWaypoint = next;
+  document.querySelectorAll("[data-waypoint]").forEach((element) => {
+    element.classList.toggle(
+      "is-current",
+      element.dataset.waypoint === activeWaypoint
+    );
+  });
+}
+
 async function loadDownloads() {
   try {
     const response = await fetch("./releases.json", { cache: "no-store" });
     const release = await response.json();
     const published = release.published === true;
-    document.querySelectorAll("[data-version='macos']").forEach((element) => {
-      element.textContent = published
-        ? `macOS ${release.version} · Early Access`
-        : `macOS ${release.version} · 即将开放`;
-    });
-    document.querySelectorAll("[data-version='windows']").forEach((element) => {
-      element.textContent = published
-        ? `Windows ${release.version} · Early Access`
-        : `Windows ${release.version} · 即将开放`;
-    });
     document.querySelectorAll("[data-download]").forEach((link) => {
       const url = published
         ? release.downloads?.[link.dataset.download]
@@ -240,62 +332,11 @@ async function loadDownloads() {
       link.href = url || release.releasePage;
       link.hidden = link.dataset.download === "windowsX64" && !url;
     });
-    const target = await detectDownloadTarget();
-    document.querySelectorAll("[data-default-download]").forEach((link) => {
-      const url = published && target
-        ? release.downloads?.[target]
-        : undefined;
-      link.href = url || release.releasePage;
-      const label = target === "windowsX64"
-        ? "下载 Windows 版"
-        : target
-          ? "下载 macOS 版"
-          : "选择桌面版本";
-      const labelElement = link.querySelector?.("span");
-      if (labelElement) labelElement.textContent = label;
-      else link.textContent = label;
-    });
-    const defaultVersion = document.querySelector("[data-default-version]");
-    if (defaultVersion) {
-      defaultVersion.textContent = target === "windowsX64"
-        ? `Windows x64 ${release.version}`
-        : target
-          ? `macOS ${release.version} · Early Access`
-          : `macOS 与 Windows ${release.version}`;
-    }
   } catch {
     document.querySelectorAll("[data-download]").forEach((link) => {
       link.href = "https://github.com/WBXWHT/wayfinder/releases";
     });
-    document.querySelectorAll("[data-default-download]").forEach((link) => {
-      link.href = "https://github.com/WBXWHT/wayfinder/releases";
-    });
   }
-}
-
-async function detectDownloadTarget() {
-  const platform = [
-    navigator.userAgentData?.platform,
-    navigator.userAgent
-  ].filter(Boolean).join(" ");
-  if (/Windows|Win32|Win64/i.test(platform)) {
-    return "windowsX64";
-  }
-  if (!/Mac/i.test(platform)) {
-    return undefined;
-  }
-  try {
-    if (navigator.userAgentData?.getHighEntropyValues) {
-      const value = await navigator.userAgentData.getHighEntropyValues([
-        "architecture"
-      ]);
-      if (value.architecture === "x86") return "x64";
-      if (/^arm/i.test(value.architecture || "")) return "arm64";
-    }
-  } catch {
-    // Keep the architecture-neutral release page when detection is unavailable.
-  }
-  return undefined;
 }
 
 function updateScrollState() {

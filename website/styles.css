@@ -26,7 +26,6 @@
 
 html {
   scroll-behavior: smooth;
-  scroll-snap-type: y proximity;
 }
 
 body {
@@ -128,7 +127,6 @@ p {
   overflow: hidden;
   align-items: center;
   padding: 104px 7vw 78px;
-  scroll-snap-align: start;
   border-bottom: 1px solid var(--line);
   background: var(--ocean);
 }
@@ -171,68 +169,62 @@ h1 {
   overflow-wrap: anywhere;
 }
 
-.hero-actions {
-  display: flex;
-  width: min(520px, 100%);
-  margin-top: 34px;
-  align-items: stretch;
-  gap: 10px;
-}
-
-.action {
-  display: inline-grid;
-  min-height: 58px;
-  align-content: center;
-  padding: 10px 18px;
-  border: 1px solid var(--ink);
+.download-grid {
+  display: grid;
+  width: min(570px, 100%);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid currentColor;
   border-radius: 7px;
-  transition:
-    transform 180ms ease,
-    background 180ms ease,
-    color 180ms ease;
 }
 
-.action-primary {
-  min-width: 236px;
+.hero-downloads {
+  margin-top: 34px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, .72);
+}
+
+.download-option {
+  position: relative;
+  display: grid;
+  min-height: 58px;
+  place-content: center;
+  padding: 10px 14px;
+  border-left: 1px solid currentColor;
+  text-align: center;
+  transition:
+    background 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.download-option:first-child {
+  border-left: 0;
+}
+
+.download-option strong {
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.download-option span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.hero-downloads .download-option:hover,
+.hero-downloads .download-option.is-recommended {
   color: #ffffff;
   background: var(--ink);
 }
 
-.action-primary span {
-  font-size: 14px;
-  font-weight: 720;
+.hero-downloads .download-option:hover span,
+.hero-downloads .download-option.is-recommended span {
+  color: #c9ced3;
 }
 
-.action-primary small {
-  margin-top: 2px;
-  color: #c8cdd2;
-  font-size: 10px;
-}
-
-.action-secondary {
-  place-items: center;
-  min-width: 154px;
-  background: rgba(255, 255, 255, .72);
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.action:hover {
+.download-option:hover {
   transform: translateY(-2px);
-}
-
-.action-primary:hover {
-  background: #2a2d31;
-}
-
-.action-secondary:hover {
-  background: #ffffff;
-}
-
-.platform-note {
-  margin: 14px 0 0;
-  color: var(--muted);
-  font-size: 10px;
 }
 
 .hero-waypoints {
@@ -260,6 +252,10 @@ h1 {
   background: rgba(255, 253, 248, .96);
   box-shadow: 3px 4px 0 rgba(45, 90, 102, .16);
   animation: waypoint-enter 560ms cubic-bezier(.2, .8, .2, 1) both;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    filter 180ms ease;
 }
 
 .hero-waypoint::after {
@@ -293,6 +289,14 @@ h1 {
   color: var(--muted);
   font-size: 10px;
   line-height: 1.35;
+}
+
+.hero-waypoint.is-current {
+  border-color: currentColor;
+  box-shadow:
+    3px 4px 0 rgba(45, 90, 102, .16),
+    0 0 0 7px color-mix(in srgb, currentColor 12%, transparent);
+  filter: saturate(1.16);
 }
 
 .waypoint-start {
@@ -378,7 +382,6 @@ h1 {
 .story-section {
   height: var(--story-height);
   min-height: 680px;
-  scroll-snap-align: start;
 }
 
 .workflow,
@@ -540,7 +543,7 @@ h1 {
 
 .product-visual img {
   width: 100%;
-  aspect-ratio: 1270 / 760;
+  aspect-ratio: 16 / 9;
   object-fit: cover;
 }
 
@@ -741,45 +744,29 @@ h1 {
   line-height: 1.65;
 }
 
-.version-links {
-  display: grid;
+.final-downloads {
   width: min(760px, 100%);
   margin-top: 38px;
-  grid-template-columns: repeat(3, 1fr);
-  border-top: 1px solid #3a4148;
-  border-bottom: 1px solid #3a4148;
+  color: #dce2e6;
 }
 
-.version-links a {
-  display: grid;
+.final-downloads .download-option {
   min-height: 88px;
-  place-content: center;
-  border-left: 1px solid #3a4148;
-  transition:
-    color 180ms ease,
-    background 180ms ease;
+  border-color: #3a4148;
 }
 
-.version-links a:first-child {
-  border-left: 0;
-}
-
-.version-links a:hover {
+.final-downloads .download-option:hover,
+.final-downloads .download-option.is-recommended {
   color: #171a1e;
   background: #f8fafb;
 }
 
-.version-links strong {
-  font-size: 13px;
-}
-
-.version-links span {
-  margin-top: 4px;
+.final-downloads .download-option span {
   color: #9ba3ab;
-  font-size: 9px;
 }
 
-.version-links a:hover span {
+.final-downloads .download-option:hover span,
+.final-downloads .download-option.is-recommended span {
   color: #5d6670;
 }
 
@@ -951,10 +938,6 @@ footer a {
 }
 
 @media (max-width: 820px) {
-  html {
-    scroll-snap-type: none;
-  }
-
   .site-header {
     height: 62px;
     padding: 0 18px;
@@ -986,15 +969,9 @@ footer a {
     font-size: 16px;
   }
 
-  .hero-actions {
-    width: min(100%, 390px);
+  .hero-downloads {
+    width: min(100%, 430px);
     margin-top: 24px;
-    flex-direction: column;
-  }
-
-  .action {
-    width: 100%;
-    min-width: 0;
   }
 
   .hero-waypoint {
@@ -1096,18 +1073,18 @@ footer a {
     font-size: 46px;
   }
 
-  .version-links {
+  .final-downloads {
     max-width: 430px;
     grid-template-columns: 1fr;
   }
 
-  .version-links a {
+  .final-downloads .download-option {
     min-height: 70px;
     border-top: 1px solid #3a4148;
     border-left: 0;
   }
 
-  .version-links a:first-child {
+  .final-downloads .download-option:first-child {
     border-top: 0;
   }
 
@@ -1152,18 +1129,17 @@ footer a {
     line-height: 1.45;
   }
 
-  .hero-actions {
-    width: min(100%, 500px);
+  .hero-downloads {
+    width: min(100%, 540px);
     margin-top: 18px;
-    flex-direction: row;
   }
 
-  .action {
+  .download-option {
     min-height: 52px;
   }
 
-  .platform-note {
-    margin-top: 9px;
+  .download-option span {
+    margin-top: 1px;
   }
 
   .hero-waypoint {
@@ -1182,7 +1158,7 @@ footer a {
   }
 
   .hero-copy {
-    width: calc(100% - 56px);
+    width: calc(100% - 28px);
     min-width: 0;
   }
 
@@ -1209,6 +1185,15 @@ footer a {
 
   .final-copy h2 {
     font-size: 40px;
+  }
+
+  .hero-downloads {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .hero-downloads .download-option {
+    min-width: 0;
+    padding: 8px 4px;
   }
 
   .fact-line {
