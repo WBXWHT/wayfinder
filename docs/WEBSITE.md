@@ -40,7 +40,7 @@ not required.
 | --- | --- |
 | Official website | https://wayfinder-ai.pages.dev |
 | Source and overview | https://github.com/WBXWHT/wayfinder |
-| Desktop Alpha | https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.8 |
+| Desktop Alpha | https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.9 |
 | Installation guide | https://github.com/WBXWHT/wayfinder/blob/main/docs/INSTALL.md |
 | Privacy policy | https://github.com/WBXWHT/wayfinder/blob/main/PRIVACY.md |
 | Issue tracker | https://github.com/WBXWHT/wayfinder/issues |

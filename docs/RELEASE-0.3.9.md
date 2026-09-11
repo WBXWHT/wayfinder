@@ -23,5 +23,5 @@ adversarial review of the unified voyage experience.
 
 - JavaScript and Chromium suite: 105 tests.
 - Rust companion suite: 6 tests.
-- Apple Silicon, Intel macOS, and Windows x64 assets are required before
-  publication.
+- Apple Silicon, Intel macOS, and Windows x64 assets verified against the
+  published SHA-256 checksums.
