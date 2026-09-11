@@ -1,5 +1,7 @@
 # Wayfinder
 
+![Wayfinder — visual history for AI collaboration](docs/assets/public/wayfinder-social-preview-2k.png)
+
 **See how your work with AI actually evolved.**
 
 Wayfinder is a local-first desktop app that turns work with AI into a visual
@@ -17,7 +19,7 @@ Codex and Claude Code.
 [Privacy](PRIVACY.md) ·
 [Report an issue](https://github.com/StayCurious-Xuan/wayfinder/issues)
 
-![Wayfinder showing several AI collaboration voyages on one project map](docs/assets/wayfinder-product-hunt-map.png)
+![Wayfinder showing a simulated AI collaboration voyage with failed and successful branches](docs/assets/public/wayfinder-voyage-overview-2k.png)
 
 ## Why Wayfinder
 
