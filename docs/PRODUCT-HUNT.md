@@ -27,7 +27,9 @@ https://wayfinder-ai.pages.dev
 
 ## Listing Status
 
-The public listing should use the standalone, cross-platform desktop
-positioning. Its icon is the current black Wayfinder mark. The gallery should
-lead with the real desktop app, followed by the live website hero and the
-project-level voyage map.
+The public listing uses the standalone, cross-platform desktop positioning.
+Its launch name is `Wayfinder AI`, its source link is public, and its current
+black Wayfinder mark is used as the launch thumbnail. The gallery includes the
+real desktop app, the live website hero, and the macOS/Windows download
+surface. The maker comment and forum thread also use the cross-platform
+positioning.
