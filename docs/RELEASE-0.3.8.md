@@ -23,8 +23,8 @@ collaboration mission.
 
 ## Verification
 
-- JavaScript and Chromium suite: 102 tests.
+- JavaScript and Chromium suite: 103 tests.
 - Rust companion suite: 6 tests.
 - Desktop, 220px, 320px, and short-landscape rendering.
-- Apple Silicon, Intel macOS, and Windows x64 release assets are required
-  before publication.
+- Apple Silicon, Intel macOS, and Windows x64 release assets verified against
+  the published SHA-256 checksums.

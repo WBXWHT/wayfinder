@@ -4,9 +4,11 @@ The static download website lives in `website/`. It has no backend, account,
 analytics, cookies, or runtime dependency. Download URLs come from
 `website/releases.json` and point to versioned GitHub Release assets.
 
-The public copy describes the current Companion flow: install the app, continue
-working in Codex or Claude Code, and inspect the automatically updated local
-voyage map. It must not tell Companion users to configure or approve Hooks.
+The public copy leads with Wayfinder's value across AI-assisted conversations,
+research, writing, design, coding, and other project work. It then describes
+the current early-access flow: install the app, continue working in Codex or
+Claude Code, and inspect the automatically updated local voyage map. It must
+not tell Companion users to configure or approve Hooks.
 
 ## Local Preview
 
@@ -38,7 +40,7 @@ not required.
 | --- | --- |
 | Official website | https://wayfinder-ai.pages.dev |
 | Source and overview | https://github.com/WBXWHT/wayfinder |
-| Desktop Alpha | https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.7 |
+| Desktop Alpha | https://github.com/WBXWHT/wayfinder/releases/tag/alpha-v0.3.8 |
 | Installation guide | https://github.com/WBXWHT/wayfinder/blob/main/docs/INSTALL.md |
 | Privacy policy | https://github.com/WBXWHT/wayfinder/blob/main/PRIVACY.md |
 | Issue tracker | https://github.com/WBXWHT/wayfinder/issues |

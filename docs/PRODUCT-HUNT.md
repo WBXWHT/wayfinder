@@ -56,6 +56,10 @@ macOS and Windows, and has no Wayfinder account or cloud sync.
 
 ## Forum Prompt
 
+Public thread:
+
+https://www.producthunt.com/p/wayfinder-5/what-part-of-working-with-ai-is-hardest-to-reconstruct-later
+
 **What part of an AI collaboration is hardest to reconstruct a week later?**
 
 The final artifact usually survives. The path behind it often does not: the
