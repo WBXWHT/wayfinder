@@ -112,7 +112,15 @@ test("full map keeps one project canvas with expandable voyages", () => {
   assert.match(html, /\.inspector-head/);
   assert.match(html, /\.inspector-turns/);
   assert.match(html, /\.layout\.inspector-open/);
-  assert.match(html, /@media \(min-width: 720px\)/);
+  assert.match(
+    html,
+    /--inspector-width: clamp\(136px, 32vw, 336px\)/
+  );
+  assert.match(
+    html,
+    /\.layout\.inspector-open \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) var\(--inspector-width\)/
+  );
+  assert.doesNotMatch(html, /@media \(min-width: 720px\)/);
   assert.match(
     html,
     /\.inspector \{[\s\S]*?overflow-y: auto;[\s\S]*?scrollbar-width: thin;/

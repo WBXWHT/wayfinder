@@ -2176,11 +2176,18 @@ test(
       await waitForExpression(
         cdp,
         `(() => {
+          const graph = document.querySelector('#graph')
+            ?.getBoundingClientRect();
           const panel = document.querySelector('#inspector')
             ?.getBoundingClientRect();
           const selected = document.querySelector('.session-card.selected')
             ?.getBoundingClientRect();
-          return Boolean(panel && selected && selected.bottom <= panel.top);
+          return Boolean(
+            graph &&
+            panel &&
+            selected &&
+            graph.right <= panel.left + .5
+          );
         })()`
       );
       const inspectorLayout = await evaluateJson(
@@ -2189,15 +2196,39 @@ test(
           const close = document.querySelector('.inspector-close')
             ?.getBoundingClientRect();
           const title = document.querySelector('.detail-title');
+          const layout = document.querySelector('.layout');
+          const graph = document.querySelector('#graph')
+            ?.getBoundingClientRect();
           const panel = document.querySelector('#inspector')
             ?.getBoundingClientRect();
           const selected = document.querySelector('.session-card.selected')
             ?.getBoundingClientRect();
           return {
+            columns: getComputedStyle(layout).gridTemplateColumns
+              .split(' ').length,
             closeLeft: close?.left,
             closeRight: close?.right,
-            selectedAbovePanel: Boolean(
-              panel && selected && selected.bottom <= panel.top
+            panelLeft: panel?.left,
+            panelRight: panel?.right,
+            panelWidth: panel?.width,
+            graphLeft: graph?.left,
+            graphRight: graph?.right,
+            graphTop: graph?.top,
+            graphBottom: graph?.bottom,
+            selectedLeft: selected?.left,
+            selectedRight: selected?.right,
+            selectedTop: selected?.top,
+            selectedBottom: selected?.bottom,
+            horizontalOverlap: graph && panel
+              ? graph.right - panel.left
+              : Infinity,
+            selectedVisible: Boolean(
+              graph &&
+              selected &&
+              selected.left >= graph.left &&
+              selected.right <= graph.right &&
+              selected.top >= graph.top &&
+              selected.bottom <= graph.bottom
             ),
             titleFits: title
               ? title.scrollWidth <= title.clientWidth
@@ -2205,9 +2236,18 @@ test(
           };
         })()`
       );
+      assert.equal(inspectorLayout.columns, 2);
       assert.ok(inspectorLayout.closeLeft >= 0);
       assert.ok(inspectorLayout.closeRight <= 320);
-      assert.equal(inspectorLayout.selectedAbovePanel, true);
+      assert.ok(inspectorLayout.panelLeft >= 0);
+      assert.ok(inspectorLayout.panelRight <= 320);
+      assert.ok(inspectorLayout.panelWidth >= 130);
+      assert.ok(inspectorLayout.horizontalOverlap <= 0.5);
+      assert.equal(
+        inspectorLayout.selectedVisible,
+        true,
+        JSON.stringify(inspectorLayout)
+      );
       assert.equal(inspectorLayout.titleFits, true);
       assert.equal(
         await evaluate(cdp, "document.querySelector('.detail-source')?.textContent"),

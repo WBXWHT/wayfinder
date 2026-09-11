@@ -253,13 +253,14 @@ export class ExperienceMapPanel implements vscode.Disposable {
       max-width: 100%;
       min-width: 0;
       min-height: 0;
-      --inspector-width: clamp(286px, 25vw, 336px);
+      --inspector-width: clamp(136px, 32vw, 336px);
       grid-template-columns: minmax(0, 1fr);
       grid-template-rows: minmax(0, 1fr);
       background: var(--ocean);
     }
     .layout.inspector-open {
-      grid-template-rows: minmax(0, 1fr) auto;
+      grid-template-columns: minmax(0, 1fr) var(--inspector-width);
+      grid-template-rows: minmax(0, 1fr);
     }
     .canvas-shell { position: relative; min-width: 0; min-height: 0; overflow: hidden; contain: layout paint; background: var(--ocean); }
     .canvas-head {
@@ -561,13 +562,14 @@ export class ExperienceMapPanel implements vscode.Disposable {
       position: relative;
       z-index: 5;
       display: none;
-      width: min(560px, calc(100% - 24px));
-      max-height: min(42vh, 360px);
-      align-self: end;
-      justify-self: center;
+      width: auto;
+      max-height: min(72vh, 620px);
+      grid-column: 2;
+      grid-row: 1;
+      align-self: center;
       overflow-x: hidden;
       overflow-y: auto;
-      margin: 0 12px 12px;
+      margin: 12px 12px 12px 0;
       border: 2px solid color-mix(
         in srgb,
         var(--inspector-accent) 46%,
@@ -593,7 +595,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
     }
     .inspector.open {
       display: block;
-      animation: inspector-sheet-in 170ms cubic-bezier(.2, .8, .2, 1);
+      animation: inspector-dock-in 170ms cubic-bezier(.2, .8, .2, 1);
     }
     .inspector-head {
       position: relative;
@@ -675,7 +677,6 @@ export class ExperienceMapPanel implements vscode.Disposable {
     .detail-file-add { color: var(--good); }
     .detail-file-delete { color: var(--bad); }
     .detail-actions { display: flex; justify-content: flex-end; gap: 2px; margin-top: 7px; }
-    @keyframes inspector-sheet-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes inspector-dock-in { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
     @keyframes channel-reveal { from { opacity: 0; } to { opacity: 1; } }
     @keyframes bud-breathe {
@@ -687,30 +688,35 @@ export class ExperienceMapPanel implements vscode.Disposable {
       50% { transform: translateY(-1.5px); }
     }
     .empty-graph { display: grid; min-height: 100%; place-content: center; color: var(--muted); font-size: 11px; }
-    @media (min-width: 720px) {
-      .layout.inspector-open {
-        grid-template-columns: minmax(0, 1fr) var(--inspector-width);
-        grid-template-rows: minmax(0, 1fr);
-      }
-      .inspector {
-        grid-column: 2;
-        grid-row: 1;
-        width: auto;
-        max-height: min(72vh, 620px);
-        margin: 12px 12px 12px 0;
-        align-self: center;
-        transform: none;
-      }
-      .inspector.open {
-        animation-name: inspector-dock-in;
-      }
-    }
     @media (max-width: 860px) {
       .topbar { padding: 0 12px; }
     }
     @media (max-width: 520px) {
+      .layout { --inspector-width: clamp(136px, 42vw, 180px); }
       .brand { display: none; }
-      .inspector { width: calc(100% - 16px); max-height: 42vh; margin: 0 8px 8px; }
+      .inspector {
+        max-height: min(72vh, 520px);
+        margin: 6px 6px 6px 0;
+      }
+      .inspector-head {
+        grid-template-columns: 3px minmax(0, 1fr) 20px;
+        gap: 6px;
+        padding: 10px 8px 8px;
+      }
+      .inspector-close {
+        width: 20px;
+        height: 20px;
+      }
+      .inspector-turns { padding: 3px 8px 10px; }
+      .detail-turn-head {
+        grid-template-columns: 7px minmax(0, 1fr);
+      }
+      .detail-turn-time { grid-column: 2; }
+      .detail-source,
+      .detail-text,
+      .detail-list,
+      .detail-files { margin-left: 8px; }
+      .detail-note { margin-left: 8px; }
     }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
@@ -913,19 +919,36 @@ export class ExperienceMapPanel implements vscode.Disposable {
       const current = d3.zoomTransform(graph.node());
       const viewportWidth = graph.node().clientWidth;
       const viewportHeight = graph.node().clientHeight;
-      const padding = 24;
-      const topPadding = 84;
+      const padding = Math.min(24, Math.max(10, viewportWidth * .08));
+      const topPadding = Math.min(84, Math.max(48, viewportHeight * .12));
+      const availableWidth = Math.max(1, viewportWidth - padding * 2);
+      const availableHeight = Math.max(
+        1,
+        viewportHeight - topPadding - padding
+      );
+      const nextScale = Math.max(
+        .4,
+        Math.min(
+          current.k,
+          availableWidth / nodeCardWidth,
+          availableHeight / nodeCardHeight
+        )
+      );
+      const cardCenterY =
+        node.screenY + nodeCardTop + nodeCardHeight / 2;
+      let nextX =
+        current.x + node.screenX * (current.k - nextScale);
+      let nextY =
+        current.y + cardCenterY * (current.k - nextScale);
       const left =
-        current.x + (node.screenX - nodeCardWidth / 2) * current.k;
+        nextX + (node.screenX - nodeCardWidth / 2) * nextScale;
       const right =
-        current.x + (node.screenX + nodeCardWidth / 2) * current.k;
+        nextX + (node.screenX + nodeCardWidth / 2) * nextScale;
       const top =
-        current.y + (node.screenY + nodeCardTop) * current.k;
+        nextY + (node.screenY + nodeCardTop) * nextScale;
       const bottom =
-        current.y +
-        (node.screenY + nodeCardTop + nodeCardHeight) * current.k;
-      let nextX = current.x;
-      let nextY = current.y;
+        nextY +
+        (node.screenY + nodeCardTop + nodeCardHeight) * nextScale;
       if (left < padding) nextX += padding - left;
       else if (right > viewportWidth - padding) {
         nextX -= right - (viewportWidth - padding);
@@ -937,11 +960,12 @@ export class ExperienceMapPanel implements vscode.Disposable {
       nextX = Math.min(0, nextX);
       if (
         Math.abs(nextX - current.x) > .001 ||
-        Math.abs(nextY - current.y) > .001
+        Math.abs(nextY - current.y) > .001 ||
+        Math.abs(nextScale - current.k) > .001
       ) {
         graph.call(
           zoomBehavior.transform,
-          d3.zoomIdentity.translate(nextX, nextY).scale(current.k)
+          d3.zoomIdentity.translate(nextX, nextY).scale(nextScale)
         );
       }
     }
