@@ -601,7 +601,7 @@ h1 {
 }
 
 .flow-list::after {
-  height: calc(var(--section-progress, 0) * 100%);
+  height: calc(var(--workflow-progress, 0) * 100%);
   background: var(--blue);
 }
 
@@ -882,7 +882,7 @@ h1 {
   stroke-width: 4;
   stroke-linecap: round;
   stroke-dasharray: 13 16;
-  animation: final-route-move 4s linear infinite;
+  animation: final-route-move 2.667s linear infinite;
 }
 
 .final-route circle {

@@ -149,7 +149,12 @@ function updateScrollState() {
     );
     section.style.setProperty("--section-progress", progress.toFixed(3));
     if (section.classList.contains("workflow")) {
-      const activeIndex = Math.min(2, Math.floor(progress * 3.25));
+      const workflowProgress = Math.min(1, progress * 2);
+      section.style.setProperty(
+        "--workflow-progress",
+        workflowProgress.toFixed(3)
+      );
+      const activeIndex = Math.min(2, Math.floor(workflowProgress * 3));
       section.querySelectorAll(".flow-list li").forEach((item, index) => {
         item.classList.toggle("is-active", index <= activeIndex);
       });

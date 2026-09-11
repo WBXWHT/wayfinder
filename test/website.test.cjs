@@ -39,6 +39,8 @@ test("download website exposes architecture-specific release links", () => {
   assert.match(html, /src="\.\/login-voyage-focus-4k\.png\?v=4k"/);
   assert.doesNotMatch(html, /class="product-image-link"/);
   assert.doesNotMatch(html, /href="\.\/login-voyage-focus-4k\.png/);
+  assert.match(html, />\s*示例航程 · 登录回跳稳定性\s*</);
+  assert.doesNotMatch(html, /4K 示例航程/);
   assert.equal(productImage.readUInt32BE(16), 2_560);
   assert.equal(productImage.readUInt32BE(20), 1_440);
   assert.equal(productFocusImage.readUInt32BE(16), 3_840);
@@ -88,11 +90,13 @@ test("website scripts parse and visual CSS avoids decorative gradients", () => {
   assert.match(styles, /#voyageCanvas/);
   assert.doesNotMatch(styles, /scroll-snap-/);
   assert.match(script, /prefers-reduced-motion: reduce/);
+  assert.match(script, /const workflowProgress = Math\.min\(1, progress \* 2\)/);
   assert.match(script, /const heroVoyage/);
   assert.doesNotMatch(script, /drawRouteSignals|updateActiveWaypoint/);
   assert.match(styles, /@keyframes route-main-draw/);
   assert.match(styles, /@keyframes route-success-draw/);
   assert.match(styles, /@keyframes route-failure-draw/);
+  assert.match(styles, /animation: final-route-move 2\.667s linear infinite/);
   assert.match(styles, /\.hero-route-rail\s*\{[\s\S]*?stroke-width: 31/);
   assert.match(styles, /\.hero-route\s*\{[\s\S]*?stroke-width: 21/);
   assert.match(styles, /\.hero-vessel-bob\s*\{/);

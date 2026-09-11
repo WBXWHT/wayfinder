@@ -2246,6 +2246,44 @@ test(
         }
       }
 
+      await cdp.send("Runtime.evaluate", {
+        expression: `(() => {
+          document.documentElement.style.scrollBehavior = 'auto';
+          const workflow = document.querySelector('.workflow');
+          workflow.scrollIntoView({ block: 'center', behavior: 'instant' });
+        })()`
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelectorAll('.workflow .flow-list li.is-active').length === 3"
+      );
+      const centeredWorkflow = await evaluateJson(
+        cdp,
+        `(() => {
+          const workflow = document.querySelector('.workflow');
+          const rect = workflow.getBoundingClientRect();
+          return {
+            centerDelta: Math.abs(
+              rect.top + rect.height / 2 - innerHeight / 2
+            ),
+            activeSteps: document.querySelectorAll(
+              '.workflow .flow-list li.is-active'
+            ).length,
+            progress: Number(
+              getComputedStyle(workflow).getPropertyValue(
+                '--workflow-progress'
+              )
+            )
+          };
+        })()`
+      );
+      assert.ok(
+        centeredWorkflow.centerDelta <= 10,
+        JSON.stringify(centeredWorkflow)
+      );
+      assert.equal(centeredWorkflow.activeSteps, 3);
+      assert.equal(centeredWorkflow.progress, 1);
+
       await delay(1_600);
       const animatedSignature = async () =>
         evaluate(
