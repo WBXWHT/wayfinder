@@ -4140,16 +4140,21 @@ dependencies = [
 
 [[package]]
 name = "wayfinder-companion"
-version = "0.3.10"
+version = "0.3.11"
 dependencies = [
  "dirs",
+ "filetime",
+ "libc",
  "notify",
  "notify-debouncer-mini",
  "serde",
  "serde_json",
+ "shared_child",
  "tauri",
  "tauri-build",
  "tauri-plugin-shell",
+ "tokio",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

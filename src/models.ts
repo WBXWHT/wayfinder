@@ -29,6 +29,8 @@ export interface FileChange {
   additions: number;
   deletions: number;
   binary?: boolean;
+  lineCountsKnown?: boolean;
+  previousPath?: string;
 }
 
 export interface ValidationResult {

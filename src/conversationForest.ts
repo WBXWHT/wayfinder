@@ -148,7 +148,7 @@ export function buildConversationForest(
       ? buildLiveForest({ ...state, nodes: liveNodes })
       : emptyForest();
     const trees = [...curatedForest.trees, ...liveForest.trees]
-      .sort((a, b) => b.completedAt.localeCompare(a.completedAt));
+      .sort(compareTrees);
     return {
       trees,
       sessionCount: curatedForest.sessionCount + liveForest.sessionCount,
@@ -170,7 +170,10 @@ function buildCuratedForest(
         !(hasSkillDefinitions && isFolderImportManifest(node))
     )
     .slice()
-    .sort((a, b) => a.completedAt.localeCompare(b.completedAt))
+    .sort((a, b) =>
+      a.completedAt.localeCompare(b.completedAt) ||
+      a.id.localeCompare(b.id)
+    )
     // Structure rule: a turn that a later restore/branch abandoned is marked
     // as a failed route (coral + reef) unless the user already judged it.
     // This only fires on real in-app voyages that forked away from a path;
@@ -275,7 +278,7 @@ function buildCuratedForest(
     };
   });
 
-  trees.sort((a, b) => b.completedAt.localeCompare(a.completedAt));
+  trees.sort(compareTrees);
   return {
     trees,
     sessionCount: trees.reduce(
@@ -299,12 +302,8 @@ function curatedTreeKey(
   metadata: ForestMetadata
 ): string {
   if (isSkillDefinitionImport(node) && node.source?.type === "folder-import") {
-    const relativePath = node.source.relativePath
-      .replaceAll("\\", "/")
-      .split("/")
-      .filter(Boolean)
-      .join("/");
-    return `folder-skill:${relativePath}`;
+    const relativePath = normalizeFolderImportPath(node.source.relativePath);
+    return `folder-skill:${relativePath.toLocaleLowerCase("en-US")}`;
   }
   return metadata.tree;
 }
@@ -342,7 +341,8 @@ function hasLiveSignal(state: ProjectState): boolean {
 function buildLiveForest(state: ProjectState): ConversationForest {
   const abandoned = abandonedNodeIds(state);
   const nodes = [...state.nodes].sort((a, b) =>
-    a.completedAt.localeCompare(b.completedAt)
+    a.completedAt.localeCompare(b.completedAt) ||
+    a.id.localeCompare(b.id)
   );
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const idf = buildIdf(
@@ -354,22 +354,41 @@ function buildLiveForest(state: ProjectState): ConversationForest {
 
   // Waypoints connect into trees by their engine relations. A waypoint that is
   // a root (nothing related) opens a new tree (a new boat from the same port).
+  const rootByWaypoint = new Map<string, string>();
   const resolveRoot = (id: string): string => {
+    const cached = rootByWaypoint.get(id);
+    if (cached) {
+      return cached;
+    }
     let cursor = id;
     const seen = new Set<string>();
+    const trail: string[] = [];
+    let root = id;
     while (!seen.has(cursor)) {
       seen.add(cursor);
+      trail.push(cursor);
+      const knownRoot = rootByWaypoint.get(cursor);
+      if (knownRoot) {
+        root = knownRoot;
+        break;
+      }
       const parent = relations.get(cursor)?.parentId;
-      if (!parent) return cursor;
+      if (!parent) {
+        root = cursor;
+        break;
+      }
       cursor = parent;
     }
-    return cursor;
+    for (const waypointId of trail) {
+      rootByWaypoint.set(waypointId, root);
+    }
+    return root;
   };
 
   const sessionByWaypoint = new Map<string, ForestSession>();
   const sessionsByRoot = new Map<string, ForestSession[]>();
   for (const waypoint of waypoints) {
-    const session = liveSessionFor(waypoint, relations, nodeById, idf, abandoned);
+    const session = liveSessionFor(waypoint, nodeById, idf, abandoned);
     sessionByWaypoint.set(waypoint.id, session);
     const root = resolveRoot(waypoint.id);
     const group = sessionsByRoot.get(root) || [];
@@ -417,7 +436,7 @@ function buildLiveForest(state: ProjectState): ConversationForest {
     };
   });
 
-  trees.sort((a, b) => b.completedAt.localeCompare(a.completedAt));
+  trees.sort(compareTrees);
   return {
     trees,
     sessionCount: trees.reduce((sum, tree) => sum + tree.sessions.length, 0),
@@ -427,7 +446,6 @@ function buildLiveForest(state: ProjectState): ConversationForest {
 
 function liveSessionFor(
   waypoint: Waypoint,
-  relations: ReturnType<typeof classifyRelations>,
   nodeById: Map<string, TimelineNode>,
   idf: (token: string) => number,
   abandoned: Set<string>
@@ -437,15 +455,14 @@ function liveSessionFor(
     .filter((node): node is TimelineNode => Boolean(node));
   const first = waypointNodes[0];
   const latest = waypointNodes.at(-1) || first;
-  const relation = relations.get(waypoint.id);
-  const isRevertRoute =
-    relation?.type === "revert-divergence" ||
-    waypointNodes.some((node) => abandoned.has(node.id));
+  const isAbandonedRoute = waypointNodes.some((node) =>
+    abandoned.has(node.id)
+  );
   const verdict: UserVerdict | "neutral" = waypointNodes.some(
     (node) => node.verdict === "failure"
   )
     ? "failure"
-    : isRevertRoute
+    : isAbandonedRoute
       ? "failure"
       : latest.verdict || "neutral";
   const { title, stage } = liveTitleFor(waypoint, waypointNodes, idf);
@@ -533,7 +550,9 @@ function metadataForNode(
   if (isSkillDefinitionImport(node)) {
     const directory =
       node.source?.type === "folder-import"
-        ? node.source.relativePath.split("/").filter(Boolean)[0]
+        ? normalizeFolderImportPath(node.source.relativePath)
+            .split("/")
+            .filter(Boolean)[0]
         : "";
     const title = normalizeText(node.prompt || directory || "Skill");
     return {
@@ -572,20 +591,32 @@ function metadataForNode(
 function isSkillDefinitionImport(node: TimelineNode): boolean {
   return (
     node.source?.type === "folder-import" &&
-    /(^|\/)SKILL\.md$/i.test(node.source.relativePath)
+    /(^|\/)SKILL\.md$/i.test(
+      normalizeFolderImportPath(node.source.relativePath)
+    )
   );
 }
 
 function isFolderImportManifest(node: TimelineNode): boolean {
   return (
     node.source?.type === "folder-import" &&
-    node.source.relativePath === "."
+    normalizeFolderImportPath(node.source.relativePath) === "."
   );
+}
+
+function normalizeFolderImportPath(relativePath: string): string {
+  const normalized = relativePath
+    .replaceAll("\\", "/")
+    .split("/")
+    .filter((part) => part && part !== ".")
+    .join("/");
+  return normalized || ".";
 }
 
 function splitIntoSessions(nodes: TimelineNode[]): TimelineNode[][] {
   const ordered = [...nodes].sort((a, b) =>
-    a.completedAt.localeCompare(b.completedAt)
+    a.completedAt.localeCompare(b.completedAt) ||
+    a.id.localeCompare(b.id)
   );
   const sessions: TimelineNode[][] = [];
   for (const node of ordered) {
@@ -776,7 +807,15 @@ function compareSessions(a: ForestSession, b: ForestSession): number {
   return (
     a.startedAt.localeCompare(b.startedAt) ||
     a.stageOrder - b.stageOrder ||
-    a.stage.localeCompare(b.stage)
+    a.stage.localeCompare(b.stage) ||
+    a.id.localeCompare(b.id)
+  );
+}
+
+function compareTrees(a: ForestTree, b: ForestTree): number {
+  return (
+    b.completedAt.localeCompare(a.completedAt) ||
+    a.id.localeCompare(b.id)
   );
 }
 

@@ -225,7 +225,8 @@ test("cloud response cannot erase a locally proven superseded state", () => {
     id: "cloud-recovery",
     host: "claude",
     prompt: "Fix token refresh implementation",
-    completedAt: "2026-09-09T10:01:00.000Z"
+    completedAt: "2026-09-09T10:01:00.000Z",
+    validation: { status: "passed" }
   });
   const request = buildCloudAnalysisRequest(
     projectState([failed, recovered])
@@ -316,7 +317,8 @@ test("another host recovering after both hosts failed remains conflicting", () =
     id: "claude-recovered",
     host: "claude",
     prompt: "Continue token refresh",
-    completedAt: "2026-09-09T10:02:00.000Z"
+    completedAt: "2026-09-09T10:02:00.000Z",
+    validation: { status: "passed" }
   });
   const assessments = buildLocalTopicAssessments(
     projectState([codex, claudeFailed, claudeRecovered])
@@ -338,7 +340,8 @@ test("one host recovering its own failed route marks it superseded", () => {
     id: "claude-recovered",
     host: "claude",
     prompt: "Fix token refresh implementation",
-    completedAt: "2026-09-09T10:01:00.000Z"
+    completedAt: "2026-09-09T10:01:00.000Z",
+    validation: { status: "passed" }
   });
   const assessments = buildLocalTopicAssessments(
     projectState([failed, recovered])
@@ -392,7 +395,8 @@ test("resolved failures from every host do not leave a stale conflict", () => {
       id: "codex-recovered",
       host: "codex",
       prompt: "Fix token refresh implementation",
-      completedAt: "2026-09-09T10:01:00.000Z"
+      completedAt: "2026-09-09T10:01:00.000Z",
+      validation: { status: "passed" }
     }),
     node({
       id: "claude-failed",
@@ -405,13 +409,61 @@ test("resolved failures from every host do not leave a stale conflict", () => {
       id: "claude-recovered",
       host: "claude",
       prompt: "Complete token refresh expiry",
-      completedAt: "2026-09-09T10:03:00.000Z"
+      completedAt: "2026-09-09T10:03:00.000Z",
+      validation: { status: "passed" }
     })
   ];
   const assessments = buildLocalTopicAssessments(projectState(attempts));
 
   assert.equal(assessments.length, 1);
   assert.equal(assessments[0].status, "superseded");
+});
+
+test("an unverified follow-up does not supersede a proven failure", () => {
+  const failed = node({
+    id: "codex-failed-unverified",
+    host: "codex",
+    prompt: "Implement token refresh",
+    completedAt: "2026-09-09T10:00:00.000Z",
+    verdict: "failure"
+  });
+  const unverified = node({
+    id: "codex-follow-up-unverified",
+    host: "codex",
+    prompt: "Continue token refresh implementation",
+    completedAt: "2026-09-09T10:01:00.000Z",
+    validation: { status: "skipped" }
+  });
+
+  const assessments = buildLocalTopicAssessments(
+    projectState([failed, unverified])
+  );
+
+  assert.equal(assessments.length, 1);
+  assert.equal(assessments[0].status, "failed-candidate");
+});
+
+test("simultaneous success and failure remain conservatively unresolved", () => {
+  const passed = node({
+    id: "same-time-passed",
+    host: "codex",
+    prompt: "Validate token refresh",
+    completedAt: "2026-09-09T10:00:00.000Z",
+    validation: { status: "passed" }
+  });
+  const failed = node({
+    id: "same-time-failed",
+    host: "codex",
+    prompt: "Validate token refresh",
+    completedAt: "2026-09-09T10:00:00.000Z",
+    validation: { status: "failed" }
+  });
+
+  for (const attempts of [[passed, failed], [failed, passed]]) {
+    const assessments = buildLocalTopicAssessments(projectState(attempts));
+    assert.equal(assessments.length, 1);
+    assert.equal(assessments[0].status, "failed-candidate");
+  }
 });
 
 test("a host's new failure invalidates its older healthy state", () => {

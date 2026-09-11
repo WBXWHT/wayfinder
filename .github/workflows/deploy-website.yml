@@ -28,8 +28,7 @@ jobs:
         env:
           PROJECT_NAME: ${{ vars.CLOUDFLARE_PROJECT_NAME }}
         run: |
-          test -n "$PROJECT_NAME"
-          test "$PROJECT_NAME" != "wayfinder"
+          test "$PROJECT_NAME" = "wayfinder-ai"
       - name: Prevent a public version rollback
         run: |
           node --input-type=module <<'NODE'

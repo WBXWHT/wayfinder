@@ -275,8 +275,12 @@ async function openNodeDiff(root: string, nodeId: string): Promise<void> {
     const picked = await vscode.window.showQuickPick(
       node.files.map((file) => ({
         label: path.basename(file.path),
-        description: file.path,
-        detail: `+${file.additions}  -${file.deletions}`,
+        description: file.previousPath
+          ? `${file.previousPath} → ${file.path}`
+          : file.path,
+        detail: file.lineCountsKnown === false
+          ? "变更行数未知"
+          : `+${file.additions}  -${file.deletions}`,
         file
       })),
       {
@@ -294,7 +298,11 @@ async function openNodeDiff(root: string, nodeId: string): Promise<void> {
     return;
   }
 
-  const before = snapshotUri(node.snapshotBefore, selected.path, "before");
+  const before = snapshotUri(
+    node.snapshotBefore,
+    selected.previousPath || selected.path,
+    "before"
+  );
   const after = snapshotUri(node.snapshotAfter, selected.path, "after");
   await vscode.commands.executeCommand(
     "vscode.diff",
@@ -380,65 +388,88 @@ export async function restoreFromNode(
   const config = await readProjectConfig(root);
   const shadow = new ShadowRepo(root, config.maxFileSizeMB);
   const safetyId = createId("before-restore");
+  let rollback:
+    | { target: string; restoredFrom: string }
+    | undefined;
 
-  await mutateProjectState(root, async (current) => {
-    if (
-      Object.keys(current.pending).length > 0 ||
-      current.nodes.some((node) => node.validation.status === "running")
-    ) {
-      throw new Error("AI 工具已开始新的任务，本次恢复已取消。");
-    }
-    const latest = latestNodeOnBranch(current);
-    if (
-      current.activeBranchId !== expectedBranchId ||
-      latest?.id !== expectedLatestId
-    ) {
-      throw new Error("项目路径已发生变化，本次恢复已取消。");
-    }
-    const currentTarget = current.nodes.find((item) => item.id === nodeId);
-    if (!currentTarget) {
-      throw new Error("目标节点已不存在，本次恢复已取消。");
-    }
-    const safety = await shadow.capture(
-      safetyId,
-      "Before restore",
-      latest?.snapshotAfter
-    );
-    let parent = latest;
-    if (safety.changed && parent) {
-      const now = new Date().toISOString();
-      const files = await shadow.diffFiles(parent.snapshotAfter, safety.commit);
-      const safetyNode: TimelineNode = {
-        id: safetyId,
-        kind: "safety",
-        sessionId: "restore",
-        branchId: current.activeBranchId,
-        parentId: parent.id,
-        prompt: "回退前现场",
-        startedAt: now,
-        completedAt: now,
-        snapshotBefore: parent.snapshotAfter,
-        snapshotAfter: safety.commit,
-        files,
-        actions: [],
-        validation: { status: "skipped" }
+  try {
+    await mutateProjectState(root, async (current) => {
+      if (
+        Object.keys(current.pending).length > 0 ||
+        current.nodes.some((node) => node.validation.status === "running")
+      ) {
+        throw new Error("AI 工具已开始新的任务，本次恢复已取消。");
+      }
+      const latest = latestNodeOnBranch(current);
+      if (
+        current.activeBranchId !== expectedBranchId ||
+        latest?.id !== expectedLatestId
+      ) {
+        throw new Error("项目路径已发生变化，本次恢复已取消。");
+      }
+      const currentTarget = current.nodes.find((item) => item.id === nodeId);
+      if (!currentTarget) {
+        throw new Error("目标节点已不存在，本次恢复已取消。");
+      }
+      const safety = await shadow.capture(
+        safetyId,
+        "Before restore",
+        latest?.snapshotAfter
+      );
+      let parent = latest;
+      if (safety.changed && parent) {
+        const now = new Date().toISOString();
+        const files = await shadow.diffFiles(parent.snapshotAfter, safety.commit);
+        const safetyNode: TimelineNode = {
+          id: safetyId,
+          kind: "safety",
+          sessionId: "restore",
+          branchId: current.activeBranchId,
+          parentId: parent.id,
+          prompt: "回退前现场",
+          startedAt: now,
+          completedAt: now,
+          snapshotBefore: parent.snapshotAfter,
+          snapshotAfter: safety.commit,
+          files,
+          actions: [],
+          validation: { status: "skipped" }
+        };
+        current.nodes.push(safetyNode);
+        parent = safetyNode;
+      }
+
+      await shadow.restore(currentTarget.snapshotAfter, safety.commit);
+      rollback = {
+        target: safety.commit,
+        restoredFrom: currentTarget.snapshotAfter
       };
-      current.nodes.push(safetyNode);
-      parent = safetyNode;
-    }
-
-    await shadow.restore(currentTarget.snapshotAfter, safety.commit);
-    const branchNumber = current.branches.length + 1;
-    const branchId = createId("branch");
-    current.branches.push({
-      id: branchId,
-      name: `path ${branchNumber}`,
-      parentNodeId: currentTarget.id,
-      createdAt: new Date().toISOString()
+      const branchNumber = current.branches.length + 1;
+      const branchId = createId("branch");
+      current.branches.push({
+        id: branchId,
+        name: `path ${branchNumber}`,
+        parentNodeId: currentTarget.id,
+        createdAt: new Date().toISOString()
+      });
+      current.activeBranchId = branchId;
+      void parent;
     });
-    current.activeBranchId = branchId;
-    void parent;
-  });
+    rollback = undefined;
+  } catch (error) {
+    if (rollback) {
+      try {
+        await shadow.restore(rollback.target, rollback.restoredFrom);
+        await shadow.deleteRef(safetyId);
+      } catch (rollbackError) {
+        throw new AggregateError(
+          [error, rollbackError],
+          "恢复状态写入失败，且无法还原工作区"
+        );
+      }
+    }
+    throw error;
+  }
 
   await vscode.window.showInformationMessage(
     "文件已恢复并创建新路径。请新建 AI 对话继续；原路径仍可查看。"

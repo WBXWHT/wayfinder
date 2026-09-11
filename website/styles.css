@@ -1470,6 +1470,10 @@ footer a {
     display: none;
   }
 
+  .route-sample {
+    transition: none;
+  }
+
   .reveal {
     opacity: 1;
     transform: none;

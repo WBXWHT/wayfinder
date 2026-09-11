@@ -451,14 +451,14 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
     .turn.selected .turn-detail { display: block; animation: reveal 140ms ease-out; }
     .detail-label { margin: 7px 0 3px; color: var(--muted); font-size: 9px; font-weight: 650; }
     .detail-text { margin: 0; overflow-wrap: anywhere; font-size: 10px; line-height: 1.55; white-space: pre-wrap; }
-    .detail-source { margin: 0 0 7px; color: var(--muted); font-size: 9px; }
+    .detail-source { margin: 0 0 7px; overflow-wrap: anywhere; color: var(--muted); font-size: 9px; }
     .detail-files { display: grid; gap: 4px; margin-top: 8px; }
     .detail-file { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; color: var(--muted); font-size: 9px; }
-    .detail-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .detail-file-name { min-width: 0; overflow-wrap: anywhere; }
     .detail-file-count { font-variant-numeric: tabular-nums; white-space: nowrap; }
     .detail-file-add { color: var(--good); }
     .detail-file-delete { color: var(--bad); }
-    .note { margin-top: 8px; padding-left: 8px; border-left: 2px solid var(--accent); font-size: 10px; line-height: 1.5; }
+    .note { margin-top: 8px; padding-left: 8px; overflow-wrap: anywhere; border-left: 2px solid var(--accent); font-size: 10px; line-height: 1.5; }
     .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 2px; margin-top: 7px; }
     .icon-button {
       display: inline-grid;
@@ -795,10 +795,14 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
       outline-offset: 1px;
     }
     .lineage-node-title {
-      display: block;
+      display: -webkit-box;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
       font-size: 10.5px;
       font-weight: 700;
       line-height: 13px;
+      overflow-wrap: anywhere;
       white-space: normal;
     }
     .lineage-detail-sheet {
@@ -862,6 +866,7 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
     .sheet-title {
       display: block;
       margin-top: 3px;
+      overflow-wrap: anywhere;
       outline: 0;
       font-size: 13px;
       font-weight: 750;
@@ -988,6 +993,8 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
     let composingSearch = false;
     let searchTimer;
     let latestPayload;
+    const lineageViewports = new Map();
+    let renderCleanups = [];
 
     const icon = (name) => {
       const value = document.createElement('span');
@@ -1016,6 +1023,7 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
     }
 
     function render(payload) {
+      renderCleanups.splice(0).forEach((cleanup) => cleanup());
       const activeElement = document.activeElement;
       const searchWasFocused = activeElement?.matches('.search input');
       const focusKey = activeElement?.dataset?.focusKey || '';
@@ -1125,6 +1133,10 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
       );
       if (selectedSession) {
         document.body.classList.add('sheet-open');
+        tools.setAttribute('aria-hidden', 'true');
+        tools.setAttribute('inert', '');
+        forestRoot.setAttribute('aria-hidden', 'true');
+        forestRoot.setAttribute('inert', '');
         const sheetOrdered = sessionsForLayout(activeTree.sessions);
         const sheetById = new Map(
           sheetOrdered.map((item) => [item.id, item])
@@ -1133,14 +1145,13 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
         const sheetRouteClass = routeClass(
           sheetRoutes.get(selectedSession.id)?.index ?? -1
         );
-        content.append(
-          renderSessionSheet(
-            selectedSession,
-            nodeById,
-            payload,
-            sheetRouteClass
-          )
+        const sheet = renderSessionSheet(
+          selectedSession,
+          nodeById,
+          payload,
+          sheetRouteClass
         );
+        content.append(sheet);
       }
       const updateSearch = () => {
         query = input.value.trim().toLocaleLowerCase('zh-CN');
@@ -1169,6 +1180,10 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
         }, 120);
       });
       requestAnimationFrame(() => {
+        if (selectedSessionId) {
+          document.querySelector('.sheet-title')?.focus();
+          return;
+        }
         if (focusKey) {
           const target = [...document.querySelectorAll('[data-focus-key]')]
             .find((element) => element.dataset.focusKey === focusKey);
@@ -1338,6 +1353,11 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
         stage.style.transform =
           'translate(' + transform.x + 'px,' + transform.y + 'px) scale(' +
           transform.k + ')';
+        lineageViewports.set(tree.id, {
+          x: transform.x,
+          y: transform.y,
+          k: transform.k
+        });
       };
       const zoom = d3.zoom()
         .scaleExtent([0.4, 3.2])
@@ -1348,12 +1368,34 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
         .translateExtent([[-Infinity, 0], [Infinity, Infinity]])
         .on('zoom', (event) => applyStage(event.transform));
       const canvasSelection = d3.select(chart);
+      let retryFrame;
+      let retryTimer;
+      let resizeObserver;
       const fitStage = () => {
+        if (!chart.isConnected) return;
         const available = chart.clientWidth;
         if (!available) {
           // Layout not ready yet (width 0) — retry next frame so the initial
           // fit transform reliably applies.
-          requestAnimationFrame(fitStage);
+          retryFrame = requestAnimationFrame(fitStage);
+          return;
+        }
+        const viewportRoom = Math.floor(
+          window.innerHeight - chart.getBoundingClientRect().top - 24
+        );
+        const saved = lineageViewports.get(tree.id);
+        if (saved) {
+          chart.style.height =
+            Math.max(
+              Math.ceil(graphHeight * saved.k),
+              viewportRoom,
+              240
+            ) + 'px';
+          const restored = d3.zoomIdentity
+            .translate(saved.x, saved.y)
+            .scale(saved.k);
+          canvasSelection.call(zoom.transform, restored);
+          applyStage(restored);
           return;
         }
         // Match the last pre-rename sidebar baseline: cards rendered at about
@@ -1367,9 +1409,6 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
           Math.max(minimumReadableScale, fitScale)
         );
         const scaledHeight = Math.ceil(graphHeight * baseScale);
-        const viewportRoom = Math.floor(
-          window.innerHeight - chart.getBoundingClientRect().top - 24
-        );
         chart.style.height =
           Math.max(scaledHeight, viewportRoom, 240) + 'px';
         // Center the fitted tree, pin to top, and make that the zoom's initial
@@ -1417,14 +1456,20 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
       // so the "fit the whole tree" transform always applies at the right
       // moment regardless of first-paint timing (rAF/timers were racing it).
       if (typeof ResizeObserver === 'function') {
-        const observer = new ResizeObserver(() => fitStage());
-        observer.observe(chart);
+        resizeObserver = new ResizeObserver(() => fitStage());
+        resizeObserver.observe(chart);
       } else {
-        requestAnimationFrame(fitStage);
-        setTimeout(fitStage, 120);
+        retryFrame = requestAnimationFrame(fitStage);
+        retryTimer = setTimeout(fitStage, 120);
       }
       fitStage();
       window.addEventListener('resize', fitStage);
+      renderCleanups.push(() => {
+        resizeObserver?.disconnect();
+        window.removeEventListener('resize', fitStage);
+        if (retryFrame !== undefined) cancelAnimationFrame(retryFrame);
+        if (retryTimer !== undefined) clearTimeout(retryTimer);
+      });
       return section;
     }
 
@@ -2272,6 +2317,8 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
         (routeClassName || 'route-trunk') +
         ' ' +
         tone(session.verdict);
+      sheet.setAttribute('role', 'dialog');
+      sheet.setAttribute('aria-modal', 'true');
       sheet.setAttribute('aria-label', '航点详情');
       const head = document.createElement('header');
       head.className = 'sheet-head';
@@ -2407,17 +2454,23 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
           row.className = 'detail-file';
           const name = document.createElement('span');
           name.className = 'detail-file-name';
-          name.textContent = file.path;
-          name.title = file.path;
+          name.textContent = file.previousPath
+            ? file.previousPath + ' → ' + file.path
+            : file.path;
+          name.title = name.textContent;
           const count = document.createElement('span');
           count.className = 'detail-file-count';
-          const added = document.createElement('span');
-          added.className = 'detail-file-add';
-          added.textContent = '+' + file.additions;
-          const deleted = document.createElement('span');
-          deleted.className = 'detail-file-delete';
-          deleted.textContent = '−' + file.deletions;
-          count.append(added, ' ', deleted);
+          if (file.lineCountsKnown === false) {
+            count.textContent = '行数未知';
+          } else {
+            const added = document.createElement('span');
+            added.className = 'detail-file-add';
+            added.textContent = '+' + file.additions;
+            const deleted = document.createElement('span');
+            deleted.className = 'detail-file-delete';
+            deleted.textContent = '−' + file.deletions;
+            count.append(added, ' ', deleted);
+          }
           row.append(name, count);
           files.append(row);
         });
@@ -2603,6 +2656,35 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
       }
     });
     window.addEventListener('keydown', (event) => {
+      if (event.key === 'Tab' && selectedSessionId) {
+        const sheet = document.querySelector('.lineage-detail-sheet');
+        const focusable = sheet
+          ? [...sheet.querySelectorAll('button, [tabindex]:not([tabindex="-1"])')]
+              .filter((element) =>
+                !element.disabled && element.getClientRects().length > 0
+              )
+          : [];
+        const first = focusable[0];
+        const last = focusable.at(-1);
+        if (first && last) {
+          if (!sheet.contains(document.activeElement)) {
+            event.preventDefault();
+            (event.shiftKey ? last : first).focus();
+          } else if (
+            event.shiftKey &&
+            (
+              document.activeElement === first ||
+              !focusable.includes(document.activeElement)
+            )
+          ) {
+            event.preventDefault();
+            last.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+          }
+        }
+      }
       if (
         event.key === 'Escape' &&
         selectedSessionId &&

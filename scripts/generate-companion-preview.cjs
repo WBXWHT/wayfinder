@@ -45,20 +45,46 @@ const previewStates = Object.fromEntries(
     }
   ])
 );
+const inlineJson = (value) =>
+  JSON.stringify(value)
+    .replaceAll("<", "\\u003c")
+    .replaceAll("\u2028", "\\u2028")
+    .replaceAll("\u2029", "\\u2029");
 const mock = `<script>
-globalThis.__WAYFINDER_PREVIEW_PROJECTS__ = ${JSON.stringify(previewProjects)};
-globalThis.__WAYFINDER_PREVIEW_STATES__ = ${JSON.stringify(previewStates)};
+globalThis.__WAYFINDER_PREVIEW_PROJECTS__ = ${inlineJson(previewProjects)};
+globalThis.__WAYFINDER_PREVIEW_STATES__ = ${inlineJson(previewStates)};
 globalThis.__WAYFINDER_PREVIEW_READ_COUNT__ = 0;
+globalThis.__WAYFINDER_PREVIEW_LIST_FAILURES__ = Number(
+  new URLSearchParams(location.search).get("listFailures") || 0
+);
+globalThis.__WAYFINDER_PREVIEW_READ_FAILURE__ = "";
+globalThis.__WAYFINDER_PREVIEW_READ_DELAYS__ = {};
+globalThis.__WAYFINDER_PREVIEW_EVENT_HANDLERS__ = {};
 globalThis.__TAURI__ = {
   core: {
     invoke: async (command, payload) => {
       if (command === "list_projects") {
+        if (globalThis.__WAYFINDER_PREVIEW_LIST_FAILURES__ > 0) {
+          globalThis.__WAYFINDER_PREVIEW_LIST_FAILURES__ -= 1;
+          throw new Error("temporary list failure");
+        }
         return globalThis.__WAYFINDER_PREVIEW_PROJECTS__.map(
           (project) => ({ ...project })
         );
       }
       if (command === "read_project_state") {
         globalThis.__WAYFINDER_PREVIEW_READ_COUNT__ += 1;
+        const delays =
+          globalThis.__WAYFINDER_PREVIEW_READ_DELAYS__[payload?.projectId];
+        const delay = Array.isArray(delays) ? delays.shift() : 0;
+        if (delay > 0) {
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+        if (
+          globalThis.__WAYFINDER_PREVIEW_READ_FAILURE__ === payload?.projectId
+        ) {
+          throw new Error("temporary read failure");
+        }
         return globalThis.__WAYFINDER_PREVIEW_STATES__[payload?.projectId];
       }
       if (command === "host_status") {
@@ -98,6 +124,14 @@ globalThis.__TAURI__ = {
         return "~/.wayfinder/archive/preview";
       }
       throw new Error("Unknown preview command: " + command);
+    }
+  },
+  event: {
+    listen: async (name, handler) => {
+      globalThis.__WAYFINDER_PREVIEW_EVENT_HANDLERS__[name] = handler;
+      return () => {
+        delete globalThis.__WAYFINDER_PREVIEW_EVENT_HANDLERS__[name];
+      };
     }
   }
 };

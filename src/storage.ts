@@ -201,14 +201,6 @@ function errorMessage(error: unknown): string {
 }
 
 async function commitTempFile(temp: string, target: string): Promise<void> {
-  if (process.platform === "win32") {
-    try {
-      await fs.promises.copyFile(temp, target);
-    } finally {
-      await fs.promises.rm(temp, { force: true }).catch(() => undefined);
-    }
-    return;
-  }
   await fs.promises.rename(temp, target);
 }
 

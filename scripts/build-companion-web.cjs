@@ -414,6 +414,10 @@ html = html
     ""
   )
   .replace(
+    "</head>",
+    '  <link rel="icon" href="./wayfinder-icon.png">\n</head>'
+  )
+  .replace(
     '<link href="__WAYFINDER_CODICONS__" rel="stylesheet">',
     () => `<style>${codiconCss}</style>`
   )

@@ -1,21 +1,37 @@
 use serde::Serialize;
 use serde_json::Value;
+use shared_child::SharedChild;
 use std::env;
 use std::fs;
+use std::io::Read;
+#[cfg(unix)]
+use std::os::unix::fs::MetadataExt as UnixMetadataExt;
+#[cfg(unix)]
+use std::os::unix::process::CommandExt as UnixCommandExt;
+#[cfg(windows)]
+use std::os::windows::fs::OpenOptionsExt as WindowsOpenOptionsExt;
+#[cfg(windows)]
+use std::os::windows::io::AsRawHandle;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt as WindowsCommandExt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, Mutex,
 };
 use std::thread::{self, JoinHandle};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tauri::AppHandle;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+#[cfg(target_os = "macos")]
+use tauri::WindowEvent;
+use tauri::{AppHandle, Emitter, Manager, RunEvent};
 use tauri_plugin_shell::ShellExt;
 
 const PROJECT_LOCK_STALE: Duration = Duration::from_secs(8);
 /// Debounce window for coalescing bursts of transcript writes before a collect.
 const COLLECT_DEBOUNCE: Duration = Duration::from_secs(2);
+const COLLECT_RETRY_INTERVAL: Duration = Duration::from_secs(30);
+const COLLECT_TIMEOUT: Duration = Duration::from_secs(90);
 
 #[derive(Clone, Default)]
 struct CollectGate {
@@ -69,13 +85,17 @@ fn wayfinder_home() -> Result<PathBuf, String> {
 }
 
 fn state_path(project_id: &str) -> Result<PathBuf, String> {
-    if project_id.len() != 20 || !project_id.chars().all(|value| value.is_ascii_hexdigit()) {
+    if !is_valid_project_id(project_id) {
         return Err("Invalid Wayfinder project id".to_string());
     }
     Ok(wayfinder_home()?
         .join("projects")
         .join(project_id)
         .join("timeline.json"))
+}
+
+fn is_valid_project_id(project_id: &str) -> bool {
+    project_id.len() == 20 && project_id.chars().all(|value| value.is_ascii_hexdigit())
 }
 
 fn read_json(path: &Path) -> Result<Value, String> {
@@ -97,6 +117,9 @@ fn list_projects() -> Result<Vec<ProjectSummary>, String> {
     {
         let entry = entry.map_err(|error| error.to_string())?;
         let id = entry.file_name().to_string_lossy().to_string();
+        if !is_valid_project_id(&id) {
+            continue;
+        }
         let path = entry.path().join("timeline.json");
         if !path.is_file() {
             continue;
@@ -166,10 +189,7 @@ fn open_with_system(target: &std::ffi::OsStr, label: &str) -> Result<(), String>
     #[cfg(target_os = "macos")]
     let status = Command::new("/usr/bin/open").arg(target).status();
     #[cfg(target_os = "windows")]
-    let status = Command::new("cmd")
-        .args(["/C", "start", ""])
-        .arg(target)
-        .status();
+    let status = Command::new("explorer.exe").arg(target).status();
     #[cfg(all(unix, not(target_os = "macos")))]
     let status = Command::new("xdg-open").arg(target).status();
 
@@ -225,9 +245,15 @@ struct ProjectLock {
 
 struct ProjectLockState {
     path: PathBuf,
-    token: String,
+    identity: LockIdentity,
     modified: SystemTime,
     compromised: bool,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+struct LockIdentity {
+    first: u64,
+    second: u64,
 }
 
 impl ProjectLock {
@@ -236,25 +262,21 @@ impl ProjectLock {
         for _ in 0..2 {
             match fs::create_dir(&lock) {
                 Ok(()) => {
-                    let token = format!(
-                        "{}-{}",
-                        std::process::id(),
-                        SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .map_err(|error| error.to_string())?
-                            .as_nanos()
-                    );
-                    fs::write(lock.join("owner"), &token).map_err(|error| {
-                        let _ = fs::remove_dir_all(&lock);
-                        format!("Unable to initialize lock {}: {error}", lock.display())
+                    let metadata = fs::metadata(&lock).map_err(|error| {
+                        let _ = fs::remove_dir(&lock);
+                        format!("Unable to inspect lock {}: {error}", lock.display())
                     })?;
-                    let modified = refresh_lock(&lock, &token, None).ok_or_else(|| {
-                        let _ = fs::remove_dir_all(&lock);
+                    let identity = lock_identity(&lock, &metadata).ok_or_else(|| {
+                        let _ = fs::remove_dir(&lock);
+                        format!("Unable to identify lock {}", lock.display())
+                    })?;
+                    let modified = refresh_lock(&lock, identity, None).ok_or_else(|| {
+                        let _ = fs::remove_dir(&lock);
                         format!("Unable to initialize lock {}", lock.display())
                     })?;
                     let state = Arc::new(Mutex::new(ProjectLockState {
                         path: lock,
-                        token,
+                        identity,
                         modified,
                         compromised: false,
                     }));
@@ -270,7 +292,7 @@ impl ProjectLock {
                             if let Ok(mut current) = thread_state.lock() {
                                 if let Some(modified) = refresh_lock(
                                     &current.path,
-                                    &current.token,
+                                    current.identity,
                                     Some(current.modified),
                                 ) {
                                     current.modified = modified;
@@ -288,7 +310,7 @@ impl ProjectLock {
                     });
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
-                    if lock_is_stale(&lock) && fs::remove_dir_all(&lock).is_ok() {
+                    if recover_stale_lock(&lock) {
                         continue;
                     }
                     return Err("项目正在记录新航迹，请在 AI 会话结束后重试。".to_string());
@@ -304,7 +326,9 @@ impl ProjectLock {
     fn relocate(&mut self, path: PathBuf) {
         if let Ok(mut state) = self.state.lock() {
             state.path = path;
-            if let Some(modified) = lock_modified_if_owned(&state.path, &state.token) {
+            if let Some(modified) =
+                lock_modified_if_owned(&state.path, state.identity, state.modified)
+            {
                 state.modified = modified;
                 return;
             }
@@ -318,7 +342,7 @@ impl ProjectLock {
             .lock()
             .map_err(|_| "Wayfinder project lock state is unavailable".to_string())?;
         let owned = !state.compromised
-            && lock_modified_if_owned(&state.path, &state.token) == Some(state.modified);
+            && lock_modified_if_owned(&state.path, state.identity, state.modified).is_some();
         if owned {
             Ok(())
         } else {
@@ -327,44 +351,148 @@ impl ProjectLock {
     }
 }
 
-fn lock_modified_if_owned(lock: &Path, token: &str) -> Option<SystemTime> {
-    let marker = lock.join("owner");
-    if fs::read_to_string(&marker).ok()?.trim() != token {
-        return None;
-    }
-    fs::metadata(marker).ok()?.modified().ok()
+fn lock_modified_if_owned(
+    lock: &Path,
+    identity: LockIdentity,
+    expected: SystemTime,
+) -> Option<SystemTime> {
+    let metadata = fs::metadata(lock).ok()?;
+    let modified = metadata.modified().ok()?;
+    (lock_identity(lock, &metadata) == Some(identity) && modified == expected).then_some(modified)
 }
 
-fn refresh_lock(lock: &Path, token: &str, expected: Option<SystemTime>) -> Option<SystemTime> {
+fn refresh_lock(
+    lock: &Path,
+    identity: LockIdentity,
+    expected: Option<SystemTime>,
+) -> Option<SystemTime> {
     let now = SystemTime::now();
-    let marker = lock.join("owner");
-    if fs::read_to_string(&marker).ok()?.trim() != token {
+    let before = fs::metadata(lock).ok()?;
+    if lock_identity(lock, &before) != Some(identity)
+        || expected.is_some_and(|modified| before.modified().ok() != Some(modified))
+    {
         return None;
     }
-    let file = fs::OpenOptions::new().write(true).open(&marker).ok()?;
-    let before = file.metadata().ok()?;
-    if expected.is_some_and(|modified| before.modified().ok() != Some(modified)) {
-        return None;
-    }
-    file.set_times(fs::FileTimes::new().set_modified(now))
-        .ok()?;
-    let after = file.metadata().ok()?;
+    filetime::set_file_mtime(lock, filetime::FileTime::from_system_time(now)).ok()?;
+    let after = fs::metadata(lock).ok()?;
     let modified = after.modified().ok()?;
-    if fs::read_to_string(&marker).ok()?.trim() != token
-        || fs::metadata(&marker).ok()?.modified().ok() != Some(modified)
+    if lock_identity(lock, &after) != Some(identity)
+        || fs::metadata(lock)
+            .ok()
+            .filter(|metadata| lock_identity(lock, metadata) == Some(identity))?
+            .modified()
+            .ok()
+            != Some(modified)
     {
         return None;
     }
     Some(modified)
 }
 
-fn lock_is_stale(lock: &Path) -> bool {
-    fs::metadata(lock.join("owner"))
+fn recover_stale_lock(lock: &Path) -> bool {
+    let owner = lock.join("owner");
+    let legacy = owner.is_file();
+    let observed = match fs::metadata(lock) {
+        Ok(metadata) => metadata,
+        Err(_) => return false,
+    };
+    let Some(observed_identity) = lock_identity(lock, &observed) else {
+        return false;
+    };
+    let modified = fs::metadata(&owner)
         .or_else(|_| fs::metadata(lock))
         .and_then(|metadata| metadata.modified())
+        .ok();
+    let Some(observed_modified) = modified else {
+        return false;
+    };
+    if !SystemTime::now()
+        .duration_since(observed_modified)
         .ok()
-        .and_then(|modified| SystemTime::now().duration_since(modified).ok())
         .is_some_and(|age| age > PROJECT_LOCK_STALE)
+    {
+        return false;
+    }
+    quarantine_stale_lock(lock, observed_identity, observed_modified, legacy)
+}
+
+fn quarantine_stale_lock(
+    lock: &Path,
+    observed_identity: LockIdentity,
+    observed_modified: SystemTime,
+    legacy: bool,
+) -> bool {
+    let quarantine = lock.with_file_name(format!(
+        "{}.reclaim-{}-{}",
+        lock.file_name()
+            .and_then(|value| value.to_str())
+            .unwrap_or("wayfinder.lock"),
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|value| value.as_nanos())
+            .unwrap_or(0)
+    ));
+    if fs::rename(lock, &quarantine).is_err() {
+        return false;
+    }
+    let same_lock = fs::metadata(&quarantine)
+        .ok()
+        .is_some_and(|metadata| lock_identity(&quarantine, &metadata) == Some(observed_identity));
+    let timestamp_path = if legacy {
+        quarantine.join("owner")
+    } else {
+        quarantine.clone()
+    };
+    let unchanged = fs::metadata(timestamp_path)
+        .and_then(|metadata| metadata.modified())
+        .ok()
+        == Some(observed_modified);
+    if !same_lock || !unchanged {
+        if !lock.exists() {
+            let _ = fs::rename(&quarantine, lock);
+        }
+        return false;
+    }
+    if legacy {
+        fs::remove_dir_all(&quarantine).is_ok()
+    } else {
+        fs::remove_dir(&quarantine).is_ok()
+    }
+}
+
+#[cfg(unix)]
+fn lock_identity(_path: &Path, metadata: &fs::Metadata) -> Option<LockIdentity> {
+    Some(LockIdentity {
+        first: metadata.dev(),
+        second: metadata.ino(),
+    })
+}
+
+#[cfg(windows)]
+fn lock_identity(path: &Path, _metadata: &fs::Metadata) -> Option<LockIdentity> {
+    use windows_sys::Win32::Storage::FileSystem::{
+        GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION, FILE_FLAG_BACKUP_SEMANTICS,
+        FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE,
+    };
+
+    let directory = fs::OpenOptions::new()
+        .read(true)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
+        .open(path)
+        .ok()?;
+    let mut information = BY_HANDLE_FILE_INFORMATION::default();
+    let succeeded =
+        unsafe { GetFileInformationByHandle(directory.as_raw_handle() as _, &mut information) };
+    if succeeded == 0 {
+        return None;
+    }
+    Some(LockIdentity {
+        first: information.dwVolumeSerialNumber as u64,
+        second: (u64::from(information.nFileIndexHigh) << 32)
+            | u64::from(information.nFileIndexLow),
+    })
 }
 
 impl Drop for ProjectLock {
@@ -376,10 +504,180 @@ impl Drop for ProjectLock {
         }
         if let Ok(state) = self.state.lock() {
             let still_owned = !state.compromised
-                && lock_modified_if_owned(&state.path, &state.token) == Some(state.modified);
+                && lock_modified_if_owned(&state.path, state.identity, state.modified).is_some();
             if still_owned {
-                let _ = fs::remove_dir_all(&state.path);
+                let _ = fs::remove_dir(&state.path);
             }
+        }
+    }
+}
+
+#[derive(Clone, Default)]
+struct ActiveCollector {
+    child: Arc<Mutex<Option<Arc<SharedChild>>>>,
+    shutting_down: Arc<AtomicBool>,
+}
+
+fn kill_collector_process(child: Arc<SharedChild>) {
+    let pid = child.id();
+    #[cfg(unix)]
+    {
+        // The sidecar starts in its own process group, so one signal reaches
+        // Node and every Git process it spawned without a PID-enumeration race.
+        unsafe {
+            libc::kill(-(pid as i32), libc::SIGKILL);
+        }
+    }
+    #[cfg(windows)]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let mut taskkill = Command::new("taskkill.exe");
+        taskkill.creation_flags(CREATE_NO_WINDOW);
+        let _ = taskkill
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .status();
+    }
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+impl ActiveCollector {
+    fn replace(&self, child: Arc<SharedChild>) -> Result<u32, String> {
+        let pid = child.id();
+        if self.shutting_down.load(Ordering::Acquire) {
+            kill_collector_process(child);
+            return Err("collector is shutting down".to_string());
+        }
+        let mut current = self
+            .child
+            .lock()
+            .map_err(|_| "Collector process state is unavailable".to_string())?;
+        if self.shutting_down.load(Ordering::Acquire) {
+            kill_collector_process(child);
+            return Err("collector is shutting down".to_string());
+        }
+        if let Some(previous) = current.take() {
+            kill_collector_process(previous);
+        }
+        *current = Some(child);
+        Ok(pid)
+    }
+
+    fn clear(&self, pid: u32) {
+        if let Ok(mut current) = self.child.lock() {
+            if current.as_ref().is_some_and(|child| child.id() == pid) {
+                current.take();
+            }
+        }
+    }
+
+    fn cancel_current(&self) {
+        if let Ok(mut current) = self.child.lock() {
+            if let Some(child) = current.take() {
+                kill_collector_process(child);
+            }
+        }
+    }
+
+    fn shutdown(&self) {
+        self.shutting_down.store(true, Ordering::Release);
+        self.cancel_current();
+    }
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CollectorStatus {
+    status: String,
+    message: Option<String>,
+}
+
+fn emit_collector_status(app: &AppHandle, status: &str, message: Option<String>) {
+    let _ = app.emit(
+        "wayfinder://collector-status",
+        CollectorStatus {
+            status: status.to_string(),
+            message,
+        },
+    );
+}
+
+async fn run_collect_once(app: &AppHandle, active: &ActiveCollector) -> Result<(), String> {
+    let sidecar = app
+        .shell()
+        .sidecar("wayfinder")
+        .map_err(|error| format!("sidecar unavailable: {error}"))?
+        .args(["collect"]);
+    let mut command: Command = sidecar.into();
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(unix)]
+    command.process_group(0);
+    #[cfg(windows)]
+    command.creation_flags(0x0800_0000);
+    let child = Arc::new(
+        SharedChild::spawn(&mut command)
+            .map_err(|error| format!("unable to start collector: {error}"))?,
+    );
+    let Some(stdout) = child.take_stdout() else {
+        kill_collector_process(child);
+        return Err("collector stdout is unavailable".to_string());
+    };
+    let Some(stderr) = child.take_stderr() else {
+        kill_collector_process(child);
+        return Err("collector stderr is unavailable".to_string());
+    };
+    let pid = active.replace(Arc::clone(&child))?;
+    let mut wait_task = tauri::async_runtime::spawn_blocking(move || {
+        let stdout_reader = thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let _ = std::io::BufReader::new(stdout).read_to_end(&mut bytes);
+            bytes
+        });
+        let stderr_reader = thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let _ = std::io::BufReader::new(stderr).read_to_end(&mut bytes);
+            bytes
+        });
+        let status = child
+            .wait()
+            .map_err(|error| format!("unable to wait for collector: {error}"))?;
+        let _ = stdout_reader.join();
+        let stderr = stderr_reader.join().unwrap_or_default();
+        if status.success() {
+            Ok(())
+        } else {
+            let detail = String::from_utf8_lossy(&stderr).trim().to_string();
+            Err(if detail.is_empty() {
+                format!("collector exited with status {:?}", status.code())
+            } else {
+                detail
+            })
+        }
+    });
+    let result = tokio::time::timeout(COLLECT_TIMEOUT, &mut wait_task).await;
+    match result {
+        Ok(Ok(Ok(()))) => {
+            active.clear(pid);
+            Ok(())
+        }
+        Ok(Ok(Err(error))) => {
+            active.clear(pid);
+            Err(error)
+        }
+        Ok(Err(error)) => {
+            active.cancel_current();
+            Err(format!("collector wait task failed: {error}"))
+        }
+        Err(_) => {
+            active.cancel_current();
+            let _ = tokio::time::timeout(Duration::from_secs(2), &mut wait_task).await;
+            Err(format!(
+                "collector timed out after {} seconds",
+                COLLECT_TIMEOUT.as_secs()
+            ))
         }
     }
 }
@@ -428,22 +726,16 @@ fn schedule_collect(app: &AppHandle, gate: &CollectGate) {
     }
     let app = app.clone();
     let gate = gate.clone();
+    let active = app.state::<ActiveCollector>().inner().clone();
     tauri::async_runtime::spawn(async move {
         loop {
             gate.begin_run();
-            match app.shell().sidecar("wayfinder") {
-                Ok(sidecar) => match sidecar.args(["collect"]).output().await {
-                    Ok(output) if !output.status.success() => {
-                        eprintln!(
-                            "wayfinder collect failed: {}",
-                            String::from_utf8_lossy(&output.stderr).trim()
-                        );
-                    }
-                    Err(error) => eprintln!("wayfinder collect error: {error}"),
-                    _ => {}
-                },
+            emit_collector_status(&app, "running", None);
+            match run_collect_once(&app, &active).await {
+                Ok(()) => emit_collector_status(&app, "idle", None),
                 Err(error) => {
-                    eprintln!("wayfinder collect: sidecar unavailable: {error}");
+                    eprintln!("wayfinder collect failed: {error}");
+                    emit_collector_status(&app, "error", Some(error));
                 }
             }
             if !gate.finish_or_continue() {
@@ -467,6 +759,7 @@ fn start_transcript_watcher(app: AppHandle) {
         // Collect once at startup so sessions written while the app was closed
         // are captured immediately.
         schedule_collect(&app, &collect_gate);
+        let mut last_retry = Instant::now();
 
         loop {
             let roots: Vec<PathBuf> = transcript_watch_roots()
@@ -515,6 +808,10 @@ fn start_transcript_watcher(app: AppHandle) {
 
             loop {
                 thread::sleep(Duration::from_secs(2));
+                if last_retry.elapsed() >= COLLECT_RETRY_INTERVAL {
+                    schedule_collect(&app, &collect_gate);
+                    last_retry = Instant::now();
+                }
                 let current: Vec<PathBuf> = transcript_watch_roots()
                     .into_iter()
                     .filter(|root| root.exists())
@@ -541,7 +838,8 @@ fn start_transcript_watcher(app: AppHandle) {
 }
 
 fn main() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
+        .manage(ActiveCollector::default())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             start_transcript_watcher(app.handle().clone());
@@ -554,16 +852,47 @@ fn main() {
             open_release_page,
             archive_project
         ])
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .expect("error while running Wayfinder Companion");
+    app.run(|app, event| match event {
+        #[cfg(target_os = "macos")]
+        RunEvent::WindowEvent {
+            label,
+            event: WindowEvent::CloseRequested { api, .. },
+            ..
+        } if label == "main" => {
+            api.prevent_close();
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.hide();
+            }
+        }
+        #[cfg(target_os = "macos")]
+        RunEvent::Reopen {
+            has_visible_windows: false,
+            ..
+        } => {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }
+        RunEvent::Exit | RunEvent::ExitRequested { .. } => {
+            app.state::<ActiveCollector>().shutdown();
+        }
+        _ => {}
+    });
 }
 
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::sync::atomic::Ordering;
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-    use super::{state_path, CollectGate, ProjectLock, PROJECT_LOCK_STALE};
+    use super::{
+        lock_identity, quarantine_stale_lock, state_path, ActiveCollector, CollectGate,
+        ProjectLock, PROJECT_LOCK_STALE,
+    };
 
     #[test]
     fn collect_gate_coalesces_requests_into_one_follow_up_run() {
@@ -576,6 +905,16 @@ mod tests {
         gate.begin_run();
         assert!(!gate.finish_or_continue());
         assert!(gate.request());
+    }
+
+    #[test]
+    fn collector_shutdown_is_irreversible() {
+        let active = ActiveCollector::default();
+        assert!(!active.shutting_down.load(Ordering::Acquire));
+        active.cancel_current();
+        assert!(!active.shutting_down.load(Ordering::Acquire));
+        active.shutdown();
+        assert!(active.shutting_down.load(Ordering::Acquire));
     }
 
     #[test]
@@ -629,6 +968,7 @@ mod tests {
         {
             let _guard = ProjectLock::acquire(&state).expect("lock");
             assert!(lock.is_dir());
+            assert_eq!(fs::read_dir(&lock).expect("read lock directory").count(), 0);
         }
         assert!(!lock.exists());
         fs::remove_dir_all(dir).expect("remove test directory");
@@ -646,9 +986,13 @@ mod tests {
         let state = dir.join("timeline.json");
         let lock = dir.join("timeline.json.lock");
         let guard = ProjectLock::acquire(&state).expect("lock");
-        fs::remove_dir_all(&lock).expect("remove owned lock");
+        fs::remove_dir(&lock).expect("remove owned lock");
         fs::create_dir(&lock).expect("replacement lock");
-        fs::write(lock.join("owner"), "replacement").expect("replacement token");
+        filetime::set_file_mtime(
+            &lock,
+            filetime::FileTime::from_system_time(SystemTime::now() - Duration::from_secs(1)),
+        )
+        .expect("replacement timestamp");
         assert!(guard.ensure_owned().is_err());
         drop(guard);
         assert!(lock.is_dir());
@@ -667,18 +1011,71 @@ mod tests {
         let state = dir.join("timeline.json");
         let lock = dir.join("timeline.json.lock");
         fs::create_dir(&lock).expect("stale lock");
-        let owner = lock.join("owner");
-        fs::write(&owner, "stale").expect("stale owner");
         let stale_at = SystemTime::now() - PROJECT_LOCK_STALE - Duration::from_secs(1);
-        fs::OpenOptions::new()
-            .write(true)
-            .open(&owner)
-            .expect("open stale owner")
-            .set_times(fs::FileTimes::new().set_modified(stale_at))
-            .expect("age stale owner");
+        filetime::set_file_mtime(&lock, filetime::FileTime::from_system_time(stale_at))
+            .expect("age stale lock");
 
         let guard = ProjectLock::acquire(&state).expect("recover stale lock");
         assert!(guard.ensure_owned().is_ok());
+        drop(guard);
+        assert!(!lock.exists());
+        fs::remove_dir_all(dir).expect("remove test directory");
+    }
+
+    #[test]
+    fn refreshed_lock_is_restored_instead_of_reclaimed() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let dir =
+            std::env::temp_dir().join(format!("wayfinder-live-{}-{nonce}", std::process::id()));
+        fs::create_dir_all(&dir).expect("test directory");
+        let lock = dir.join("timeline.json.lock");
+        fs::create_dir(&lock).expect("stale lock");
+        let stale_at = SystemTime::now() - PROJECT_LOCK_STALE - Duration::from_secs(1);
+        filetime::set_file_mtime(&lock, filetime::FileTime::from_system_time(stale_at))
+            .expect("age stale lock");
+        let observed = fs::metadata(&lock).expect("observe stale lock");
+        let observed_identity = lock_identity(&lock, &observed).expect("lock identity");
+        let observed_modified = observed.modified().expect("stale modified time");
+
+        filetime::set_file_mtime(
+            &lock,
+            filetime::FileTime::from_system_time(SystemTime::now()),
+        )
+        .expect("refresh live lock");
+        assert!(!quarantine_stale_lock(
+            &lock,
+            observed_identity,
+            observed_modified,
+            false
+        ));
+        assert!(lock.is_dir());
+        fs::remove_dir_all(dir).expect("remove test directory");
+    }
+
+    #[test]
+    fn legacy_nonempty_stale_lock_is_recovered() {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let dir =
+            std::env::temp_dir().join(format!("wayfinder-legacy-{}-{nonce}", std::process::id()));
+        fs::create_dir_all(&dir).expect("test directory");
+        let state = dir.join("timeline.json");
+        let lock = dir.join("timeline.json.lock");
+        fs::create_dir(&lock).expect("legacy stale lock");
+        let owner = lock.join("owner");
+        fs::write(&owner, "legacy").expect("legacy owner");
+        let stale_at = SystemTime::now() - PROJECT_LOCK_STALE - Duration::from_secs(1);
+        filetime::set_file_mtime(&owner, filetime::FileTime::from_system_time(stale_at))
+            .expect("age legacy owner");
+
+        let guard = ProjectLock::acquire(&state).expect("recover legacy lock");
+        assert!(guard.ensure_owned().is_ok());
+        assert_eq!(fs::read_dir(&lock).expect("read lock directory").count(), 0);
         drop(guard);
         assert!(!lock.exists());
         fs::remove_dir_all(dir).expect("remove test directory");

@@ -4,6 +4,7 @@ import {
   buildConversationForest,
   ConversationForest
 } from "./conversationForest";
+import { isGenericHandoffText } from "./voyageEngine";
 
 export interface LocalTopicAssessment {
   topicId: string;
@@ -24,7 +25,12 @@ export function buildLocalTopicAssessments(
       .flatMap((session) => session.nodeIds)
       .map((nodeId) => nodes.get(nodeId))
       .filter((node): node is TimelineNode => Boolean(node))
-      .sort((a, b) => a.completedAt.localeCompare(b.completedAt));
+      .sort((a, b) =>
+        a.completedAt.localeCompare(b.completedAt) ||
+        Number(isFailureNode(a, abandoned)) -
+          Number(isFailureNode(b, abandoned)) ||
+        a.id.localeCompare(b.id)
+      );
     const evidenceNodeIds = topicNodes
       .filter((node) => isFailureNode(node, abandoned))
       .map((node) => node.id);
@@ -35,6 +41,7 @@ export function buildLocalTopicAssessments(
     const unresolvedFailures = new Map<AgentHost, string>();
     const recoveredHosts = new Set<AgentHost>();
     const healthyAttempts = new Map<AgentHost, string>();
+    const alternativeAttempts = new Map<AgentHost, string>();
     const sourceHosts = new Set<AgentHost>();
     for (const node of topicNodes) {
       if (
@@ -48,9 +55,14 @@ export function buildLocalTopicAssessments(
       if (isFailureNode(node, abandoned)) {
         unresolvedFailures.set(node.sourceHost, node.completedAt);
         healthyAttempts.delete(node.sourceHost);
+        alternativeAttempts.delete(node.sourceHost);
         continue;
       }
-      if (isResolvedAttempt(node)) {
+      const resolved = isResolvedAttempt(node);
+      if (resolved || !isGenericHandoffText(node.prompt || "")) {
+        alternativeAttempts.set(node.sourceHost, node.completedAt);
+      }
+      if (resolved) {
         healthyAttempts.set(node.sourceHost, node.completedAt);
         if (unresolvedFailures.delete(node.sourceHost)) {
           recoveredHosts.add(node.sourceHost);
@@ -59,8 +71,8 @@ export function buildLocalTopicAssessments(
     }
     const conflicting = [...unresolvedFailures].some(
       ([failedHost, failedAt]) =>
-        [...healthyAttempts].some(([healthyHost, healthyAt]) =>
-          healthyHost !== failedHost && healthyAt > failedAt
+        [...alternativeAttempts].some(([attemptHost, attemptAt]) =>
+          attemptHost !== failedHost && attemptAt > failedAt
         )
     );
     const superseded =
@@ -95,5 +107,8 @@ function isFailureNode(
 }
 
 function isResolvedAttempt(node: TimelineNode): boolean {
-  return node.validation?.status !== "running";
+  return (
+    node.verdict === "success" ||
+    node.validation?.status === "passed"
+  );
 }

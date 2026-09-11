@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const childProcess = require("node:child_process");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 const vm = require("node:vm");
@@ -21,6 +22,10 @@ test("companion web bundle reuses the final map and project navigation", () => {
     path.join(root, "scripts", "build-companion-web.cjs"),
     "utf8"
   );
+  const main = fs.readFileSync(
+    path.join(root, "companion", "main.js"),
+    "utf8"
+  );
   assert.match(html, /id="projectSidebar"/);
   assert.match(html, /id="projectList"/);
   assert.match(html, /id="toggleProjects"/);
@@ -32,6 +37,7 @@ test("companion web bundle reuses the final map and project navigation", () => {
   assert.match(html, /trail-start-pole/);
   assert.match(html, /forest-node/);
   assert.match(html, /src="\.\/wayfinder-icon\.png"/);
+  assert.match(html, /rel="icon" href="\.\/wayfinder-icon\.png"/);
   assert.match(html, /data-lucide="folder-git-2"/);
   assert.match(html, /class="project-folder-route"/);
   assert.match(html, /id="openData" class="local-data-button"/);
@@ -42,8 +48,17 @@ test("companion web bundle reuses the final map and project navigation", () => {
   assert.doesNotMatch(html, /id="refresh"/);
   assert.doesNotMatch(html, /id="settingsDialog"/);
   assert.match(html, /const focusedProjectId =/);
-  assert.match(html, /data-project-id="\$\{focusedProjectId\}"/);
+  assert.match(
+    html,
+    /\.find\(\(item\) => item\.dataset\.projectId === focusedProjectId\)/
+  );
   assert.match(html, /setInterval\(\(\) => \{[\s\S]*refreshIfChanged/);
+  assert.ok(
+    html.indexOf("setInterval(() =>") < html.indexOf("await loadProjects()")
+  );
+  assert.match(html, /wayfinder:\/\/collector-status/);
+  assert.match(main, /let loadedProjectId = ""/);
+  assert.match(main, /loadedProjectId = requestedProjectId/);
   assert.match(builder, /await lockfile\.lock\(companionRoot/);
   assert.match(builder, /await fs\.promises\.rename\(output, finalOutput\)/);
   assert.match(builder, /await fs\.promises\.rename\(backupOutput, finalOutput\)/);
@@ -52,6 +67,50 @@ test("companion web bundle reuses the final map and project navigation", () => {
   for (const script of scripts) {
     assert.doesNotThrow(() => new vm.Script(script[1]));
   }
+});
+
+test("companion preview escapes transcript content inside inline scripts", () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wayfinder-preview-xss-"));
+  const statePath = path.join(sandbox, "timeline.json");
+  const outputPath = path.join(sandbox, "preview.html");
+  const marker = "</script><script>globalThis.previewInjected=true</script>";
+  fs.writeFileSync(statePath, JSON.stringify({
+    version: 1,
+    projectId: "0123456789abcdef0123",
+    root: sandbox,
+    activeBranchId: "main",
+    branches: [{ id: "main", name: "main", createdAt: "2026-09-11T00:00:00Z" }],
+    nodes: [{
+      id: "xss",
+      kind: "collected",
+      sessionId: "codex:xss",
+      sourceHost: "codex",
+      branchId: "main",
+      prompt: marker,
+      startedAt: "2026-09-11T00:00:00Z",
+      completedAt: "2026-09-11T00:00:01Z",
+      snapshotBefore: "same",
+      snapshotAfter: "same",
+      files: [],
+      actions: [],
+      validation: { status: "skipped" }
+    }],
+    pending: {},
+    updatedAt: "2026-09-11T00:00:01Z"
+  }));
+  childProcess.execFileSync(
+    process.execPath,
+    [
+      path.join(root, "scripts", "generate-companion-preview.cjs"),
+      statePath,
+      outputPath
+    ],
+    { cwd: root, stdio: "pipe" }
+  );
+  const html = fs.readFileSync(outputPath, "utf8");
+  assert.doesNotMatch(html, /<script>globalThis\.previewInjected=true/);
+  assert.match(html, /\\u003c\/script>/);
+  fs.rmSync(sandbox, { recursive: true, force: true });
 });
 
 test("desktop companion bundles one native sidecar and platform icons", () => {
@@ -89,6 +148,28 @@ test("desktop companion bundles one native sidecar and platform icons", () => {
   }
 });
 
+test("local macOS builds receive a valid ad-hoc bundle signature", () => {
+  const packageJson = JSON.parse(fs.readFileSync(
+    path.join(root, "package.json"),
+    "utf8"
+  ));
+  const buildScript = fs.readFileSync(
+    path.join(root, "scripts", "build-companion-app.cjs"),
+    "utf8"
+  );
+
+  assert.equal(
+    packageJson.scripts["companion:build"],
+    "node scripts/build-companion-app.cjs"
+  );
+  assert.match(buildScript, /process\.platform === "darwin"/);
+  assert.match(buildScript, /!environment\.APPLE_SIGNING_IDENTITY/);
+  assert.match(buildScript, /environment\.APPLE_SIGNING_IDENTITY = "-"/);
+  assert.match(buildScript, /process\.env\.npm_execpath/);
+  assert.match(buildScript, /@tauri-apps\/cli\/tauri\.js/);
+  assert.doesNotMatch(buildScript, /npm\.cmd|tauri\.cmd/);
+});
+
 test("companion uses a stale-aware archive lock", () => {
   const source = fs.readFileSync(
     path.join(root, "companion", "src-tauri", "src", "main.rs"),
@@ -97,9 +178,25 @@ test("companion uses a stale-aware archive lock", () => {
 
   assert.match(source, /PROJECT_LOCK_STALE/);
   assert.match(source, /impl Drop for ProjectLock/);
-  assert.match(source, /lock_is_stale/);
-  assert.match(source, /lock\.join\("owner"\)/);
-  assert.doesNotMatch(source, /std::os::unix/);
+  assert.match(source, /recover_stale_lock/);
+  assert.match(source, /LockIdentity/);
+  assert.match(source, /GetFileInformationByHandle/);
+  assert.match(source, /dwVolumeSerialNumber/);
+  assert.match(source, /nFileIndexHigh/);
+  assert.match(source, /filetime::set_file_mtime/);
+  assert.match(source, /fs::remove_dir\(&state\.path\)/);
+  assert.match(source, /let owner = lock\.join\("owner"\)/);
+  assert.match(source, /COLLECT_TIMEOUT/);
+  assert.match(source, /COLLECT_RETRY_INTERVAL/);
+  assert.match(source, /tokio::time::timeout/);
+  assert.match(source, /wayfinder:\/\/collector-status/);
+  assert.match(source, /active\.cancel_current\(\)/);
+  assert.match(source, /taskkill[\s\S]*?args\(\["\/PID", &pid\.to_string\(\), "\/T", "\/F"\]\)/);
+  assert.match(source, /command\.process_group\(0\)/);
+  assert.match(source, /libc::kill\(-\(pid as i32\), libc::SIGKILL\)/);
+  assert.match(source, /ActiveCollector>\(\)\.shutdown\(\)/);
+  assert.match(source, /RunEvent::Reopen/);
+  assert.match(source, /WindowEvent::CloseRequested/);
 });
 
 test("release map contains no local debug telemetry", () => {
@@ -156,6 +253,36 @@ test("release workflow requires signing and notarization credentials", () => {
       workflow.indexOf("cargo test --manifest-path"),
     "release workflow must stage the sidecar before cargo test"
   );
+});
+
+test("CI actions are pinned and Windows opens paths without cmd parsing", () => {
+  const workflow = fs.readFileSync(
+    path.join(root, ".github", "workflows", "ci.yml"),
+    "utf8"
+  );
+  const rust = fs.readFileSync(
+    path.join(root, "companion", "src-tauri", "src", "main.rs"),
+    "utf8"
+  );
+
+  assert.match(workflow, /actions\/checkout@[a-f0-9]{40}/);
+  assert.match(workflow, /actions\/setup-node@[a-f0-9]{40}/);
+  assert.match(workflow, /windows-check:/);
+  assert.match(workflow, /runs-on: windows-latest/);
+  assert.match(workflow, /macos-check:[\s\S]*runs-on: macos-15/);
+  assert.match(
+    workflow,
+    /cargo test --manifest-path companion\/src-tauri\/Cargo\.toml/
+  );
+  const windowsJob = workflow.slice(workflow.indexOf("  windows-check:"));
+  assert.ok(
+    windowsJob.indexOf("npm run build:companion:sidecar") <
+      windowsJob.indexOf("cargo test --manifest-path"),
+    "Windows CI must stage the sidecar before cargo test"
+  );
+  assert.match(rust, /Command::new\("explorer\.exe"\)\.arg\(target\)/);
+  assert.doesNotMatch(rust, /Command::new\("cmd"\)/);
+  assert.match(rust, /if !is_valid_project_id\(&id\)/);
 });
 
 test("zero-cost alpha workflow uses ad-hoc signing and a prerelease tag", () => {

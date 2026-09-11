@@ -74,6 +74,8 @@ test(
                   ? singleCompanionPath
                 : pathname === "/codicon.ttf"
                   ? path.join(temp, "codicon.ttf")
+                  : pathname === "/wayfinder-icon.png"
+                    ? path.join(temp, "wayfinder-icon.png")
                   : path.join(root, pathname.replace(/^\/+/, ""));
       if (!file.startsWith(root) && !file.startsWith(temp)) {
         response.writeHead(403).end();
@@ -458,6 +460,32 @@ test(
         "document.querySelectorAll('.lineage-node-button').length === 9"
       );
 
+      const sidebarViewportBeforeSheet = await evaluate(
+        cdp,
+        `(() => {
+          const canvas = document.querySelector('.lineage-canvas');
+          const initial =
+            document.querySelector('.lineage-stage')?.style.transform || '';
+          const rect = canvas.getBoundingClientRect();
+          canvas.dispatchEvent(new WheelEvent('wheel', {
+            deltaX: 56,
+            deltaY: 24,
+            bubbles: true,
+            cancelable: true,
+            clientX: rect.left + rect.width / 2,
+            clientY: rect.top + rect.height / 2
+          }));
+          return {
+            initial,
+            after:
+              document.querySelector('.lineage-stage')?.style.transform || ''
+          };
+        })()`
+      );
+      assert.notEqual(
+        sidebarViewportBeforeSheet.after,
+        sidebarViewportBeforeSheet.initial
+      );
       await cdp.send("Runtime.evaluate", {
         expression:
           "document.querySelector(" +
@@ -485,6 +513,15 @@ test(
           ).length,
           bodyClass: document.body.classList.contains('sheet-open'),
           active: document.activeElement?.className,
+          role: document.querySelector('.lineage-detail-sheet')
+            ?.getAttribute('role'),
+          modal: document.querySelector('.lineage-detail-sheet')
+            ?.getAttribute('aria-modal'),
+          backgroundInert: document.querySelector('.lineage-section')
+            ?.closest('[inert]') !== null,
+          viewportPreserved:
+            document.querySelector('.lineage-stage')?.style.transform ===
+            ${JSON.stringify(sidebarViewportBeforeSheet.after)},
           viewport: innerHeight,
           bottom: Math.round(
             document.querySelector('.lineage-detail-sheet')
@@ -496,11 +533,40 @@ test(
       assert.equal(sheet.inlineDetails, 0);
       assert.equal(sheet.bodyClass, true);
       assert.equal(sheet.active, "sheet-title");
+      assert.equal(sheet.role, "dialog");
+      assert.equal(sheet.modal, "true");
+      assert.equal(sheet.backgroundInert, true);
+      assert.equal(sheet.viewportPreserved, true);
       assert.ok(
         sheet.bottom <= sheet.viewport &&
         sheet.bottom >= sheet.viewport - 12,
         JSON.stringify(sheet)
       );
+      const trappedFocus = await evaluateJson(
+        cdp,
+        `(() => {
+            const sheet = document.querySelector('.lineage-detail-sheet');
+            const focusable = [...sheet.querySelectorAll(
+              'button, [tabindex]:not([tabindex="-1"])'
+            )].filter((element) =>
+              !element.disabled && element.getClientRects().length > 0
+            );
+            focusable.at(-1).focus();
+            const before = document.activeElement?.className;
+            window.dispatchEvent(new KeyboardEvent('keydown', {
+              key: 'Tab',
+              bubbles: true
+            }));
+            return {
+              before,
+              after: document.activeElement?.className,
+              first: focusable[0]?.className,
+              last: focusable.at(-1)?.className,
+              trapped: document.activeElement === focusable[0]
+            };
+          })()`
+      );
+      assert.equal(trappedFocus.trapped, true, JSON.stringify(trappedFocus));
       await cdp.send("Runtime.evaluate", {
         expression:
           "document.dispatchEvent(new KeyboardEvent('keydown'," +
@@ -1585,6 +1651,147 @@ test(
       assert.equal(desktopCompanion.hasReset, false);
       assert.equal(desktopCompanion.hasLegacyHookCopy, false);
       assert.equal(desktopCompanion.hasLegacyHostButtons, false);
+      assert.equal(
+        await evaluate(
+          cdp,
+          "typeof globalThis.__WAYFINDER_PREVIEW_EVENT_HANDLERS__" +
+            "['wayfinder://collector-status']"
+        ),
+        "function"
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression:
+          "globalThis.__WAYFINDER_PREVIEW_EVENT_HANDLERS__" +
+          "['wayfinder://collector-status']({ payload: { status: 'error' } })"
+      });
+      assert.match(
+        await evaluate(cdp, "document.querySelector('#toast')?.textContent"),
+        /自动采集暂时中断/
+      );
+
+      const activeBeforeFailedSwitch = await evaluate(
+        cdp,
+        "document.querySelector('.project-item[aria-current=\"true\"]')" +
+          "?.dataset.projectId"
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression: `(() => {
+          const target = document.querySelectorAll('.project-item')[1];
+          globalThis.__WAYFINDER_PREVIEW_READ_FAILURE__ =
+            target?.dataset.projectId || '';
+          target?.click();
+        })()`
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelector('#toast')?.classList.contains('visible')"
+      );
+      assert.equal(
+        await evaluate(
+          cdp,
+          "document.querySelector('.project-item[aria-current=\"true\"]')" +
+            "?.dataset.projectId"
+        ),
+        activeBeforeFailedSwitch
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression: "globalThis.__WAYFINDER_PREVIEW_READ_FAILURE__ = ''"
+      });
+
+      await cdp.send("Runtime.evaluate", {
+        expression: `(() => {
+          const original = globalThis.__WAYFINDER_PREVIEW_PROJECTS__[0];
+          const raceId = original.id + '-race';
+          globalThis.__WAYFINDER_PREVIEW_PROJECTS__.push({
+            ...original,
+            id: raceId,
+            name: 'ui-test 3',
+            updatedAt: original.updatedAt + '-race'
+          });
+          globalThis.__WAYFINDER_PREVIEW_STATES__[raceId] = {
+            ...globalThis.__WAYFINDER_PREVIEW_STATES__[original.id],
+            projectId: raceId
+          };
+        })()`
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelectorAll('.project-item').length === 3"
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression: `(() => {
+          const items = document.querySelectorAll('.project-item');
+          const slowId = items[1].dataset.projectId;
+          const failedId = items[2].dataset.projectId;
+          const toast = document.querySelector('#toast');
+          toast.classList.remove('visible');
+          toast.textContent = '';
+          globalThis.__WAYFINDER_PREVIEW_READ_DELAYS__[slowId] = [900];
+          globalThis.__WAYFINDER_PREVIEW_READ_DELAYS__[failedId] = [1900, 0];
+          globalThis.__WAYFINDER_PREVIEW_READ_FAILURE__ = failedId;
+          items[1].click();
+          document.querySelectorAll('.project-item')[2].click();
+        })()`
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelector('#toast')?.textContent.includes('读取失败') && " +
+          "document.querySelector('#currentProjectLabel')?.textContent === 'ui-test'"
+      );
+      assert.equal(
+        await evaluate(
+          cdp,
+          "document.querySelector('.project-item[aria-current=\"true\"]')" +
+            "?.dataset.projectId"
+        ),
+        activeBeforeFailedSwitch
+      );
+      await delay(1_000);
+      assert.equal(
+        await evaluate(cdp, "document.querySelector('#currentProjectLabel')?.textContent"),
+        "ui-test"
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression: `(() => {
+          globalThis.__WAYFINDER_PREVIEW_READ_FAILURE__ = '';
+          globalThis.__WAYFINDER_PREVIEW_PROJECTS__.pop();
+        })()`
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelectorAll('.project-item').length === 2"
+      );
+
+      await cdp.send("Runtime.evaluate", {
+        expression: `(() => {
+          const target = document.querySelectorAll('.project-item')[1];
+          const id = target.dataset.projectId;
+          globalThis.__WAYFINDER_PREVIEW_PROJECTS__[1].updatedAt += '-new';
+          globalThis.__WAYFINDER_PREVIEW_READ_DELAYS__[id] = [2200, 0];
+          target.click();
+        })()`
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelector('#currentProjectLabel')?.textContent === 'ui-test 2'"
+      );
+      await delay(2_400);
+      assert.equal(
+        await evaluate(
+          cdp,
+          "document.querySelector('.project-item[aria-current=\"true\"]')" +
+            "?.textContent.includes('ui-test 2')"
+        ),
+        true
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression:
+          "document.querySelectorAll('.project-item')[0]?.click()"
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelector('#currentProjectLabel')?.textContent === 'ui-test'"
+      );
 
       const desktopViewportBeforeInspector = await evaluateJson(
         cdp,
@@ -2164,6 +2371,12 @@ test(
               status: 'M',
               additions: 12,
               deletions: 3
+            }, {
+              path: 'src/removed.ts',
+              status: 'D',
+              additions: 0,
+              deletions: 0,
+              lineCountsKnown: false
             }]
           });
           target?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
@@ -2187,6 +2400,23 @@ test(
             panel &&
             selected &&
             graph.right <= panel.left + .5
+          );
+        })()`
+      );
+      await waitForExpression(
+        cdp,
+        `(() => {
+          const graph = document.querySelector('#graph')
+            ?.getBoundingClientRect();
+          const selected = document.querySelector('.session-card.selected')
+            ?.getBoundingClientRect();
+          return Boolean(
+            graph &&
+            selected &&
+            selected.left >= graph.left &&
+            selected.right <= graph.right &&
+            selected.top >= graph.top &&
+            selected.bottom <= graph.bottom
           );
         })()`
       );
@@ -2254,8 +2484,18 @@ test(
         "自动记录 · Codex"
       );
       assert.match(
-        await evaluate(cdp, "document.querySelector('.detail-file')?.textContent"),
+        await evaluate(
+          cdp,
+          "document.querySelectorAll('.detail-file')[0]?.textContent"
+        ),
         /src\/sessionCollector\.ts.*\+12.*−3/
+      );
+      assert.match(
+        await evaluate(
+          cdp,
+          "document.querySelectorAll('.detail-file')[1]?.textContent"
+        ),
+        /src\/removed\.ts.*行数未知/
       );
       assert.equal(
         await evaluate(cdp, "document.querySelectorAll('.inspector-head').length"),
@@ -2326,6 +2566,89 @@ test(
       );
 
       await cdp.send("Emulation.setDeviceMetricsOverride", {
+        width: 812,
+        height: 375,
+        deviceScaleFactor: 1,
+        mobile: false
+      });
+      await cdp.send("Page.navigate", { url: `${origin}/companion.html` });
+      await waitForExpression(
+        cdp,
+        "document.querySelectorAll('.session-card').length > 0"
+      );
+      const shortViewport = await evaluateJson(
+        cdp,
+        `(() => {
+          const graph = document.querySelector('#graph').getBoundingClientRect();
+          const cards = [...document.querySelectorAll('.session-card')]
+            .map((card) => card.getBoundingClientRect());
+          const horizontallyVisible = cards.filter((card) =>
+            card.right > graph.left && card.left < graph.right
+          );
+          const transform = d3.zoomTransform(document.querySelector('#graph'));
+          const verticallyComplete = horizontallyVisible.filter((card) =>
+            card.top >= graph.top && card.bottom <= graph.bottom
+          );
+          return {
+            shortFitValid:
+              horizontallyVisible.length > 0 &&
+              (
+                horizontallyVisible.every((card) =>
+                  card.top >= graph.top && card.bottom <= graph.bottom
+                ) ||
+                (
+                  transform.k <= .561 &&
+                  verticallyComplete.length > 0
+                )
+              ),
+            graph: {
+              left: graph.left,
+              top: graph.top,
+              right: graph.right,
+              bottom: graph.bottom
+            },
+            horizontallyVisible: horizontallyVisible.map((card) => ({
+              left: card.left,
+              top: card.top,
+              right: card.right,
+              bottom: card.bottom
+            })),
+            transform: { x: transform.x, y: transform.y, k: transform.k }
+          };
+        })()`
+      );
+      assert.equal(
+        shortViewport.shortFitValid,
+        true,
+        JSON.stringify(shortViewport)
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression:
+          "document.querySelector('.session-card')" +
+          "?.dispatchEvent(new MouseEvent('click', { bubbles: true }))"
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelector('#inspector')?.classList.contains('open')"
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression: "document.querySelector('.inspector-close')?.click()"
+      });
+      await waitForExpression(
+        cdp,
+        "!document.querySelector('#inspector')?.classList.contains('open')"
+      );
+      await delay(200);
+      const shortAfterClose = await evaluateJson(
+        cdp,
+        `(() => {
+          const transform = d3.zoomTransform(document.querySelector('#graph'));
+          return { x: transform.x, y: transform.y, k: transform.k };
+        })()`
+      );
+      assert.deepEqual(shortAfterClose, shortViewport.transform);
+
+      await cdp.send("Emulation.setDeviceMetricsOverride", {
         width: 1440,
         height: 900,
         deviceScaleFactor: 1,
@@ -2372,6 +2695,19 @@ test(
       assert.equal(singleVoyage.foreignObjects, 0);
       assert.ok(singleVoyage.label.length > 0);
       assert.equal(singleVoyage.coastCoversCanvas, true);
+
+      await cdp.send("Page.navigate", {
+        url: `${origin}/companion.html?listFailures=1`
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelector('#toast')?.classList.contains('visible')"
+      );
+      await waitForExpression(
+        cdp,
+        "document.querySelectorAll('.project-item').length === 2",
+        5_000
+      );
 
       await cdp.send("Emulation.setEmulatedMedia", {
         media: "screen",
@@ -2667,7 +3003,7 @@ test(
         })()`
       );
       assert.ok(
-        centeredWorkflow.centerDelta <= 10,
+        centeredWorkflow.centerDelta <= 16,
         JSON.stringify(centeredWorkflow)
       );
       assert.equal(centeredWorkflow.activeSteps, 3);

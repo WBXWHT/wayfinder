@@ -47,9 +47,11 @@ Claude Code / Codex local JSONL transcripts
 - The Companion builds directly from `ExperienceMapPanel`; it does not maintain
   a second simplified map.
 - Collected turns show their Codex or Claude Code source in the detail panel.
-- File-change summaries are reconstructed only from recorded edit operations
-  such as `apply_patch`, `Write`, `Edit`, and `MultiEdit`. Wayfinder does not
-  fabricate a historical Diff when the transcript lacks file content.
+- File-change summaries are reconstructed only when the transcript records
+  both sides of an edit, such as `apply_patch`, `Edit`, and `MultiEdit`.
+  Ambiguous `Write` operations remain visible as actions without a fabricated
+  add/modify classification, and unavailable deletion counts are labeled
+  unknown.
 - Local rules mark only evidence-backed failure candidates or conflicts. Cloud
   model analysis remains disabled.
 

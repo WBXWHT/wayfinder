@@ -94,6 +94,43 @@ test("diff paths preserve unicode and special characters", async () => {
   }
 });
 
+test("renames preserve both source and destination paths", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wayfinder-rename-"));
+  const root = path.join(sandbox, "project");
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  fs.mkdirSync(root, { recursive: true });
+  fs.writeFileSync(path.join(root, "before.txt"), "stable content\n");
+
+  const shadow = new ShadowRepo(root);
+  const first = await shadow.capture("rename-before", "Before rename");
+  fs.renameSync(
+    path.join(root, "before.txt"),
+    path.join(root, "after.txt")
+  );
+  const second = await shadow.capture(
+    "rename-after",
+    "After rename",
+    first.commit
+  );
+
+  assert.deepEqual(await shadow.diffFiles(first.commit, second.commit), [{
+    path: "after.txt",
+    previousPath: "before.txt",
+    status: "R",
+    additions: 0,
+    deletions: 0,
+    binary: false
+  }]);
+  assert.equal(
+    (await shadow.fileAt(first.commit, "before.txt")).toString("utf8"),
+    "stable content\n"
+  );
+  assert.equal(
+    (await shadow.fileAt(second.commit, "after.txt")).toString("utf8"),
+    "stable content\n"
+  );
+});
+
 test("restore refuses to overwrite a modified file excluded by the size limit", async () => {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wayfinder-large-"));
   const root = path.join(sandbox, "project");

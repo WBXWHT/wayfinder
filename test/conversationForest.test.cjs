@@ -194,9 +194,24 @@ test("linear imported history is never auto-marked as failed", () => {
 });
 
 test("a restore fork auto-marks the abandoned route as failed", () => {
-  const base = node("root", "2026-09-03T09:00:00.000Z", "需求与设计");
-  const abandonedTurn = node("wrong", "2026-09-03T09:05:00.000Z", "AI 助手");
-  const safety = node("before-restore", "2026-09-03T09:06:00.000Z", "AI 助手");
+  const base = liveTurn(
+    "root",
+    "09:00",
+    "实现登录流程",
+    ["src/auth.ts"]
+  );
+  const abandonedTurn = liveTurn(
+    "wrong",
+    "09:05",
+    "尝试错误的登录方案",
+    ["src/auth.ts"]
+  );
+  const safety = liveTurn(
+    "before-restore",
+    "09:06",
+    "restore 回退登录改动",
+    ["src/auth.ts"]
+  );
   safety.kind = "safety";
   const state = projectState([base, abandonedTurn, safety]);
   // A restore forked a new path back at "root", abandoning "wrong".
@@ -218,8 +233,13 @@ test("a restore fork auto-marks the abandoned route as failed", () => {
   const wrongSession = forest.trees
     .flatMap((tree) => tree.sessions)
     .find((session) => session.nodeIds.includes("wrong"));
+  const safetySession = forest.trees
+    .flatMap((tree) => tree.sessions)
+    .find((session) => session.nodeIds.includes("before-restore"));
   assert.ok(wrongSession);
+  assert.ok(safetySession);
   assert.equal(wrongSession.verdict, "failure");
+  assert.equal(safetySession.verdict, "neutral");
 });
 
 test("live voyages with file signal route through the content engine", () => {
@@ -511,6 +531,105 @@ test("same-named Skill imports from different paths remain independent", () => {
   );
   assert.equal(new Set(forest.trees.map((tree) => tree.id)).size, 2);
   assert.ok(forest.trees.every((tree) => tree.nodeCount === 1));
+});
+
+test("Windows-style Skill paths remain independent", () => {
+  const first = folderImport(
+    "windows-first-review",
+    "2026-09-03T09:01:00.000Z",
+    "代码审查",
+    0,
+    undefined,
+    "group-a\\SKILL.md"
+  );
+  const second = folderImport(
+    "windows-second-review",
+    "2026-09-03T09:02:00.000Z",
+    "代码审查",
+    0,
+    undefined,
+    "group-b\\SKILL.md"
+  );
+
+  const forest = buildConversationForest(projectState([first, second]));
+
+  assert.equal(forest.trees.length, 2);
+  assert.equal(new Set(forest.trees.map((tree) => tree.id)).size, 2);
+  assert.ok(forest.trees.every((tree) => tree.nodeCount === 1));
+});
+
+test("Windows-style Skill identity is case-insensitive", () => {
+  const first = folderImport(
+    "windows-case-first",
+    "2026-09-03T09:01:00.000Z",
+    "代码审查",
+    0,
+    undefined,
+    "Group\\SKILL.md"
+  );
+  const second = folderImport(
+    "windows-case-second",
+    "2026-09-03T09:02:00.000Z",
+    "代码质量审查",
+    0,
+    undefined,
+    "group/SKILL.md"
+  );
+
+  const forest = buildConversationForest(projectState([first, second]));
+
+  assert.equal(forest.trees.length, 1);
+  assert.equal(forest.trees[0].nodeCount, 2);
+});
+
+test("trees with equal timestamps keep a deterministic order", () => {
+  const first = folderImport(
+    "stable-a",
+    "2026-09-03T09:01:00.000Z",
+    "Alpha",
+    0,
+    undefined,
+    "alpha/SKILL.md"
+  );
+  const second = folderImport(
+    "stable-b",
+    "2026-09-03T09:01:00.000Z",
+    "Beta",
+    0,
+    undefined,
+    "beta/SKILL.md"
+  );
+  const forward = buildConversationForest(projectState([first, second]));
+  const reverse = buildConversationForest(projectState([second, first]));
+
+  assert.deepEqual(
+    reverse.trees.map((tree) => tree.id),
+    forward.trees.map((tree) => tree.id)
+  );
+});
+
+test("equal-time nodes in one Skill keep deterministic tree content", () => {
+  const alpha = folderImport(
+    "same-tree-alpha",
+    "2026-09-03T09:01:00.000Z",
+    "Alpha",
+    0,
+    undefined,
+    "shared/SKILL.md"
+  );
+  const beta = folderImport(
+    "same-tree-beta",
+    "2026-09-03T09:01:00.000Z",
+    "Beta",
+    0,
+    undefined,
+    "shared/SKILL.md"
+  );
+
+  const forward = buildConversationForest(projectState([alpha, beta]));
+  const reverse = buildConversationForest(projectState([beta, alpha]));
+
+  assert.deepEqual(reverse, forward);
 });
 
 test("a renamed Skill at the same path stays in one voyage", () => {

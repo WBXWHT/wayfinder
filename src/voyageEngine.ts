@@ -134,6 +134,8 @@ export interface TurnSignal {
   files: Set<string>;
   dirs: Set<string>;
   pathTerms: Set<string>;
+  promptTokens?: string[];
+  genericHandoff?: boolean;
   tokens: string[];
   vector: SparseVector;
   isRevert: boolean;
@@ -167,9 +169,15 @@ const CROSS_CONVERSATION_STOPWORDS = new Set([
   "en:feature", "en:file", "en:fix", "en:fixed", "en:flow",
   "en:handling", "en:implement", "en:implementation", "en:improve",
   "en:issue", "en:module", "en:plan", "en:process", "en:refactor",
-  "en:retry", "en:review", "en:run", "en:setup", "en:support",
+  "en:proceed", "en:retry", "en:review", "en:run", "en:setup", "en:support",
   "en:system", "en:task", "en:test", "en:tests", "en:update",
   "en:updated", "en:updating", "en:work"
+]);
+const GENERIC_HANDOFF_TOKENS = new Set([
+  "en:continue",
+  "en:proceed",
+  "继续",
+  "接着"
 ]);
 
 function fileTerms(files: Set<string>): Set<string> {
@@ -184,11 +192,123 @@ function fileTerms(files: Set<string>): Set<string> {
   return terms;
 }
 
-function hasPathSemanticBridge(
-  previous: Pick<TurnSignal, "pathTerms" | "tokens">,
-  next: Pick<TurnSignal, "pathTerms" | "tokens">
+function isTestFilePath(filePath: string): boolean {
+  const normalized = filePath.replaceAll("\\", "/").toLowerCase();
+  return (
+    /(?:^|\/)(?:test|tests|__tests__)(?:\/|$)/.test(normalized) ||
+    /\.(?:test|spec)\.[^/.]+$/.test(normalized)
+  );
+}
+
+function comparableFileStem(filePath: string, testFile: boolean): string {
+  let normalized = filePath
+    .replaceAll("\\", "/")
+    .toLowerCase()
+    .replace(/\.(?:test|spec)(?=\.[^/.]+$)/, "")
+    .replace(/\.[^/.]+$/, "")
+    .replace(/^(?:src|lib)\//, "");
+  if (testFile) {
+    normalized = normalized
+      .replace(/^(?:test|tests|__tests__)\//, "")
+      .replace(/^(?:unit|integration|e2e|functional|acceptance)\//, "");
+  }
+  return normalized;
+}
+
+function hasSourceTestCounterpart(
+  previousFiles: Set<string>,
+  nextFiles: Set<string>
 ): boolean {
-  if (jaccard(previous.pathTerms, next.pathTerms) < 0.25) {
+  return [...previousFiles].some((previous) =>
+    [...nextFiles].some((next) => {
+      const previousIsTest = isTestFilePath(previous);
+      const nextIsTest = isTestFilePath(next);
+      return (
+        previousIsTest !== nextIsTest &&
+        comparableFileStem(previous, previousIsTest) ===
+          comparableFileStem(next, nextIsTest)
+      );
+    })
+  );
+}
+
+function hasConflictingEnglishThemes(
+  previous: { tokens: string[] },
+  next: { tokens: string[] }
+): boolean {
+  const previousTerms = distinctiveEnglishTerms(previous.tokens);
+  const nextTerms = distinctiveEnglishTerms(next.tokens);
+  return (
+    previousTerms.size >= 2 &&
+    nextTerms.size >= 2 &&
+    [...previousTerms].every((term) => !nextTerms.has(term))
+  );
+}
+
+function distinctiveEnglishTerms(tokens: string[]): Set<string> {
+  return new Set(
+    tokens.filter((token) =>
+      token.startsWith("en:") &&
+      !CROSS_CONVERSATION_STOPWORDS.has(token)
+    )
+  );
+}
+
+function hasSourceTestBridge(
+  previous: { files: Set<string>; tokens: string[] },
+  next: { files: Set<string>; tokens: string[] }
+): boolean {
+  return (
+    hasSourceTestCounterpart(previous.files, next.files) &&
+    !hasConflictingEnglishThemes(previous, next)
+  );
+}
+
+function hasPathSemanticBridge(
+  previous: {
+    files: Set<string>;
+    pathTerms: Set<string>;
+    promptTokens?: string[];
+    genericHandoff?: boolean;
+    tokens: string[];
+    timestamp?: number;
+    startedAt?: number;
+    completedAt?: number;
+  },
+  next: {
+    files: Set<string>;
+    pathTerms: Set<string>;
+    promptTokens?: string[];
+    genericHandoff?: boolean;
+    tokens: string[];
+    timestamp?: number;
+    startedAt?: number;
+    completedAt?: number;
+  }
+): boolean {
+  const exactFiles =
+    previous.files.size > 0 &&
+    previous.files.size === next.files.size &&
+    jaccard(previous.files, next.files) === 1;
+  const previousTime =
+    previous.timestamp ?? previous.completedAt ?? previous.startedAt ?? 0;
+  const nextTime =
+    next.timestamp ?? next.startedAt ?? next.completedAt ?? 0;
+  const closeInTime =
+    Math.abs(previousTime - nextTime) <= IDLE_HARD_MS;
+  const nextIsGeneric = next.genericHandoff ??
+    isGenericHandoff(next.promptTokens || next.tokens);
+  if (
+    exactFiles &&
+    closeInTime &&
+    nextIsGeneric
+  ) {
+    return true;
+  }
+  const sharedPathTerms = [...previous.pathTerms].filter((term) =>
+    next.pathTerms.has(term)
+  );
+  if (sharedPathTerms.length === 0) {
     return false;
   }
   const previousText = new Set(
@@ -201,9 +321,38 @@ function hasPathSemanticBridge(
       .filter((token) => token.startsWith("en:"))
       .map((token) => token.slice(3))
   );
+  const bothReferencePath = sharedPathTerms.some((term) =>
+    previousText.has(term) && nextText.has(term)
+  );
+  if (
+    bothReferencePath ||
+    (!exactFiles && hasSourceTestBridge(previous, next))
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function isGenericHandoff(tokens: string[]): boolean {
   return (
-    jaccard(previous.pathTerms, previousText) > 0 ||
-    jaccard(next.pathTerms, nextText) > 0
+    tokens.some((token) => GENERIC_HANDOFF_TOKENS.has(token)) &&
+    tokens.every((token) =>
+      CROSS_CONVERSATION_STOPWORDS.has(token) ||
+      GENERIC_HANDOFF_TOKENS.has(token)
+    )
+  );
+}
+
+export function isGenericHandoffText(text: string): boolean {
+  const normalized = String(text || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[。！？!?.,，:：;；]+$/g, "");
+  return (
+    /^(?:continue|proceed)(?:\s+(?:the\s+)?(?:implementation|work|task))?$/.test(
+      normalized
+    ) ||
+    /^(?:继续|接着)(?:处理|进行|完成|下去|吧)?$/.test(normalized)
   );
 }
 
@@ -211,6 +360,13 @@ function hasDistinctiveSemanticBridge(
   previous: Pick<TurnSignal, "tokens" | "vector">,
   next: Pick<TurnSignal, "tokens" | "vector">
 ): boolean {
+  return distinctiveSemanticSimilarity(previous, next) >= 0.3;
+}
+
+function distinctiveSemanticSimilarity(
+  previous: Pick<TurnSignal, "tokens" | "vector">,
+  next: Pick<TurnSignal, "tokens" | "vector">
+): number {
   const previousTerms = new Set(
     previous.tokens.filter((token) =>
       !CROSS_CONVERSATION_STOPWORDS.has(token)
@@ -220,9 +376,18 @@ function hasDistinctiveSemanticBridge(
     next.tokens.filter((token) => !CROSS_CONVERSATION_STOPWORDS.has(token))
   );
   const sharedTerms = [...previousTerms].filter((term) => nextTerms.has(term));
-  return sharedTerms.length >= 2 &&
-    jaccard(previousTerms, nextTerms) >= 0.6 &&
-    cosineSimilarity(previous.vector, next.vector) >= 0.3;
+  const overlap = jaccard(previousTerms, nextTerms);
+  if (
+    sharedTerms.length < 2 ||
+    overlap < 0.6 ||
+    (
+      Math.max(previousTerms.size, nextTerms.size) > 6 &&
+      overlap !== 1
+    )
+  ) {
+    return 0;
+  }
+  return 1;
 }
 
 function crossesConversation(
@@ -244,6 +409,7 @@ export function signalForNode(
   const files = new Set((node.files || []).map((file: FileChange) => file.path));
   const dirs = new Set([...files].map(directoryOf));
   const pathTerms = fileTerms(files);
+  const promptTokens = tokenize(node.prompt || "");
   const tokens = tokenize(
     [node.prompt, node.response, actionText(node.actions || [])]
       .filter(Boolean)
@@ -263,6 +429,8 @@ export function signalForNode(
     files,
     dirs,
     pathTerms,
+    promptTokens,
+    genericHandoff: isGenericHandoffText(node.prompt || ""),
     tokens,
     vector: vectorize(tokens, idf),
     isRevert,
@@ -294,7 +462,9 @@ export function cohesion(previous: TurnSignal, next: TurnSignal): number {
   if (!previous.hasFileSignal || !next.hasFileSignal) {
     return 0.68 * lexical + 0.32 * time;
   }
-  const file = jaccard(previous.files, next.files);
+  const file = hasSourceTestBridge(previous, next)
+    ? 1
+    : jaccard(previous.files, next.files);
   const dir = jaccard(previous.dirs, next.dirs);
   return 0.4 * file + 0.15 * dir + 0.25 * lexical + 0.2 * time;
 }
@@ -307,6 +477,8 @@ export interface Waypoint {
   files: Set<string>;
   dirs: Set<string>;
   pathTerms: Set<string>;
+  promptTokens?: string[];
+  genericHandoff?: boolean;
   tokens: string[];
   vector: SparseVector;
   startedAt: number;
@@ -327,7 +499,9 @@ export function aggregateWaypoints(
   signals: TurnSignal[],
   idf: (token: string) => number
 ): Waypoint[] {
-  const ordered = [...signals].sort((a, b) => a.timestamp - b.timestamp);
+  const ordered = [...signals].sort((a, b) =>
+    a.timestamp - b.timestamp || a.id.localeCompare(b.id)
+  );
   const waypoints: Waypoint[] = [];
   for (const signal of ordered) {
     const current = waypoints.at(-1);
@@ -359,6 +533,8 @@ export function aggregateWaypoints(
       files: waypoint.files,
       dirs: waypoint.dirs,
       pathTerms: waypoint.pathTerms,
+      promptTokens: waypoint.promptTokens || waypoint.tokens,
+      genericHandoff: waypoint.genericHandoff,
       tokens: waypoint.tokens,
       vector: waypoint.vector,
       isRevert: waypoint.isRevert,
@@ -380,6 +556,8 @@ function waypointFromSignal(
     files: new Set(signal.files),
     dirs: new Set(signal.dirs),
     pathTerms: new Set(signal.pathTerms),
+    promptTokens: [...(signal.promptTokens || signal.tokens)],
+    genericHandoff: signal.genericHandoff,
     tokens: [...signal.tokens],
     vector: vectorize(signal.tokens, idf),
     startedAt: signal.timestamp,
@@ -401,6 +579,8 @@ function mergeSignal(
   for (const file of signal.files) waypoint.files.add(file);
   for (const dir of signal.dirs) waypoint.dirs.add(dir);
   for (const term of signal.pathTerms) waypoint.pathTerms.add(term);
+  waypoint.promptTokens = [...(signal.promptTokens || signal.tokens)];
+  waypoint.genericHandoff = signal.genericHandoff;
   waypoint.tokens.push(...signal.tokens);
   waypoint.vector = vectorize(waypoint.tokens, idf);
   waypoint.completedAt = Math.max(waypoint.completedAt, signal.timestamp);
@@ -422,6 +602,83 @@ export interface WaypointRelation {
 const RELATE_TAU_MS = 300_000; // 5 min — FindParent time term
 const RELATE_MIN = 0.12; // below this, nothing relates → new root (new boat)
 const FILE_DIVERGE = 0.2; // touched-file overlap under this = changed battleground
+const RECENT_PARENT_CANDIDATES = 32;
+const EXHAUSTIVE_PARENT_THRESHOLD = 2_048;
+const MAX_FUZZY_SEMANTIC_TERMS = 6;
+const MAX_STRUCTURAL_SUBSET_ITEMS = 6;
+const MAX_RELATION_SCORE = 0.7;
+
+function compareStableIds(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+interface CounterpartCandidates {
+  sourceLatest?: number;
+  testLatest?: number;
+  sourceAmbiguous?: number;
+  testAmbiguous?: number;
+  sourceByTerm: Map<string, number>;
+  testByTerm: Map<string, number>;
+}
+
+function tokenFrequencySignature(
+  tokens: string[],
+  omitStopwords = false
+): string {
+  const counts = new Map<string, number>();
+  for (const token of tokens) {
+    if (!omitStopwords || !CROSS_CONVERSATION_STOPWORDS.has(token)) {
+      counts.set(token, (counts.get(token) || 0) + 1);
+    }
+  }
+  return [...counts]
+    .sort()
+    .map(([token, count]) => `${token}:${count}`)
+    .join("\u0000");
+}
+
+function fileSignature(waypoint: Waypoint): string {
+  return [...waypoint.files].sort().join("\u0000");
+}
+
+function structuralSignature(waypoint: Waypoint): string {
+  return [
+    fileSignature(waypoint),
+    [...waypoint.pathTerms].sort().join("\u0000")
+  ].join("\u0005");
+}
+
+function relationProfile(waypoint: Waypoint): string {
+  return (
+    `${fileSignature(waypoint)}\u0001` +
+    tokenFrequencySignature(waypoint.tokens)
+  );
+}
+
+function distinctiveSetSignature(waypoint: Waypoint): string {
+  return [...new Set(
+    waypoint.tokens.filter((token) =>
+      !CROSS_CONVERSATION_STOPWORDS.has(token)
+    )
+  )]
+    .sort()
+    .join("\u0000");
+}
+
+function exactRelationSignature(
+  waypoint: Waypoint,
+  profile = relationProfile(waypoint)
+): string {
+  return [
+    profile,
+    [...waypoint.sourceHosts].sort().join("\u0000"),
+    [...waypoint.sessionIds].sort().join("\u0000")
+  ].join("\u0002");
+}
+
+export interface RelationDiagnostics {
+  scoredCandidates: number;
+}
 
 /** Relatedness of a waypoint to a candidate ancestor (Yeh & Harnly FindParent).
  * Parent-finding balances file overlap and theme evenly: a topic-divergence
@@ -430,23 +687,45 @@ const FILE_DIVERGE = 0.2; // touched-file overlap under this = changed battlegro
  * still relies on the structural file-change signal, so themes never invent forks.
  */
 export function relatedness(current: Waypoint, candidate: Waypoint): number {
-  const lexical = cosineSimilarity(current.vector, candidate.vector);
-  const time = Math.exp(
-    -Math.abs(current.startedAt - candidate.completedAt) / RELATE_TAU_MS
-  );
+  const timeGap = Math.abs(current.startedAt - candidate.completedAt);
+  const lexical = distinctiveSemanticSimilarity(current, candidate);
+  const time = Math.exp(-timeGap / RELATE_TAU_MS);
+  const sameContext = !crossesConversation(current, candidate);
+  const continuity = sameContext && timeGap <= RELATE_TAU_MS
+    ? RELATE_MIN + 0.08 * time
+    : 0;
   if (
-    crossesConversation(current, candidate) &&
+    !sameContext &&
     !hasDistinctiveSemanticBridge(current, candidate) &&
-    !hasPathSemanticBridge(current, candidate)
+    !hasPathSemanticBridge(candidate, current)
   ) {
     return 0;
   }
   if (current.hasFileSignal && candidate.hasFileSignal) {
-    const file = jaccard(current.files, candidate.files);
-    const path = jaccard(current.pathTerms, candidate.pathTerms);
-    return 0.35 * file + 0.35 * lexical + 0.2 * path + 0.1 * time;
+    const counterpart = hasSourceTestBridge(current, candidate);
+    const fileOverlap = jaccard(current.files, candidate.files);
+    const pathOverlap = jaccard(current.pathTerms, candidate.pathTerms);
+    const file =
+      Math.max(current.files.size, candidate.files.size) >
+          MAX_STRUCTURAL_SUBSET_ITEMS &&
+        fileOverlap !== 1
+        ? 0
+        : fileOverlap;
+    const path =
+      Math.max(current.pathTerms.size, candidate.pathTerms.size) >
+          MAX_STRUCTURAL_SUBSET_ITEMS &&
+        pathOverlap !== 1
+        ? 0
+        : pathOverlap;
+    return Math.max(
+      continuity,
+      counterpart ? 0.6 : 0,
+      0.35 * file + 0.2 * path,
+      0.7 * lexical,
+      0.1 * time
+    );
   }
-  return 0.7 * lexical + 0.3 * time;
+  return Math.max(continuity, 0.7 * lexical, 0.3 * time);
 }
 
 /**
@@ -458,28 +737,739 @@ export function relatedness(current: Waypoint, candidate: Waypoint): number {
  * Conservative: topic divergence needs the file signal to actually change; we
  * never invent a branch from text alone (imported history stays linear).
  */
-export function classifyRelations(waypoints: Waypoint[]): Map<string, WaypointRelation> {
-  const ordered = [...waypoints].sort((a, b) => a.startedAt - b.startedAt);
+export function classifyRelations(
+  waypoints: Waypoint[],
+  diagnostics?: RelationDiagnostics
+): Map<string, WaypointRelation> {
+  const ordered = [...waypoints].sort((a, b) =>
+    a.startedAt - b.startedAt ||
+    a.completedAt - b.completedAt ||
+    compareStableIds(a.id, b.id)
+  );
   const relations = new Map<string, WaypointRelation>();
   const laneTip = new Map<string, string>(); // parentId -> latest child id
+  const sessionFileIndex = new Map<string, number[]>();
+  const sessionPathIndex = new Map<string, number[]>();
+  const sessionStructuralIndex = new Map<string, number[]>();
+  const contextFileIndex = new Map<string, number[]>();
+  const contextPathIndex = new Map<string, number[]>();
+  const contextStructuralIndex = new Map<string, number[]>();
+  const pathTextBridgeIndex = new Map<string, number[]>();
+  const sessionRecent = new Map<string, number[]>();
+  const contextRecent = new Map<string, number[]>();
+  const sessionCompletionIndex = new Map<string, number[]>();
+  const contextCompletionIndex = new Map<string, number[]>();
+  const fileContextLatest = new Map<string, number>();
+  const counterpartIndex = new Map<string, CounterpartCandidates>();
+  const fileSetIndex = new Map<string, number[]>();
+  const pathSetIndex = new Map<string, number[]>();
+  const structuralSetIndex = new Map<string, number[]>();
+  const fileSubsetIndex = new Map<string, Map<number, number[]>>();
+  const pathSubsetIndex = new Map<string, Map<number, number[]>>();
+  const semanticSetIndex = new Map<string, number[]>();
+  const semanticSubsetIndex =
+    new Map<string, Map<number, number[]>>();
+  const relationSignatureIndex = new Map<string, number[]>();
+
+  const compareCompleted = (left: number, right: number): number =>
+    ordered[left].completedAt - ordered[right].completedAt ||
+    compareStableIds(ordered[left].id, ordered[right].id);
+
+  const rememberPreferred = <Key>(
+    target: Map<Key, number>,
+    key: Key,
+    index: number
+  ): void => {
+    const previous = target.get(key);
+    if (previous === undefined || compareCompleted(previous, index) <= 0) {
+      target.set(key, index);
+    }
+  };
+
+  const addIndex = (
+    target: Map<string, number[]>,
+    values: Iterable<string>,
+    waypointIndex: number
+  ): void => {
+    for (const value of new Set(values)) {
+      const candidates = target.get(value) || [];
+      candidates.push(waypointIndex);
+      target.set(value, candidates);
+    }
+  };
+
+  const rememberRecent = (
+    target: Map<string, number[]>,
+    key: string,
+    index: number
+  ): void => {
+    const recent = target.get(key) || [];
+    recent.push(index);
+    if (recent.length > RECENT_PARENT_CANDIDATES) {
+      recent.shift();
+    }
+    target.set(key, recent);
+  };
+
+  const semanticIndexTokens = (waypoint: Waypoint): string[] =>
+    [...new Set(
+      waypoint.tokens.filter((token) =>
+        !CROSS_CONVERSATION_STOPWORDS.has(token)
+      )
+    )]
+      .sort();
+
+  const referencedPathTerms = (waypoint: Waypoint): string[] => {
+    const englishTerms = new Set(
+      waypoint.tokens
+        .filter((token) => token.startsWith("en:"))
+        .map((token) => token.slice(3))
+    );
+    return [...waypoint.pathTerms].filter((term) => englishTerms.has(term));
+  };
+
+  const contextualSignals = (
+    context: string,
+    values: Iterable<string>
+  ): string[] =>
+    [...new Set(values)].map((value) => `${context}\u0006${value}`);
+
+  const indexedSubsets = (
+    values: string[],
+    maximumItems: number,
+    minimumItems = 2
+  ): string[] => {
+    if (
+      values.length < minimumItems ||
+      values.length > maximumItems
+    ) {
+      return [];
+    }
+    const subsets: string[] = [];
+    const visit = (start: number, selected: string[]): void => {
+      if (selected.length >= minimumItems) {
+        subsets.push(selected.join("\u0004"));
+      }
+      for (let index = start; index < values.length; index += 1) {
+        selected.push(values[index]);
+        visit(index + 1, selected);
+        selected.pop();
+      }
+    };
+    visit(0, []);
+    return subsets;
+  };
+
+  const indexSubsets = (
+    target: Map<string, Map<number, number[]>>,
+    values: string[],
+    maximumItems: number,
+    index: number,
+    minimumItems = 2
+  ): void => {
+    for (
+      const subset of indexedSubsets(
+        values,
+        maximumItems,
+        minimumItems
+      )
+    ) {
+      const bySize = target.get(subset) || new Map<number, number[]>();
+      const indexed = bySize.get(values.length) || [];
+      indexByCompletion(indexed, index);
+      bySize.set(values.length, indexed);
+      target.set(subset, bySize);
+    }
+  };
+
+  const indexByCompletion = (indexed: number[], index: number): void => {
+    if (
+      indexed.length === 0 ||
+      compareCompleted(indexed[indexed.length - 1], index) <= 0
+    ) {
+      indexed.push(index);
+    } else {
+      let low = 0;
+      let high = indexed.length;
+      while (low < high) {
+        const middle = (low + high) >>> 1;
+        if (compareCompleted(indexed[middle], index) <= 0) {
+          low = middle + 1;
+        } else {
+          high = middle;
+        }
+      }
+      indexed.splice(low, 0, index);
+    }
+  };
+
+  const indexCompletionCandidate = <Key>(
+    target: Map<Key, number[]>,
+    key: Key,
+    index: number
+  ): void => {
+    const indexed = target.get(key) || [];
+    indexByCompletion(indexed, index);
+    target.set(key, indexed);
+  };
+
+  const includeCompletionCandidates = (
+    indexed: number[] | undefined,
+    startedAt: number,
+    candidates: Set<number>
+  ): void => {
+    if (!indexed?.length) {
+      return;
+    }
+
+    let low = 0;
+    let high = indexed.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if (ordered[indexed[middle]].completedAt < startedAt) {
+        low = middle + 1;
+      } else {
+        high = middle;
+      }
+    }
+
+    if (low > 0) {
+      candidates.add(indexed[low - 1]);
+    }
+    if (low < indexed.length) {
+      const completedAt = ordered[indexed[low]].completedAt;
+      let endLow = low + 1;
+      let endHigh = indexed.length;
+      while (endLow < endHigh) {
+        const middle = (endLow + endHigh) >>> 1;
+        if (ordered[indexed[middle]].completedAt <= completedAt) {
+          endLow = middle + 1;
+        } else {
+          endHigh = middle;
+        }
+      }
+      candidates.add(indexed[endLow - 1]);
+    }
+    candidates.add(indexed[indexed.length - 1]);
+  };
+
+  const includeSubsets = (
+    target: Map<string, Map<number, number[]>>,
+    values: string[],
+    maximumItems: number,
+    startedAt: number,
+    candidates: Set<number>,
+    minimumItems = 2
+  ): void => {
+    for (
+      const subset of indexedSubsets(
+        values,
+        maximumItems,
+        minimumItems
+      )
+    ) {
+      for (const indexed of target.get(subset)?.values() || []) {
+        includeCompletionCandidates(indexed, startedAt, candidates);
+      }
+    }
+  };
+
+  const includePostings = (
+    source: Map<string, number[]>,
+    values: Iterable<string>,
+    candidates: Set<number>
+  ): void => {
+    for (const value of new Set(values)) {
+      for (const candidate of source.get(value) || []) {
+        candidates.add(candidate);
+      }
+    }
+  };
+
+  const includeCounterpartCandidates = (
+    waypoint: Waypoint,
+    candidates: Set<number>
+  ): void => {
+    for (const file of waypoint.files) {
+      const testFile = isTestFilePath(file);
+      const counterpart = counterpartIndex.get(
+        comparableFileStem(file, testFile)
+      );
+      if (!counterpart) {
+        continue;
+      }
+      const englishTerms = distinctiveEnglishTerms(waypoint.tokens);
+      const latest = testFile
+        ? counterpart.sourceLatest
+        : counterpart.testLatest;
+      const ambiguous = testFile
+        ? counterpart.sourceAmbiguous
+        : counterpart.testAmbiguous;
+      const byTerm = testFile
+        ? counterpart.sourceByTerm
+        : counterpart.testByTerm;
+      if (englishTerms.size < 2 && latest !== undefined) {
+        candidates.add(latest);
+      }
+      if (ambiguous !== undefined) {
+        candidates.add(ambiguous);
+      }
+      for (const term of englishTerms) {
+        const candidate = byTerm.get(term);
+        if (candidate !== undefined) {
+          candidates.add(candidate);
+        }
+      }
+    }
+  };
+
+  const indexWaypoint = (
+    waypoint: Waypoint,
+    index: number,
+    exactSignature: string
+  ): void => {
+    const semanticTokens = semanticIndexTokens(waypoint);
+    addIndex(pathTextBridgeIndex, referencedPathTerms(waypoint), index);
+    for (const sessionId of waypoint.sessionIds) {
+      rememberRecent(sessionRecent, sessionId, index);
+      indexCompletionCandidate(sessionCompletionIndex, sessionId, index);
+      addIndex(
+        sessionFileIndex,
+        contextualSignals(sessionId, waypoint.files),
+        index
+      );
+      addIndex(
+        sessionPathIndex,
+        contextualSignals(sessionId, waypoint.pathTerms),
+        index
+      );
+      if (waypoint.hasFileSignal) {
+        indexCompletionCandidate(
+          sessionStructuralIndex,
+          `${sessionId}\u0006${structuralSignature(waypoint)}`,
+          index
+        );
+      }
+      if (waypoint.sourceHosts.size === 0) {
+        const context = `${sessionId}\u0003`;
+        rememberRecent(contextRecent, context, index);
+        indexCompletionCandidate(contextCompletionIndex, context, index);
+        addIndex(
+          contextFileIndex,
+          contextualSignals(context, waypoint.files),
+          index
+        );
+        addIndex(
+          contextPathIndex,
+          contextualSignals(context, waypoint.pathTerms),
+          index
+        );
+        if (waypoint.hasFileSignal) {
+          indexCompletionCandidate(
+            contextStructuralIndex,
+            `${context}\u0006${structuralSignature(waypoint)}`,
+            index
+          );
+        }
+        for (const file of waypoint.files) {
+          rememberPreferred(
+            fileContextLatest,
+            `${file}\u0003${context}`,
+            index
+          );
+        }
+      } else {
+        for (const host of waypoint.sourceHosts) {
+          const context = `${sessionId}\u0003${host}`;
+          rememberRecent(
+            contextRecent,
+            context,
+            index
+          );
+          indexCompletionCandidate(contextCompletionIndex, context, index);
+          addIndex(
+            contextFileIndex,
+            contextualSignals(context, waypoint.files),
+            index
+          );
+          addIndex(
+            contextPathIndex,
+            contextualSignals(context, waypoint.pathTerms),
+            index
+          );
+          if (waypoint.hasFileSignal) {
+            indexCompletionCandidate(
+              contextStructuralIndex,
+              `${context}\u0006${structuralSignature(waypoint)}`,
+              index
+            );
+          }
+          for (const file of waypoint.files) {
+            rememberPreferred(
+              fileContextLatest,
+              `${file}\u0003${context}`,
+              index
+            );
+          }
+        }
+      }
+    }
+    for (const file of waypoint.files) {
+      const testFile = isTestFilePath(file);
+      const stem = comparableFileStem(file, testFile);
+      const counterpart = counterpartIndex.get(stem) || {
+        sourceByTerm: new Map<string, number>(),
+        testByTerm: new Map<string, number>()
+      };
+      const englishTerms = distinctiveEnglishTerms(waypoint.tokens);
+      if (testFile) {
+        counterpart.testLatest =
+          counterpart.testLatest === undefined ||
+          compareCompleted(counterpart.testLatest, index) <= 0
+            ? index
+            : counterpart.testLatest;
+        if (englishTerms.size < 2) {
+          counterpart.testAmbiguous =
+            counterpart.testAmbiguous === undefined ||
+            compareCompleted(counterpart.testAmbiguous, index) <= 0
+              ? index
+              : counterpart.testAmbiguous;
+        }
+        for (const term of englishTerms) {
+          rememberPreferred(counterpart.testByTerm, term, index);
+        }
+      } else {
+        counterpart.sourceLatest =
+          counterpart.sourceLatest === undefined ||
+          compareCompleted(counterpart.sourceLatest, index) <= 0
+            ? index
+            : counterpart.sourceLatest;
+        if (englishTerms.size < 2) {
+          counterpart.sourceAmbiguous =
+            counterpart.sourceAmbiguous === undefined ||
+            compareCompleted(counterpart.sourceAmbiguous, index) <= 0
+              ? index
+              : counterpart.sourceAmbiguous;
+        }
+        for (const term of englishTerms) {
+          rememberPreferred(counterpart.sourceByTerm, term, index);
+        }
+      }
+      counterpartIndex.set(stem, counterpart);
+    }
+    indexSubsets(
+      fileSubsetIndex,
+      [...waypoint.files].sort(),
+      MAX_STRUCTURAL_SUBSET_ITEMS,
+      index,
+      1
+    );
+    indexCompletionCandidate(
+      fileSetIndex,
+      [...waypoint.files].sort().join("\u0004"),
+      index
+    );
+    indexCompletionCandidate(
+      pathSetIndex,
+      [...waypoint.pathTerms].sort().join("\u0004"),
+      index
+    );
+    if (waypoint.hasFileSignal) {
+      indexCompletionCandidate(
+        structuralSetIndex,
+        structuralSignature(waypoint),
+        index
+      );
+    }
+    indexSubsets(
+      pathSubsetIndex,
+      [...waypoint.pathTerms].sort(),
+      MAX_STRUCTURAL_SUBSET_ITEMS,
+      index,
+      1
+    );
+    const semanticSet = distinctiveSetSignature(waypoint);
+    if (semanticSet) {
+      indexCompletionCandidate(semanticSetIndex, semanticSet, index);
+    }
+    indexSubsets(
+      semanticSubsetIndex,
+      semanticTokens,
+      MAX_FUZZY_SEMANTIC_TERMS,
+      index
+    );
+    indexCompletionCandidate(relationSignatureIndex, exactSignature, index);
+  };
 
   ordered.forEach((waypoint, index) => {
+    const profile = relationProfile(waypoint);
+    const exactSignature = exactRelationSignature(waypoint, profile);
     if (index === 0) {
       relations.set(waypoint.id, { type: "root" });
+      indexWaypoint(waypoint, index, exactSignature);
       return;
     }
     let bestParent: Waypoint | undefined;
     let bestScore = 0;
-    for (let j = 0; j < index; j += 1) {
+    const exactRelations = relationSignatureIndex.get(exactSignature);
+    const candidates = new Set<number>();
+    const exactCandidates = new Set<number>();
+    includeCompletionCandidates(
+      exactRelations,
+      waypoint.startedAt,
+      exactCandidates
+    );
+    const hasDominatingExact = [...exactCandidates].some((candidate) =>
+      relatedness(waypoint, ordered[candidate]) >=
+        MAX_RELATION_SCORE - Number.EPSILON
+    );
+    for (const candidate of exactCandidates) {
+      candidates.add(candidate);
+    }
+    includeCompletionCandidates(
+      semanticSetIndex.get(
+      distinctiveSetSignature(waypoint)
+      ),
+      waypoint.startedAt,
+      candidates
+    );
+    includeSubsets(
+      semanticSubsetIndex,
+      semanticIndexTokens(waypoint),
+      MAX_FUZZY_SEMANTIC_TERMS,
+      waypoint.startedAt,
+      candidates
+    );
+    includeCounterpartCandidates(waypoint, candidates);
+    includePostings(
+      pathTextBridgeIndex,
+      referencedPathTerms(waypoint),
+      candidates
+    );
+    const exactFiles = fileSetIndex.get(
+      [...waypoint.files].sort().join("\u0004")
+    );
+    includeCompletionCandidates(
+      exactFiles,
+      waypoint.startedAt,
+      candidates
+    );
+    if (
+      waypoint.hasFileSignal &&
+      (
+        waypoint.genericHandoff ??
+          isGenericHandoff(waypoint.promptTokens || waypoint.tokens)
+      )
+    ) {
+      for (const candidate of exactFiles || []) {
+        candidates.add(candidate);
+      }
+    }
+    includeCompletionCandidates(
+      structuralSetIndex.get(structuralSignature(waypoint)),
+      waypoint.startedAt,
+      candidates
+    );
+    for (const sessionId of waypoint.sessionIds) {
+      if (waypoint.sourceHosts.size === 0) {
+        includeCompletionCandidates(
+          sessionStructuralIndex.get(
+            `${sessionId}\u0006${structuralSignature(waypoint)}`
+          ),
+          waypoint.startedAt,
+          candidates
+        );
+      } else {
+        const unknownHostContext = `${sessionId}\u0003`;
+        includeCompletionCandidates(
+          contextStructuralIndex.get(
+            `${unknownHostContext}\u0006${structuralSignature(waypoint)}`
+          ),
+          waypoint.startedAt,
+          candidates
+        );
+        for (const host of waypoint.sourceHosts) {
+          const context = `${sessionId}\u0003${host}`;
+          includeCompletionCandidates(
+            contextStructuralIndex.get(
+              `${context}\u0006${structuralSignature(waypoint)}`
+            ),
+            waypoint.startedAt,
+            candidates
+          );
+        }
+      }
+    }
+    const strongestIndexedScore = Math.max(
+      0,
+      ...[...candidates].map((candidate) =>
+        relatedness(waypoint, ordered[candidate])
+      )
+    );
+    const hasDominatingCandidate =
+      hasDominatingExact ||
+      strongestIndexedScore >= MAX_RELATION_SCORE - Number.EPSILON ||
+      strongestIndexedScore >= 0.6 - Number.EPSILON ||
+      (
+        waypoint.hasFileSignal &&
+        strongestIndexedScore >= 0.55 - Number.EPSILON
+      );
+    if (!hasDominatingCandidate && index <= EXHAUSTIVE_PARENT_THRESHOLD) {
+      for (let j = 0; j < index; j += 1) {
+        candidates.add(j);
+      }
+    } else if (!hasDominatingCandidate) {
+      for (
+        let j = Math.max(0, index - RECENT_PARENT_CANDIDATES);
+        j < index;
+        j += 1
+      ) {
+        candidates.add(j);
+      }
+      for (const sessionId of waypoint.sessionIds) {
+        includeCompletionCandidates(
+          sessionCompletionIndex.get(sessionId),
+          waypoint.startedAt,
+          candidates
+        );
+        for (const candidate of sessionRecent.get(sessionId) || []) {
+          candidates.add(candidate);
+        }
+        if (waypoint.sourceHosts.size === 0) {
+          const context = `${sessionId}\u0003`;
+          includePostings(
+            sessionFileIndex,
+            contextualSignals(sessionId, waypoint.files),
+            candidates
+          );
+          includePostings(
+            sessionPathIndex,
+            contextualSignals(sessionId, waypoint.pathTerms),
+            candidates
+          );
+          includeCompletionCandidates(
+            contextCompletionIndex.get(context),
+            waypoint.startedAt,
+            candidates
+          );
+          for (const candidate of contextRecent.get(context) || []) {
+            candidates.add(candidate);
+          }
+          for (const file of waypoint.files) {
+            const sameFile = fileContextLatest.get(`${file}\u0003${context}`);
+            if (sameFile !== undefined) {
+              candidates.add(sameFile);
+            }
+          }
+        } else {
+          const unknownHostContext = `${sessionId}\u0003`;
+          includePostings(
+            contextFileIndex,
+            contextualSignals(unknownHostContext, waypoint.files),
+            candidates
+          );
+          includePostings(
+            contextPathIndex,
+            contextualSignals(unknownHostContext, waypoint.pathTerms),
+            candidates
+          );
+          includeCompletionCandidates(
+            contextCompletionIndex.get(unknownHostContext),
+            waypoint.startedAt,
+            candidates
+          );
+          for (const host of waypoint.sourceHosts) {
+            const context = `${sessionId}\u0003${host}`;
+            includePostings(
+              contextFileIndex,
+              contextualSignals(context, waypoint.files),
+              candidates
+            );
+            includePostings(
+              contextPathIndex,
+              contextualSignals(context, waypoint.pathTerms),
+              candidates
+            );
+            includeCompletionCandidates(
+              contextCompletionIndex.get(context),
+              waypoint.startedAt,
+              candidates
+            );
+            for (
+              const candidate of
+                contextRecent.get(context) || []
+            ) {
+              candidates.add(candidate);
+            }
+            for (const file of waypoint.files) {
+              const sameFile = fileContextLatest.get(
+                `${file}\u0003${context}`
+              );
+              if (sameFile !== undefined) {
+                candidates.add(sameFile);
+              }
+            }
+          }
+        }
+      }
+      includeSubsets(
+        fileSubsetIndex,
+        [...waypoint.files].sort(),
+        MAX_STRUCTURAL_SUBSET_ITEMS,
+        waypoint.startedAt,
+        candidates,
+        1
+      );
+      includeCompletionCandidates(
+        fileSetIndex.get(
+          [...waypoint.files].sort().join("\u0004")
+        ),
+        waypoint.startedAt,
+        candidates
+      );
+      includeCompletionCandidates(
+        pathSetIndex.get(
+          [...waypoint.pathTerms].sort().join("\u0004")
+        ),
+        waypoint.startedAt,
+        candidates
+      );
+      includeSubsets(
+        pathSubsetIndex,
+        [...waypoint.pathTerms].sort(),
+        MAX_STRUCTURAL_SUBSET_ITEMS,
+        waypoint.startedAt,
+        candidates,
+        1
+      );
+    }
+    for (const j of [...candidates].sort((a, b) => a - b)) {
       const candidate = ordered[j];
+      if (diagnostics) {
+        diagnostics.scoredCandidates += 1;
+      }
       const score = relatedness(waypoint, candidate);
-      if (score > bestScore) {
+      if (
+        score > bestScore ||
+        (
+          score === bestScore &&
+          bestParent &&
+          (
+            candidate.completedAt > bestParent.completedAt ||
+            (
+              candidate.completedAt === bestParent.completedAt &&
+              compareStableIds(candidate.id, bestParent.id) > 0
+            )
+          )
+        )
+      ) {
         bestScore = score;
         bestParent = candidate;
       }
     }
     if (!bestParent || bestScore < RELATE_MIN) {
       relations.set(waypoint.id, { type: "root" });
+      indexWaypoint(waypoint, index, exactSignature);
       return;
     }
 
@@ -500,6 +1490,7 @@ export function classifyRelations(waypoints: Waypoint[]): Map<string, WaypointRe
     if (type === "continuation") {
       laneTip.set(bestParent.id, waypoint.id);
     }
+    indexWaypoint(waypoint, index, exactSignature);
   });
   return relations;
 }

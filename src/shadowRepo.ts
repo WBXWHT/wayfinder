@@ -186,7 +186,14 @@ export class ShadowRepo {
         deletions: 0,
         binary: false
       };
-      changes.push({ path: filePath, status, ...stat });
+      changes.push({
+        path: filePath,
+        status,
+        ...stat,
+        ...(status === "R" && firstPath
+          ? { previousPath: firstPath }
+          : {})
+      });
     }
     return changes;
   }

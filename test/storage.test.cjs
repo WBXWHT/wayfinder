@@ -14,6 +14,15 @@ const {
   statePathFor
 } = require("../out/storage.js");
 
+test("state commits replace the target with one rename on every platform", () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, "..", "src", "storage.ts"),
+    "utf8"
+  );
+  assert.match(source, /await fs\.promises\.rename\(temp, target\)/);
+  assert.doesNotMatch(source, /copyFile\(temp, target\)/);
+});
+
 test("concurrent callers recover one dead lock without losing updates", async () => {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wayfinder-lock-"));
   const root = path.join(sandbox, "project");

@@ -2,7 +2,7 @@
   "name": "wayfinder",
   "displayName": "Wayfinder",
   "description": "A local-first desktop app that shows how work with AI evolved.",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "private": true,
   "license": "MIT",
   "repository": {
@@ -22,7 +22,7 @@
     "generate:companion-licenses": "node scripts/generate-companion-licenses.cjs",
     "companion:prepare": "npm run build:companion:runtime && node scripts/build-sea.cjs && npm run generate:companion-licenses && npm run build:companion:sidecar && npm run build:companion:web",
     "companion:dev": "npm run companion:prepare && tauri dev --config companion/src-tauri/tauri.conf.json",
-    "companion:build": "npm run companion:prepare && cargo test --manifest-path companion/src-tauri/Cargo.toml && tauri build --config companion/src-tauri/tauri.conf.json",
+    "companion:build": "node scripts/build-companion-app.cjs",
     "watch": "tsc -w -p .",
     "import:history": "npm run compile && node scripts/import-memory-history.cjs",
     "lint": "eslint src test",

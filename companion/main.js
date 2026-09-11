@@ -23,6 +23,7 @@ const PROJECT_ACCENTS = [
 let invoke;
 let projects = [];
 let activeProjectId = "";
+let loadedProjectId = "";
 let lastUpdatedAt = "";
 let projectLoadGeneration = 0;
 let activeProjectMisses = 0;
@@ -38,10 +39,29 @@ async function start() {
   queued.forEach(handleMapMessage);
 
   syncProjectsAccessibility();
-  await loadProjects();
   setInterval(() => {
     void refreshIfChanged().catch(() => undefined);
   }, 1_500);
+  const eventApi = globalThis.__TAURI__.event;
+  if (eventApi?.listen) {
+    void eventApi.listen(
+      "wayfinder://collector-status",
+      ({ payload }) => {
+        if (payload?.status === "error") {
+          showToast("自动采集暂时中断，Wayfinder 将继续重试。");
+        } else if (payload?.status === "idle") {
+          void refreshIfChanged().catch(() => undefined);
+        }
+      }
+    ).catch((error) => {
+      showToast(`无法监听采集状态：${String(error)}`);
+    });
+  }
+  try {
+    await loadProjects();
+  } catch (error) {
+    showToast(`启动读取失败，正在重试：${String(error)}`);
+  }
 }
 
 function handleMapMessage(message) {
@@ -52,8 +72,8 @@ function handleMapMessage(message) {
     message?.type === "voyageAccent" &&
     /^#[0-9a-f]{6}$/i.test(String(message.color || ""))
   ) {
-    projectList
-      .querySelector(`[data-project-id="${activeProjectId}"]`)
+    [...projectList.querySelectorAll(".project-item")]
+      .find((item) => item.dataset.projectId === activeProjectId)
       ?.style.setProperty("--project-accent", message.color);
   }
 }
@@ -146,7 +166,10 @@ function renderProjectList() {
       }
       activeProjectId = project.id;
       renderProjectList();
-      await loadActiveProject();
+      const outcome = await loadActiveProject();
+      if (outcome === "error") {
+        return;
+      }
       closeProjects();
     });
     projectList.append(item);
@@ -155,7 +178,8 @@ function renderProjectList() {
   projectSummary.textContent = `${projects.length} 个项目`;
   syncProjectsAccessibility();
   const restoredProject = focusedProjectId
-    ? projectList.querySelector(`[data-project-id="${focusedProjectId}"]`)
+    ? [...projectList.querySelectorAll(".project-item")]
+        .find((item) => item.dataset.projectId === focusedProjectId)
     : undefined;
   if (restoredProject) {
     restoredProject.focus();
@@ -207,7 +231,8 @@ async function loadActiveProject() {
       forest: { trees: [], sessionCount: 0, nodeCount: 0 }
     });
     lastUpdatedAt = "";
-    return;
+    loadedProjectId = "";
+    return "loaded";
   }
 
   let state;
@@ -220,16 +245,17 @@ async function loadActiveProject() {
       requestGeneration !== projectLoadGeneration ||
       requestedProjectId !== activeProjectId
     ) {
-      return;
+      return "stale";
     }
     showToast(`读取失败：${String(error)}`);
-    return;
+    restoreLoadedProject(requestedProjectId);
+    return "error";
   }
   if (
     requestGeneration !== projectLoadGeneration ||
     requestedProjectId !== activeProjectId
   ) {
-    return;
+    return "stale";
   }
 
   const project = projects.find((item) => item.id === requestedProjectId);
@@ -242,6 +268,18 @@ async function loadActiveProject() {
     forest: buildConversationForest(state)
   });
   lastUpdatedAt = state.updatedAt || "";
+  loadedProjectId = requestedProjectId;
+  return "loaded";
+}
+
+function restoreLoadedProject(failedProjectId) {
+  if (activeProjectId !== failedProjectId) {
+    return;
+  }
+  activeProjectId = projects.some((item) => item.id === loadedProjectId)
+    ? loadedProjectId
+    : "";
+  renderProjectList();
 }
 
 async function refreshIfChanged() {

@@ -56,6 +56,9 @@ test("download website exposes architecture-specific release links", () => {
   );
   assert.doesNotMatch(html, /无需 Node、插件或 MCP/);
   assert.doesNotMatch(html, /首次打开需在系统设置中允许/);
+  assert.match(html, /按实际可用情况保留/);
+  assert.doesNotMatch(html, /每个结论，都能回到原始证据/);
+  assert.doesNotMatch(html, /每个结论都连着对应会话、文件与测试证据/);
   assert.equal(typeof releases.published, "boolean");
   assert.ok(["alpha", "stable"].includes(releases.channel));
   const tag = releases.channel === "alpha"
@@ -114,6 +117,10 @@ test("website scripts parse and visual CSS avoids decorative gradients", () => {
   assert.match(styles, /\.hero-vessel-bob\s*\{/);
   assert.doesNotMatch(styles, /hero-waypoint|waypoint-enter/);
   assert.doesNotMatch(styles, /\.product-image-link/);
+  assert.match(
+    styles,
+    /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.route-sample\s*\{[\s\S]*?transition: none/
+  );
   assert.match(script, /"windowsX64"/);
 });
 
@@ -123,7 +130,7 @@ test("Cloudflare deployment cannot silently claim the occupied project name", ()
     "utf8"
   );
   assert.match(workflow, /CLOUDFLARE_PROJECT_NAME/);
-  assert.match(workflow, /test "\$PROJECT_NAME" != "wayfinder"/);
+  assert.match(workflow, /test "\$PROJECT_NAME" = "wayfinder-ai"/);
   assert.match(workflow, /Verify public release downloads/);
   assert.match(workflow, /alpha: \{/);
   assert.match(workflow, /stable: \{/);
@@ -141,6 +148,21 @@ test("Cloudflare deployment cannot silently claim the occupied project name", ()
   assert.match(workflow, /url\.pathname !== expectedPath/);
   assert.match(workflow, /--head/);
   assert.match(workflow, /--retry-all-errors/);
+});
+
+test("public website ships restrictive security headers", () => {
+  const headers = fs.readFileSync(
+    path.join(root, "website", "_headers"),
+    "utf8"
+  );
+
+  assert.match(headers, /Content-Security-Policy:/);
+  assert.match(headers, /default-src 'self'/);
+  assert.match(headers, /script-src 'self'/);
+  assert.match(headers, /object-src 'none'/);
+  assert.match(headers, /frame-ancestors 'none'/);
+  assert.match(headers, /X-Content-Type-Options: nosniff/);
+  assert.match(headers, /X-Frame-Options: DENY/);
 });
 
 test("public Windows installer smoke test installs and launches the release", () => {

@@ -59,6 +59,11 @@ test("sidebar renders one active project with accessible voyage paging", () => {
   assert.match(html, /scaleExtent/);
   assert.match(html, /translateExtent\(\[\[-Infinity, 0\], \[Infinity, Infinity\]\]\)/);
   assert.match(html, /new ResizeObserver/);
+  assert.match(html, /renderCleanups\.splice\(0\)\.forEach/);
+  assert.match(html, /resizeObserver\?\.disconnect\(\)/);
+  assert.match(html, /window\.removeEventListener\('resize', fitStage\)/);
+  assert.match(html, /lineageViewports\.set\(tree\.id/);
+  assert.match(html, /const saved = lineageViewports\.get\(tree\.id\)/);
   assert.match(html, /const minimumReadableScale = 0\.7935/);
   assert.match(html, /Math\.max\(minimumReadableScale, fitScale\)/);
   assert.match(html, /Math\.max\(scaledHeight, viewportRoom, 240\)/);
@@ -89,6 +94,11 @@ test("sidebar renders one active project with accessible voyage paging", () => {
   assert.doesNotMatch(html, /stageTone|stage-(sun|leaf|sky|bloom)/);
   assert.doesNotMatch(html, /lineage-node-meta/);
   assert.doesNotMatch(html, /section\.append\(detail\)/);
+  assert.match(html, /-webkit-line-clamp: 2/);
+  assert.match(html, /sheet\.setAttribute\('role', 'dialog'\)/);
+  assert.match(html, /sheet\.setAttribute\('aria-modal', 'true'\)/);
+  assert.match(html, /tools\.setAttribute\('inert', ''\)/);
+  assert.match(html, /event\.key === 'Tab' && selectedSessionId/);
 });
 
 test("full map keeps one project canvas with expandable voyages", () => {
@@ -139,6 +149,8 @@ test("full map keeps one project canvas with expandable voyages", () => {
   assert.match(html, /requestAnimationFrame\(revealSelectedSession\)/);
   assert.match(html, /document\.addEventListener\('pointerdown'/);
   assert.match(html, /function appendResponse/);
+  assert.match(html, /file\.lineCountsKnown === false/);
+  assert.match(html, /count\.textContent = '行数未知'/);
   assert.match(html, /--project-accent/);
   assert.match(html, /routeIndexesFor\(tree\)/);
   assert.match(html, /\.forest-edge\.route-0/);
@@ -160,7 +172,11 @@ test("full map keeps one project canvas with expandable voyages", () => {
   assert.match(html, /const voyageStartX = 92/);
   assert.match(html, /const minimumReadableScale = \.86/);
   assert.match(html, /\.scaleExtent\(\[\.4, 3\.2\]\)/);
-  assert.match(html, /\.extent\(\[\s*\[0, 86\]/);
+  assert.match(html, /\.extent\(\[\s*\[0, insets\.top\]/);
+  assert.match(html, /function viewportInsets\(height\)/);
+  assert.match(html, /height < 420[\s\S]*top: 64, bottom: 12/);
+  assert.match(html, /height < 420 \? Math\.min\(minimumScale, \.56\)/);
+  assert.match(html, /suppressFocusReveal/);
   assert.match(
     html,
     /\.translateExtent\(\[\s*\[0, contentTop\],\s*\[Infinity, contentBottom\]\s*\]\)/

@@ -186,6 +186,7 @@ export function parseCodexRollout(file: string): CollectedSession | undefined {
 
   const turns: CollectedTurn[] = [];
   let pendingPrompt: { text: string; at: string } | undefined;
+  let pendingResponseParts: string[] = [];
   let pendingActions: ToolAction[] = [];
   let pendingOperations: PendingFileOperation[] = [];
   const calls = new Map<string, PendingFileOperation>();
@@ -194,6 +195,10 @@ export function parseCodexRollout(file: string): CollectedSession | undefined {
     if (!pendingPrompt) {
       return;
     }
+    const response = [...pendingResponseParts, responseText]
+      .filter((part): part is string => Boolean(part?.trim()))
+      .join("\n")
+      .trim();
     turns.push({
       host: "codex",
       sessionId,
@@ -201,13 +206,14 @@ export function parseCodexRollout(file: string): CollectedSession | undefined {
       turnIndex: turns.length,
       cwd,
       prompt: pendingPrompt.text,
-      response: responseText?.trim() || undefined,
+      response: response || undefined,
       actions: pendingActions,
       files: committedFileChanges(pendingOperations),
       startedAt: pendingPrompt.at,
       completedAt: at
     });
     pendingPrompt = undefined;
+    pendingResponseParts = [];
     pendingActions = [];
     pendingOperations = [];
     calls.clear();
@@ -240,21 +246,29 @@ export function parseCodexRollout(file: string): CollectedSession | undefined {
           pendingPrompt = { text, at: timestamp };
         }
       } else if (role === "assistant") {
-        flush(text, timestamp);
+        if (payload.phase === "commentary" && pendingPrompt) {
+          pendingResponseParts.push(text);
+        } else {
+          flush(text, timestamp);
+        }
       }
       continue;
     }
 
     if (
       record.type === "response_item" &&
-      (payloadType === "function_call" || payloadType === "local_shell_call")
+      (
+        payloadType === "function_call" ||
+        payloadType === "local_shell_call" ||
+        payloadType === "custom_tool_call"
+      )
     ) {
       const callId = typeof payload.call_id === "string" ? payload.call_id : undefined;
       const name = typeof payload.name === "string" ? payload.name : "tool";
-      const action = toolActionFromCall(name, payload);
+      const action = toolActionFromCall(name, payload, cwd);
       const operation = {
         action,
-        changes: fileChangesFromCall(name, payload),
+        changes: fileChangesFromCall(name, payload, cwd),
         status: "pending" as const
       };
       pendingActions.push(action);
@@ -265,9 +279,15 @@ export function parseCodexRollout(file: string): CollectedSession | undefined {
       continue;
     }
 
-    if (record.type === "response_item" && payloadType === "function_call_output") {
+    if (
+      record.type === "response_item" &&
+      (
+        payloadType === "function_call_output" ||
+        payloadType === "custom_tool_call_output"
+      )
+    ) {
       const callId = typeof payload.call_id === "string" ? payload.call_id : undefined;
-      const ok = !outputLooksFailed(payload.output);
+      const ok = !outputLooksFailed(payload.output ?? payload);
       const operation = callId
         ? calls.get(callId)
         : pendingOperations.at(-1);
@@ -372,7 +392,8 @@ export function parseClaudeTranscript(file: string): CollectedSession | undefine
         message.content,
         pendingActions,
         pendingOperations,
-        calls
+        calls,
+        cwd
       );
       if (text) {
         responseParts.push(text);
@@ -392,13 +413,12 @@ export function parseClaudeTranscript(file: string): CollectedSession | undefine
 
 function toolActionFromCall(
   name: string,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  cwd?: string
 ): ToolAction {
   let detail: string | undefined;
   let filePath: string | undefined;
-  const args = typeof payload.arguments === "string"
-    ? safeJson(payload.arguments)
-    : asRecord(payload.arguments);
+  const args = callArguments(payload);
   if (args) {
     if (typeof args.command === "string") {
       detail = args.command;
@@ -417,7 +437,9 @@ function toolActionFromCall(
   return {
     kind,
     tool: name,
-    path: filePath ? clipInline(filePath, 300) : undefined,
+    path: filePath
+      ? projectRelativePath(filePath, cwd)
+      : undefined,
     detail: detail ? clipInline(detail, 300) : undefined
   };
 }
@@ -426,7 +448,8 @@ function collectClaudeToolUses(
   content: unknown,
   actions: ToolAction[],
   operations: PendingFileOperation[],
-  calls: Map<string, PendingFileOperation>
+  calls: Map<string, PendingFileOperation>,
+  cwd?: string
 ): void {
   if (!Array.isArray(content)) {
     return;
@@ -446,12 +469,14 @@ function collectClaudeToolUses(
         name === "Write" ? "write" : name === "Edit" ? "edit"
           : name === "Bash" ? "run" : "other",
       tool: name,
-      path: filePath ? clipInline(filePath, 300) : undefined,
+      path: filePath
+        ? projectRelativePath(filePath, cwd)
+        : undefined,
       detail: detail ? clipInline(detail, 300) : undefined
     };
     const operation = {
       action,
-      changes: claudeFileChangesForUse(name, input),
+      changes: claudeFileChangesForUse(name, input, cwd),
       status: "pending" as const
     };
     actions.push(action);
@@ -496,13 +521,82 @@ function applyClaudeToolResults(
 
 // --- File-change replay -----------------------------------------------------
 //
-// Session transcripts already record what the model wrote: apply_patch carries
-// a patch envelope, Write carries full content, Edit carries old/new strings.
-// Replaying those to count added/removed lines is how session-recovery tools
-// reconstruct diffs — recorded fact, not a guess from the working tree.
+// Session transcripts sometimes record both sides of a change: apply_patch
+// carries changed lines, while Edit and MultiEdit carry old/new strings. Write
+// has no previous state, so it remains an action instead of a fabricated diff.
 
-function relPath(filePath: string): string {
-  return filePath.replace(/^\.\//, "");
+function projectRelativePath(
+  filePath: string,
+  cwd?: string
+): string | undefined {
+  const value = filePath.trim();
+  if (!value) {
+    return undefined;
+  }
+  const windowsPath = /^(?:[a-zA-Z]:[\\/]|\\\\)/.test(value);
+  const posixPath = !windowsPath && path.posix.isAbsolute(value);
+  const windowsCwd = Boolean(cwd && /^(?:[a-zA-Z]:[\\/]|\\\\)/.test(cwd));
+  const posixCwd = Boolean(
+    cwd && !windowsCwd && path.posix.isAbsolute(cwd)
+  );
+  let relative = value;
+  if (windowsPath || posixPath || windowsCwd || posixCwd) {
+    if (
+      !cwd ||
+      (!windowsCwd && !posixCwd) ||
+      (windowsPath && !windowsCwd) ||
+      (posixPath && !posixCwd)
+    ) {
+      return undefined;
+    }
+    const useWindows = windowsPath || (!posixPath && windowsCwd);
+    const flavor = useWindows ? path.win32 : path.posix;
+    const nativePath =
+      (process.platform === "win32" && useWindows) ||
+      (process.platform !== "win32" && !useWindows);
+    const projectRoot = nativePath
+      ? canonicalNativePath(cwd)
+      : flavor.normalize(cwd);
+    const absoluteTarget = flavor.isAbsolute(value)
+      ? value
+      : flavor.resolve(cwd, value);
+    const target = nativePath
+      ? canonicalNativePath(absoluteTarget)
+      : flavor.normalize(absoluteTarget);
+    relative = flavor.relative(projectRoot, target);
+  }
+  const normalized = path.posix
+    .normalize(relative.replaceAll("\\", "/"))
+    .replace(/^\.\//, "")
+    .replace(/\/+/g, "/");
+  if (
+    !normalized ||
+    normalized === "." ||
+    normalized === ".." ||
+    normalized.startsWith("../") ||
+    normalized.startsWith("/") ||
+    /^[a-zA-Z]:/.test(normalized)
+  ) {
+    return undefined;
+  }
+  return normalized;
+}
+
+function canonicalNativePath(value: string): string {
+  const suffix: string[] = [];
+  let current = path.resolve(value);
+  while (true) {
+    try {
+      return path.join(fs.realpathSync.native(current), ...suffix);
+    } catch {
+      const parent = path.dirname(current);
+      if (parent === current) {
+        return path.resolve(value);
+      }
+      suffix.unshift(path.basename(current));
+      current = parent;
+    }
+  }
 }
 
 function countLines(text: string): number {
@@ -516,75 +610,161 @@ function countLines(text: string): number {
 
 /** Merge a change into the per-turn map, accumulating repeated edits. */
 function mergeFileChange(map: Map<string, FileChange>, change: FileChange): void {
+  if (change.status === "R" && change.previousPath) {
+    const source = map.get(change.previousPath);
+    if (source) {
+      map.delete(change.previousPath);
+      const destination = map.get(change.path);
+      if (destination) {
+        destination.additions += source.additions;
+        destination.deletions += source.deletions;
+        if (source.status !== "A") {
+          destination.previousPath ||=
+            source.previousPath || change.previousPath;
+          destination.status = "R";
+        }
+        mergeFileChangeMetadata(destination, source);
+      } else {
+        map.set(change.path, {
+          ...source,
+          path: change.path,
+          status: source.status === "A" ? "A" : "R",
+          previousPath: source.status === "A"
+            ? undefined
+            : source.previousPath || change.previousPath
+        });
+      }
+    }
+  }
   const existing = map.get(change.path);
   if (!existing) {
-    map.set(change.path, { ...change });
+    const inserted = { ...change };
+    map.set(change.path, inserted);
+    normalizeRoundTripRename(map, inserted);
+    return;
+  }
+  if (change.status === "D") {
+    map.delete(change.path);
+    if (existing.status === "A") {
+      return;
+    }
+    map.set(existing.previousPath || existing.path, {
+      path: existing.previousPath || existing.path,
+      status: "D",
+      additions: 0,
+      deletions: 0,
+      lineCountsKnown: false
+    });
     return;
   }
   existing.additions += change.additions;
   existing.deletions += change.deletions;
-  if (change.status === "D") {
-    existing.status = "D";
-  } else if (existing.status !== "A") {
+  mergeFileChangeMetadata(existing, change);
+  if (change.status === "R" && existing.status !== "A") {
+    existing.status = "R";
+    existing.previousPath ||= change.previousPath;
+  } else if (existing.status !== "A" && existing.status !== "R") {
     existing.status = "M";
   }
-  existing.binary = existing.binary || change.binary;
+  normalizeRoundTripRename(map, existing);
+}
+
+function normalizeRoundTripRename(
+  map: Map<string, FileChange>,
+  change: FileChange
+): void {
+  if (change.status !== "R" || change.previousPath !== change.path) {
+    return;
+  }
+  delete change.previousPath;
+  if (
+    change.additions === 0 &&
+    change.deletions === 0 &&
+    !change.binary
+  ) {
+    map.delete(change.path);
+    return;
+  }
+  change.status = "M";
+}
+
+function mergeFileChangeMetadata(
+  existing: FileChange,
+  change: FileChange
+): void {
+  if (
+    existing.lineCountsKnown === false ||
+    change.lineCountsKnown === false
+  ) {
+    existing.lineCountsKnown = false;
+  } else if (
+    existing.lineCountsKnown === true ||
+    change.lineCountsKnown === true
+  ) {
+    existing.lineCountsKnown = true;
+  }
+  if (change.binary) {
+    existing.binary = true;
+  }
 }
 
 function editChange(
   filePath: string,
   oldString: string,
-  newString: string
-): FileChange {
+  newString: string,
+  cwd?: string
+): FileChange | undefined {
+  const relativePath = projectRelativePath(filePath, cwd);
+  if (!relativePath) {
+    return undefined;
+  }
   return {
-    path: relPath(filePath),
+    path: relativePath,
     status: "M",
     additions: countLines(newString),
     deletions: countLines(oldString)
   };
 }
 
-/** File changes from a Codex function_call (apply_patch / Write / Edit). */
+/** File changes from a Codex function/custom tool call. */
 function fileChangesFromCall(
   name: string,
-  payload: Record<string, unknown>
+  payload: Record<string, unknown>,
+  cwd?: string
 ): FileChange[] {
-  const args = typeof payload.arguments === "string"
-    ? safeJson(payload.arguments)
-    : asRecord(payload.arguments);
+  const args = callArguments(payload);
   if (name === "apply_patch") {
     let patch: string | undefined;
     if (args && typeof args.input === "string") {
       patch = args.input;
     } else if (args && typeof args.patch === "string") {
       patch = args.patch;
+    } else if (typeof payload.input === "string" && !args) {
+      patch = payload.input;
     } else if (typeof payload.arguments === "string" && !args) {
       patch = payload.arguments;
     }
-    return patch ? parseApplyPatch(patch) : [];
-  }
-  if (name === "Write" && args && typeof args.file_path === "string") {
-    return [{
-      path: relPath(args.file_path),
-      status: "A",
-      additions: countLines(String(args.content || "")),
-      deletions: 0
-    }];
+    return patch ? parseApplyPatch(patch, cwd) : [];
   }
   if (name === "Edit" && args && typeof args.file_path === "string") {
-    return [editChange(
+    const change = editChange(
       String(args.file_path),
       String(args.old_string || ""),
-      String(args.new_string || "")
-    )];
+      String(args.new_string || ""),
+      cwd
+    );
+    return change ? [change] : [];
   }
+  // Write can create or replace a file, but its transcript input does not
+  // carry the previous content. Keep the action and avoid inventing a diff.
   return [];
 }
 
-/** File changes from Claude tool_use blocks (Write / Edit / MultiEdit). */
+/** Provable file changes from Claude Edit / MultiEdit tool_use blocks. */
 function claudeFileChangesForUse(
   name: string,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
+  cwd?: string
 ): FileChange[] {
   const changes: FileChange[] = [];
   const filePath = typeof input.file_path === "string"
@@ -593,37 +773,39 @@ function claudeFileChangesForUse(
   if (!filePath) {
     return changes;
   }
-  if (name === "Write") {
-    changes.push({
-      path: relPath(filePath),
-      status: "A",
-      additions: countLines(String(input.content || "")),
-      deletions: 0
-    });
-  } else if (name === "Edit") {
-    changes.push(editChange(
+  if (name === "Edit") {
+    const change = editChange(
       filePath,
       String(input.old_string || ""),
-      String(input.new_string || "")
-    ));
+      String(input.new_string || ""),
+      cwd
+    );
+    if (change) {
+      changes.push(change);
+    }
   } else if (name === "MultiEdit" && Array.isArray(input.edits)) {
     for (const raw of input.edits) {
       const edit = asRecord(raw);
       if (!edit) {
         continue;
       }
-      changes.push(editChange(
+      const change = editChange(
         filePath,
         String(edit.old_string || ""),
-        String(edit.new_string || "")
-      ));
+        String(edit.new_string || ""),
+        cwd
+      );
+      if (change) {
+        changes.push(change);
+      }
     }
   }
+  // Write is intentionally action-only: its input has no previous file state.
   return changes;
 }
 
 /** Parse a Codex apply_patch envelope into per-file line-change counts. */
-export function parseApplyPatch(patch: string): FileChange[] {
+export function parseApplyPatch(patch: string, cwd?: string): FileChange[] {
   const lines = patch.replace(/\r\n?/g, "\n").split("\n");
   const changes: FileChange[] = [];
   let current: FileChange | undefined;
@@ -641,17 +823,42 @@ export function parseApplyPatch(patch: string): FileChange[] {
     const del = /^\*\*\* Delete File: (.+)$/.exec(line);
     if (add) {
       push();
-      current = { path: relPath(add[1].trim()), status: "A", additions: 0, deletions: 0 };
+      const filePath = projectRelativePath(add[1], cwd);
+      current = filePath
+        ? { path: filePath, status: "A", additions: 0, deletions: 0 }
+        : undefined;
       continue;
     }
     if (update) {
       push();
-      current = { path: relPath(update[1].trim()), status: "M", additions: 0, deletions: 0 };
+      const filePath = projectRelativePath(update[1], cwd);
+      current = filePath
+        ? { path: filePath, status: "M", additions: 0, deletions: 0 }
+        : undefined;
       continue;
     }
     if (del) {
       push();
-      current = { path: relPath(del[1].trim()), status: "D", additions: 0, deletions: 0 };
+      const filePath = projectRelativePath(del[1], cwd);
+      current = filePath
+        ? {
+            path: filePath,
+            status: "D",
+            additions: 0,
+            deletions: 0,
+            lineCountsKnown: false
+          }
+        : undefined;
+      continue;
+    }
+    const move = /^\*\*\* Move to: (.+)$/.exec(line);
+    if (move && current) {
+      const destination = projectRelativePath(move[1], cwd);
+      if (destination) {
+        current.previousPath = current.path;
+        current.path = destination;
+        current.status = "R";
+      }
       continue;
     }
     if (/^\*\*\* End of File$/.test(line) || /^\*\*\* End Patch$/.test(line)) {
@@ -660,7 +867,7 @@ export function parseApplyPatch(patch: string): FileChange[] {
     if (!current) {
       continue;
     }
-    if (line.startsWith("@@") || line.startsWith("*** Move to:")) {
+    if (line.startsWith("@@")) {
       continue;
     }
     if (line.startsWith("+")) {
@@ -674,7 +881,9 @@ export function parseApplyPatch(patch: string): FileChange[] {
 }
 
 function outputLooksFailed(output: unknown): boolean {
-  const record = asRecord(output);
+  const record = typeof output === "string"
+    ? safeJson(output) || undefined
+    : asRecord(output);
   if (record) {
     if (typeof record.success === "boolean") {
       return !record.success;
@@ -686,13 +895,33 @@ function outputLooksFailed(output: unknown): boolean {
     }
   }
   const text = typeof output === "string" ? output : JSON.stringify(output || "");
-  if (/process exited with code 0|exit code[:= ]+0\b/i.test(text)) {
+  if (
+    /process exited with code 0|exit code[:= ]+0\b/i.test(text) ||
+    /\berrors?(?:\s+count)?\s*[:=]?\s*0\b/i.test(text)
+  ) {
     return false;
   }
   return (
-    /"?(error|failed|exception|traceback)"?/i.test(text) ||
+    /(?:^|\n)\s*(?:error|failed|failure|fatal|exception|traceback)\b/i.test(text) ||
+    /\b(?:command|operation|patch|tool)\s+failed\b/i.test(text) ||
     /invalid context|permission denied|file not found/i.test(text)
   );
+}
+
+function callArguments(
+  payload: Record<string, unknown>
+): Record<string, unknown> | undefined {
+  if (typeof payload.arguments === "string") {
+    return safeJson(payload.arguments);
+  }
+  const argumentsRecord = asRecord(payload.arguments);
+  if (argumentsRecord) {
+    return argumentsRecord;
+  }
+  if (typeof payload.input === "string") {
+    return safeJson(payload.input);
+  }
+  return asRecord(payload.input);
 }
 
 function safeJson(text: string): Record<string, unknown> | undefined {
@@ -712,7 +941,15 @@ function clipInline(text: string, max: number): string {
 
 interface CollectorCursor {
   version: 1;
-  files: Record<string, { size: number; collectedTurns: number }>;
+  files: Record<
+    string,
+    {
+      size: number;
+      collectedTurns: number;
+      deferred?: boolean;
+      cwd?: string;
+    }
+  >;
 }
 
 export interface CollectRunResult {
@@ -812,8 +1049,15 @@ async function collectSessionsUnlocked(): Promise<CollectRunResult> {
       return;
     }
     const previous = cursor.files[file];
+    if (
+      previous?.deferred &&
+      previous.size === stat.size &&
+      (!previous.cwd || !resolveProjectRoot(previous.cwd))
+    ) {
+      return;
+    }
     // Skip files that haven't grown since last run.
-    if (previous && previous.size === stat.size) {
+    if (previous && previous.size === stat.size && !previous.deferred) {
       return;
     }
     result.scannedFiles += 1;
@@ -834,10 +1078,16 @@ async function collectSessionsUnlocked(): Promise<CollectRunResult> {
 
     const root = resolveProjectRoot(session.cwd);
     if (!root) {
-      // No usable project directory — record cursor so we don't rescan, but
-      // count it as skipped rather than inventing a home for it.
+      // Preserve the uncollected turn range. The cwd may be on an external
+      // volume that becomes available later, so an unchanged transcript must
+      // remain eligible for a future retry.
       result.skippedNoProject += fresh.length;
-      cursor.files[file] = { size: stat.size, collectedTurns: session.turns.length };
+      cursor.files[file] = {
+        size: stat.size,
+        collectedTurns: alreadyCollected,
+        deferred: true,
+        cwd: session.cwd
+      };
       return;
     }
 

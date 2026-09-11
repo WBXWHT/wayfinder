@@ -9,11 +9,58 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: "22"
           cache: npm
       - run: npm ci
       - run: npm run check
       - run: npm run companion:prepare
+  macos-check:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "22.13.1"
+          cache: npm
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: companion/src-tauri
+      - run: npm ci
+      - run: npm run check
+        env:
+          WAYFINDER_SKIP_UI_TEST: "1"
+      - run: npm run companion:prepare
+      - run: cargo test --manifest-path companion/src-tauri/Cargo.toml
+  windows-check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: "22.13.1"
+          cache: npm
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: companion/src-tauri
+      - run: npm ci
+      - run: npm run check
+        env:
+          WAYFINDER_SKIP_UI_TEST: "1"
+      - run: npm run build:companion:runtime
+      - name: Build Windows sidecar
+        shell: pwsh
+        run: |
+          $license = "$env:RUNNER_TEMP\NODE_LICENSE.txt"
+          Invoke-WebRequest `
+            "https://raw.githubusercontent.com/nodejs/node/v22.13.1/LICENSE" `
+            -OutFile $license
+          $env:WAYFINDER_NODE_LICENSE_PATH = $license
+          node scripts/build-sea.cjs
+      - run: npm run generate:companion-licenses
+      - run: npm run build:companion:sidecar
+      - run: cargo test --manifest-path companion/src-tauri/Cargo.toml

@@ -102,6 +102,47 @@ test("collects desktop chat into the right project without hooks", async () => {
   );
 });
 
+test("retries an unchanged transcript after its project becomes available", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-collect-deferred-"));
+  const cwd = path.join(sandbox, "external-project");
+  const codexHome = path.join(sandbox, "codex");
+  writeCodexRollout(codexHome, cwd);
+
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  process.env.CODEX_HOME = codexHome;
+  process.env.CLAUDE_CONFIG_DIR = path.join(sandbox, "no-claude");
+
+  const skipped = await collectSessions();
+  assert.equal(skipped.newTurns, 0);
+  assert.equal(skipped.skippedNoProject, 1);
+
+  const unchanged = await collectSessions();
+  assert.equal(unchanged.scannedFiles, 0);
+  assert.equal(unchanged.newTurns, 0);
+
+  fs.mkdirSync(cwd, { recursive: true });
+  const retried = await collectSessions();
+  assert.equal(retried.newTurns, 1);
+  assert.equal(retried.skippedNoProject, 0);
+  assert.equal((await readProjectState(cwd)).nodes.length, 1);
+});
+
+test("does not reparse an unchanged deferred transcript with no cwd", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-collect-no-cwd-"));
+  const codexHome = path.join(sandbox, "codex");
+  writeCodexRollout(codexHome, undefined);
+
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  process.env.CODEX_HOME = codexHome;
+  process.env.CLAUDE_CONFIG_DIR = path.join(sandbox, "no-claude");
+
+  const skipped = await collectSessions();
+  assert.equal(skipped.skippedNoProject, 1);
+  const unchanged = await collectSessions();
+  assert.equal(unchanged.scannedFiles, 0);
+  assert.equal(unchanged.newTurns, 0);
+});
+
 test("concurrent collectors serialize cursor and timeline updates", async () => {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-collect-lock-"));
   const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "wf-project-")));
@@ -199,7 +240,13 @@ test("active Codex and Claude turns remain collectable after they finish", async
     .filter((node) => node.kind === "collected")
     .flatMap((node) => node.files.map((file) => file.path))
     .sort();
-  assert.deepEqual(files, ["claude.txt", "codex.txt"]);
+  assert.deepEqual(files, ["codex.txt"]);
+  const claudeTurn = state.nodes.find(
+    (node) => node.sessionId === "claude:active-claude"
+  );
+  assert.ok(claudeTurn.actions.some(
+    (action) => action.tool === "Write" && action.path === "claude.txt"
+  ));
 });
 
 test("appends only new turns when a session grows", async () => {
@@ -290,6 +337,13 @@ test("parseApplyPatch counts additions/deletions per file and status", () => {
     "-const old = 1;",
     "+const next = 2;",
     "+const extra = 3;",
+    "*** Update File: src/old-name.ts",
+    "*** Move to: src/new-name.ts",
+    "@@ context",
+    "-oldName();",
+    "+newName();",
+    "*** Add File: src/../../outside.txt",
+    "+must not escape",
     "*** Delete File: src/gone.ts",
     "*** End Patch"
   ].join("\n");
@@ -305,6 +359,403 @@ test("parseApplyPatch counts additions/deletions per file and status", () => {
   assert.equal(byPath["src/existing.ts"].deletions, 1);
 
   assert.equal(byPath["src/gone.ts"].status, "D");
+  assert.equal(byPath["src/gone.ts"].lineCountsKnown, false);
+  assert.equal(byPath["src/new-name.ts"].status, "R");
+  assert.equal(byPath["src/new-name.ts"].previousPath, "src/old-name.ts");
+  assert.equal(byPath["src/new-name.ts"].additions, 1);
+  assert.equal(byPath["src/new-name.ts"].deletions, 1);
+  assert.equal(byPath["../outside.txt"], undefined);
+});
+
+test("Codex custom tool calls retain successful apply_patch facts", () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-custom-patch-"));
+  const cwd = path.join(sandbox, "project");
+  fs.mkdirSync(cwd, { recursive: true });
+  const file = path.join(sandbox, "custom-patch.jsonl");
+  const patch = [
+    "*** Begin Patch",
+    "*** Add File: custom.txt",
+    "+recorded",
+    "*** End Patch"
+  ].join("\n");
+  const lines = [
+    { type: "session_meta", timestamp: "2026-09-10T12:00:00.000Z", payload: {
+      id: "custom-patch", cwd } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:01.000Z", payload: {
+      type: "message", role: "user",
+      content: [{ type: "text", text: "创建 custom.txt" }] } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:02.000Z", payload: {
+      type: "custom_tool_call", name: "apply_patch", call_id: "custom-call",
+      input: patch } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:03.000Z", payload: {
+      type: "custom_tool_call_output", call_id: "custom-call",
+      output: JSON.stringify({ exit_code: 0, output: "Done!" }) } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:04.000Z", payload: {
+      type: "message", role: "assistant",
+      content: [{ type: "text", text: "已创建" }] } }
+  ];
+  fs.writeFileSync(file, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
+
+  const turn = parseCodexRollout(file).turns[0];
+  assert.equal(turn.actions[0].tool, "apply_patch");
+  assert.equal(turn.actions[0].ok, true);
+  assert.deepEqual(turn.files, [{
+    path: "custom.txt",
+    status: "A",
+    additions: 1,
+    deletions: 0
+  }]);
+});
+
+test("Codex commentary waits for the final answer and later tool facts", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-commentary-"));
+  const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "wf-project-")));
+  const codexHome = path.join(sandbox, "codex");
+  const dir = path.join(codexHome, "sessions", "2026", "09", "10");
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, "commentary.jsonl");
+  const initial = [
+    { type: "session_meta", timestamp: "2026-09-10T12:00:00.000Z",
+      payload: { id: "commentary", cwd } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:01.000Z",
+      payload: { type: "message", role: "user",
+        content: [{ type: "text", text: "继续修复" }] } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:02.000Z",
+      payload: { type: "message", role: "assistant", phase: "commentary",
+        content: [{ type: "text", text: "正在检查文件。" }] } }
+  ];
+  fs.writeFileSync(
+    file,
+    initial.map((line) => JSON.stringify(line)).join("\n") + "\n"
+  );
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  process.env.CODEX_HOME = codexHome;
+  process.env.CLAUDE_CONFIG_DIR = path.join(sandbox, "no-claude");
+
+  const beforeFinal = await collectSessions();
+  assert.equal(beforeFinal.newTurns, 0);
+
+  const patch = [
+    "*** Begin Patch",
+    "*** Add File: commentary.txt",
+    "+captured",
+    "*** End Patch"
+  ].join("\n");
+  const completed = [
+    { type: "response_item", timestamp: "2026-09-10T12:00:03.000Z",
+      payload: { type: "custom_tool_call", name: "apply_patch",
+        call_id: "commentary-call", input: patch } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:04.000Z",
+      payload: { type: "custom_tool_call_output", call_id: "commentary-call",
+        output: JSON.stringify({ exit_code: 0 }) } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:05.000Z",
+      payload: { type: "message", role: "assistant", phase: "final_answer",
+        content: [{ type: "text", text: "修复完成。" }] } }
+  ];
+  fs.appendFileSync(
+    file,
+    completed.map((line) => JSON.stringify(line)).join("\n") + "\n"
+  );
+
+  const afterFinal = await collectSessions();
+  assert.equal(afterFinal.newTurns, 1);
+  const [turn] = parseCodexRollout(file).turns;
+  assert.equal(turn.response, "正在检查文件。\n修复完成。");
+  assert.equal(turn.actions[0].ok, true);
+  assert.equal(turn.files[0].path, "commentary.txt");
+});
+
+test("successful text output can mention errors without discarding changes", () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-output-text-"));
+  const cwd = path.join(sandbox, "project");
+  fs.mkdirSync(cwd, { recursive: true });
+  const file = path.join(sandbox, "output-text.jsonl");
+  const patch = [
+    "*** Begin Patch",
+    "*** Add File: src/error-handler.ts",
+    "+export const ok = true;",
+    "*** End Patch"
+  ].join("\n");
+  const lines = [
+    { type: "session_meta", timestamp: "2026-09-10T12:00:00.000Z",
+      payload: { id: "output-text", cwd } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:01.000Z",
+      payload: { type: "message", role: "user",
+        content: [{ type: "text", text: "更新错误处理" }] } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:02.000Z",
+      payload: { type: "custom_tool_call", name: "apply_patch",
+        call_id: "output-text-call", input: patch } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:03.000Z",
+      payload: { type: "custom_tool_call_output", call_id: "output-text-call",
+        output: "Error count: 0; src/error-handler.ts updated successfully" } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:04.000Z",
+      payload: { type: "message", role: "assistant",
+        content: [{ type: "text", text: "完成" }] } }
+  ];
+  fs.writeFileSync(
+    file,
+    lines.map((line) => JSON.stringify(line)).join("\n") + "\n"
+  );
+
+  const turn = parseCodexRollout(file).turns[0];
+  assert.equal(turn.actions[0].ok, true);
+  assert.equal(turn.files[0].path, "src/error-handler.ts");
+});
+
+test("failed Codex custom tool calls never retain file facts", () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-custom-failed-"));
+  const cwd = path.join(sandbox, "project");
+  fs.mkdirSync(cwd, { recursive: true });
+  const file = path.join(sandbox, "custom-failed.jsonl");
+  const patch = [
+    "*** Begin Patch",
+    "*** Add File: phantom.txt",
+    "+not applied",
+    "*** End Patch"
+  ].join("\n");
+  const failures = [
+    JSON.stringify({ exit_code: 1 }),
+    JSON.stringify({ success: false }),
+    "Error: patch failed"
+  ];
+  const lines = [{
+    type: "session_meta",
+    timestamp: "2026-09-10T12:00:00.000Z",
+    payload: { id: "custom-failed", cwd }
+  }];
+  failures.forEach((output, index) => {
+    const minute = String(index * 2 + 1).padStart(2, "0");
+    const resultMinute = String(index * 2 + 2).padStart(2, "0");
+    lines.push(
+      { type: "response_item", timestamp: `2026-09-10T12:${minute}:00.000Z`,
+        payload: { type: "message", role: "user",
+          content: [{ type: "text", text: `失败测试 ${index}` }] } },
+      { type: "response_item", timestamp: `2026-09-10T12:${minute}:01.000Z`,
+        payload: { type: "custom_tool_call", name: "apply_patch",
+          call_id: `failed-${index}`, input: patch } },
+      { type: "response_item", timestamp: `2026-09-10T12:${minute}:02.000Z`,
+        payload: { type: "custom_tool_call_output",
+          call_id: `failed-${index}`, output } },
+      { type: "response_item", timestamp: `2026-09-10T12:${resultMinute}:00.000Z`,
+        payload: { type: "message", role: "assistant",
+          content: [{ type: "text", text: "未应用" }] } }
+    );
+  });
+  fs.writeFileSync(
+    file,
+    lines.map((line) => JSON.stringify(line)).join("\n") + "\n"
+  );
+
+  const turns = parseCodexRollout(file).turns;
+  assert.equal(turns.length, failures.length);
+  for (const turn of turns) {
+    assert.equal(turn.actions[0].ok, false);
+    assert.deepEqual(turn.files, []);
+  }
+});
+
+test("renaming preserves earlier edits without a duplicate source entry", () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-rename-merge-"));
+  const cwd = path.join(sandbox, "project");
+  fs.mkdirSync(cwd, { recursive: true });
+  const file = path.join(sandbox, "rename-merge.jsonl");
+  const renamePatch = [
+    "*** Begin Patch",
+    "*** Update File: old.ts",
+    "*** Move to: new.ts",
+    "@@",
+    "-oldValue",
+    "+newValue",
+    "*** End Patch"
+  ].join("\n");
+  const editPatch = [
+    "*** Begin Patch",
+    "*** Update File: old.ts",
+    "@@",
+    "-initialValue",
+    "+oldValue",
+    "*** End Patch"
+  ].join("\n");
+  const lines = [
+    { type: "session_meta", timestamp: "2026-09-10T12:00:00.000Z", payload: {
+      id: "rename-merge", cwd } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:01.000Z", payload: {
+      type: "message", role: "user",
+      content: [{ type: "text", text: "重命名后继续修改" }] } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:02.000Z", payload: {
+      type: "custom_tool_call", name: "apply_patch", call_id: "edit-call",
+      input: editPatch } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:03.000Z", payload: {
+      type: "custom_tool_call_output", call_id: "edit-call",
+      output: JSON.stringify({ exit_code: 0 }) } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:04.000Z", payload: {
+      type: "custom_tool_call", name: "apply_patch", call_id: "rename-call",
+      input: renamePatch } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:05.000Z", payload: {
+      type: "custom_tool_call_output", call_id: "rename-call",
+      output: JSON.stringify({ exit_code: 0 }) } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:06.000Z", payload: {
+      type: "message", role: "assistant",
+      content: [{ type: "text", text: "完成" }] } }
+  ];
+  fs.writeFileSync(file, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
+
+  assert.deepEqual(parseCodexRollout(file).turns[0].files, [{
+    path: "new.ts",
+    status: "R",
+    additions: 2,
+    deletions: 2,
+    previousPath: "old.ts"
+  }]);
+});
+
+test("rename then delete resolves to the baseline path and add then delete cancels", () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-rename-delete-"));
+  const cwd = path.join(sandbox, "project");
+  fs.mkdirSync(cwd, { recursive: true });
+  const file = path.join(sandbox, "rename-delete.jsonl");
+  const patch = [
+    "*** Begin Patch",
+    "*** Update File: old.ts",
+    "*** Move to: new.ts",
+    "@@",
+    "-oldValue",
+    "+newValue",
+    "*** Delete File: new.ts",
+    "*** Add File: temporary.ts",
+    "+temporary",
+    "*** Delete File: temporary.ts",
+    "*** End Patch"
+  ].join("\n");
+  const lines = [
+    { type: "session_meta", timestamp: "2026-09-10T12:00:00.000Z",
+      payload: { id: "rename-delete", cwd } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:01.000Z",
+      payload: { type: "message", role: "user",
+        content: [{ type: "text", text: "重命名后删除" }] } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:02.000Z",
+      payload: { type: "custom_tool_call", name: "apply_patch",
+        call_id: "rename-delete-call", input: patch } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:03.000Z",
+      payload: { type: "custom_tool_call_output",
+        call_id: "rename-delete-call", output: JSON.stringify({ exit_code: 0 }) } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:04.000Z",
+      payload: { type: "message", role: "assistant",
+        content: [{ type: "text", text: "完成" }] } }
+  ];
+  fs.writeFileSync(
+    file,
+    lines.map((line) => JSON.stringify(line)).join("\n") + "\n"
+  );
+
+  assert.deepEqual(parseCodexRollout(file).turns[0].files, [{
+    path: "old.ts",
+    status: "D",
+    additions: 0,
+    deletions: 0,
+    lineCountsKnown: false
+  }]);
+});
+
+test("round-trip renames collapse to the net file change", () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-rename-roundtrip-"));
+  const cwd = path.join(sandbox, "project");
+  fs.mkdirSync(cwd, { recursive: true });
+  const file = path.join(sandbox, "rename-roundtrip.jsonl");
+  const patches = [
+    [
+      "*** Begin Patch",
+      "*** Update File: old.ts",
+      "*** Move to: middle.ts",
+      "@@",
+      "-before",
+      "+after",
+      "*** End Patch"
+    ].join("\n"),
+    [
+      "*** Begin Patch",
+      "*** Update File: middle.ts",
+      "*** Move to: old.ts",
+      "*** End Patch"
+    ].join("\n")
+  ];
+  const lines = [
+    { type: "session_meta", timestamp: "2026-09-10T12:00:00.000Z",
+      payload: { id: "rename-roundtrip", cwd } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:01.000Z",
+      payload: { type: "message", role: "user",
+        content: [{ type: "text", text: "往返重命名" }] } }
+  ];
+  patches.forEach((patch, index) => {
+    lines.push(
+      { type: "response_item", timestamp: `2026-09-10T12:00:0${index + 2}.000Z`,
+        payload: { type: "custom_tool_call", name: "apply_patch",
+          call_id: `roundtrip-${index}`, input: patch } },
+      { type: "response_item", timestamp: `2026-09-10T12:00:0${index + 4}.000Z`,
+        payload: { type: "custom_tool_call_output",
+          call_id: `roundtrip-${index}`,
+          output: JSON.stringify({ exit_code: 0 }) } }
+    );
+  });
+  lines.push({
+    type: "response_item",
+    timestamp: "2026-09-10T12:00:07.000Z",
+    payload: { type: "message", role: "assistant",
+      content: [{ type: "text", text: "完成" }] }
+  });
+  fs.writeFileSync(
+    file,
+    lines.map((line) => JSON.stringify(line)).join("\n") + "\n"
+  );
+
+  assert.deepEqual(parseCodexRollout(file).turns[0].files, [{
+    path: "old.ts",
+    status: "M",
+    additions: 1,
+    deletions: 1
+  }]);
+});
+
+test("macOS path aliases retain edits inside the same project", {
+  skip: process.platform !== "darwin"
+}, () => {
+  const cwd = fs.mkdtempSync("/tmp/wf-path-alias-");
+  const realCwd = fs.realpathSync(cwd);
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-alias-rollout-"));
+  const file = path.join(sandbox, "alias.jsonl");
+  const lines = [
+    { type: "session_meta", timestamp: "2026-09-10T12:00:00.000Z",
+      payload: { id: "alias", cwd } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:01.000Z",
+      payload: { type: "message", role: "user",
+        content: [{ type: "text", text: "修改别名路径" }] } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:02.000Z",
+      payload: { type: "function_call", name: "Edit", call_id: "alias-edit",
+        arguments: JSON.stringify({
+          file_path: path.join(realCwd, "src", "alias.ts"),
+          old_string: "old",
+          new_string: "new"
+        }) } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:03.000Z",
+      payload: { type: "function_call_output", call_id: "alias-edit",
+        output: JSON.stringify({ exit_code: 0 }) } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:04.000Z",
+      payload: { type: "message", role: "assistant",
+        content: [{ type: "text", text: "完成" }] } }
+  ];
+  fs.writeFileSync(
+    file,
+    lines.map((line) => JSON.stringify(line)).join("\n") + "\n"
+  );
+
+  const turn = parseCodexRollout(file).turns[0];
+  assert.equal(turn.actions[0].path, "src/alias.ts");
+  assert.deepEqual(turn.files, [{
+    path: "src/alias.ts",
+    status: "M",
+    additions: 1,
+    deletions: 1
+  }]);
 });
 
 test("Codex apply_patch turn carries real file changes (not files:[])", () => {
@@ -414,7 +865,7 @@ test("unresolved or invalid-context Codex edits never become file facts", () => 
   assert.deepEqual(turn.files, []);
 });
 
-test("Claude Write/Edit/MultiEdit produce merged file changes", () => {
+test("Claude records only file changes with provable before and after text", () => {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-claude-edit-"));
   const cwd = path.join(sandbox, "proj");
   fs.mkdirSync(cwd, { recursive: true });
@@ -426,9 +877,16 @@ test("Claude Write/Edit/MultiEdit produce merged file changes", () => {
       message: { role: "user", content: "改代码" } },
     { type: "assistant", timestamp: "2026-09-10T13:00:01.000Z",
       message: { role: "assistant", content: [
-        { type: "tool_use", id: "write-1", name: "Write", input: { file_path: "a.ts", content: "line1\nline2\nline3\n" } },
-        { type: "tool_use", id: "edit-1", name: "Edit", input: { file_path: "b.ts", old_string: "x\ny", new_string: "z" } },
-        { type: "tool_use", id: "multi-edit-1", name: "MultiEdit", input: { file_path: "b.ts", edits: [
+        { type: "tool_use", id: "write-1", name: "Write", input: {
+          file_path: path.join(cwd, "a.ts"),
+          content: "line1\nline2\nline3\n"
+        } },
+        { type: "tool_use", id: "edit-1", name: "Edit", input: {
+          file_path: path.join(cwd, "b.ts"),
+          old_string: "x\ny",
+          new_string: "z"
+        } },
+        { type: "tool_use", id: "multi-edit-1", name: "MultiEdit", input: { file_path: path.join(cwd, "b.ts"), edits: [
           { old_string: "p", new_string: "q\nr" }
         ] } }
       ] } },
@@ -448,13 +906,52 @@ test("Claude Write/Edit/MultiEdit produce merged file changes", () => {
   assert.equal(session.turns.length, 1);
   const byPath = Object.fromEntries(session.turns[0].files.map((c) => [c.path, c]));
 
-  assert.equal(byPath["a.ts"].status, "A");
-  assert.equal(byPath["a.ts"].additions, 3);
+  assert.equal(byPath["a.ts"], undefined);
+  assert.equal(session.turns[0].actions[0].path, "a.ts");
 
   // b.ts touched by Edit (2 del,1 add) then MultiEdit (1 del,2 add) → merged.
   assert.equal(byPath["b.ts"].status, "M");
   assert.equal(byPath["b.ts"].additions, 3);
   assert.equal(byPath["b.ts"].deletions, 3);
+});
+
+test("Claude transcript paths never expose files outside the project root", () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-claude-path-"));
+  const cwd = path.join(sandbox, "project");
+  fs.mkdirSync(cwd, { recursive: true });
+  const file = path.join(sandbox, "outside-path.jsonl");
+  const outside = path.join(sandbox, "private", "secret.txt");
+  const lines = [
+    { type: "user", timestamp: "2026-09-10T13:00:00.000Z", cwd,
+      sessionId: "outside-path", message: { role: "user", content: "检查文件" } },
+    { type: "assistant", timestamp: "2026-09-10T13:00:01.000Z",
+      message: { role: "assistant", content: [{
+        type: "tool_use",
+        id: "outside-edit",
+        name: "Edit",
+        input: {
+          file_path: outside,
+          old_string: "secret",
+          new_string: "changed"
+        }
+      }] } },
+    { type: "user", timestamp: "2026-09-10T13:00:02.000Z",
+      message: { role: "user", content: [{
+        type: "tool_result",
+        tool_use_id: "outside-edit",
+        is_error: false,
+        content: "ok"
+      }] } },
+    { type: "assistant", timestamp: "2026-09-10T13:00:03.000Z",
+      message: { role: "assistant", stop_reason: "end_turn",
+        content: [{ type: "text", text: "完成" }] } }
+  ];
+  fs.writeFileSync(file, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
+
+  const turn = parseClaudeTranscript(file).turns[0];
+  assert.equal(turn.actions[0].path, undefined);
+  assert.deepEqual(turn.files, []);
+  assert.doesNotMatch(JSON.stringify(turn), /private\/secret/);
 });
 
 test("failed Claude edit keeps the action but drops phantom file changes", () => {

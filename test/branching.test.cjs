@@ -122,6 +122,64 @@ test("concurrent restore attempts create only one new path", async () => {
   assert.equal(fs.readFileSync(path.join(root, "value.txt"), "utf8"), "good\n");
 });
 
+test("a timeline write failure rolls the restored files back", async () => {
+  const sandbox = fs.mkdtempSync(
+    path.join(os.tmpdir(), "wayfinder-restore-rollback-")
+  );
+  const root = path.join(sandbox, "project");
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  fs.mkdirSync(root, { recursive: true });
+  const valuePath = path.join(root, "value.txt");
+  fs.writeFileSync(valuePath, "good\n");
+
+  const shadow = new ShadowRepo(root);
+  const good = await shadow.capture("good-rollback", "Good state");
+  fs.writeFileSync(valuePath, "bad\n");
+  const bad = await shadow.capture("bad-rollback", "Bad future", good.commit);
+  const state = await ensureProjectState(root);
+  state.nodes.push(
+    node("good-rollback-node", "main", undefined, "Good", good.commit, good.commit),
+    node(
+      "bad-rollback-node",
+      "main",
+      "good-rollback-node",
+      "Bad",
+      good.commit,
+      bad.commit
+    )
+  );
+  await mutateProjectState(root, (current) => {
+    current.nodes = state.nodes;
+  });
+
+  const originalRename = fs.promises.rename;
+  let injected = false;
+  fs.promises.rename = async (source, destination) => {
+    if (
+      !injected &&
+      String(source).includes(".tmp") &&
+      String(destination).endsWith("timeline.json")
+    ) {
+      injected = true;
+      throw new Error("injected timeline commit failure");
+    }
+    return originalRename(source, destination);
+  };
+  try {
+    await assert.rejects(
+      restoreFromNode(root, "good-rollback-node"),
+      /injected timeline commit failure/
+    );
+  } finally {
+    fs.promises.rename = originalRename;
+  }
+
+  assert.equal(fs.readFileSync(valuePath, "utf8"), "bad\n");
+  const persisted = await readProjectState(root);
+  assert.equal(persisted.activeBranchId, "main");
+  assert.equal(persisted.branches.length, 1);
+});
+
 function node(id, branchId, parentId, prompt, before, after) {
   const now = new Date().toISOString();
   return {
