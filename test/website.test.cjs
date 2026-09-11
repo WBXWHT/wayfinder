@@ -36,7 +36,7 @@ test("download website exposes architecture-specific release links", () => {
   assert.match(html, /<animateMotion[\s\S]*?dur="7\.2s"/);
   assert.doesNotMatch(html, /hero-waypoint|data-waypoint/);
   assert.match(html, /src="\.\/wayfinder-icon\.svg"/);
-  assert.match(html, /src="\.\/login-voyage-focus-4k\.png\?v=4k"/);
+  assert.match(html, /src="\.\/login-voyage-focus-4k\.png\?v=4k-2"/);
   assert.doesNotMatch(html, /class="product-image-link"/);
   assert.doesNotMatch(html, /href="\.\/login-voyage-focus-4k\.png/);
   assert.match(html, />\s*示例航程 · 登录回跳稳定性\s*</);
