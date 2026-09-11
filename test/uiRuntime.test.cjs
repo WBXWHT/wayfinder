@@ -1673,6 +1673,7 @@ test(
           const head = document.querySelector('.inspector-head');
           const turns = document.querySelector('.inspector-turns');
           panel.style.maxHeight = '140px';
+          turns.style.minHeight = '360px';
           const headTopBefore = head.getBoundingClientRect().top;
           panel.scrollTop = 60;
           const headTopAfter = head.getBoundingClientRect().top;
