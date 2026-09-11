@@ -4,7 +4,7 @@
 > reproducibility and are not supported installation paths. Wayfinder is now
 > distributed only as a macOS and Windows desktop application. Download the
 > current release from
-> [Wayfinder 0.3.9 Alpha](https://github.com/StayCurious-Xuan/wayfinder/releases/tag/alpha-v0.3.9).
+> [Wayfinder 0.3.10 Alpha](https://github.com/StayCurious-Xuan/wayfinder/releases/tag/alpha-v0.3.10).
 
 A local voyage map for AI coding sessions, with an IDE sidebar, Claude/Codex
 capture adapters, an Agent Skill, an in-conversation MCP App, and a terminal

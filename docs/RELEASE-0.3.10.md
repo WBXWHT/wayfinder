@@ -21,5 +21,5 @@ details out of the route canvas on desktop.
 - JavaScript and Chromium suite: 105 tests.
 - Rust companion suite: 6 tests.
 - Visual checks at 1440x900, 1080x720, and 320x720.
-- Apple Silicon, Intel macOS, and Windows x64 assets are required before
-  publication.
+- Apple Silicon, Intel macOS, and Windows x64 assets verified against the
+  published SHA-256 checksums.
