@@ -520,30 +520,6 @@ h1 {
   box-shadow: 0 0 0 4px rgba(35, 143, 123, .12);
 }
 
-.scroll-cue {
-  position: absolute;
-  z-index: 4;
-  bottom: 19px;
-  left: 50%;
-  width: 18px;
-  height: 28px;
-  border: 1px solid rgba(23, 25, 28, .45);
-  border-radius: 12px;
-  transform: translateX(-50%);
-}
-
-.scroll-cue span {
-  position: absolute;
-  top: 5px;
-  left: 50%;
-  width: 3px;
-  height: 6px;
-  border-radius: 2px;
-  background: var(--ink);
-  transform: translateX(-50%);
-  animation: scroll-cue 1.6s ease-in-out infinite;
-}
-
 .story-section {
   height: var(--story-height);
   min-height: 680px;
@@ -1200,20 +1176,6 @@ footer a {
   }
 }
 
-@keyframes scroll-cue {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, 0);
-  }
-  35% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, 9px);
-  }
-}
-
 @keyframes final-route-move {
   to {
     stroke-dashoffset: -58;
@@ -1333,10 +1295,6 @@ footer a {
   }
 
   .hero-status span:nth-child(n + 2) {
-    display: none;
-  }
-
-  .scroll-cue {
     display: none;
   }
 
@@ -1550,7 +1508,6 @@ footer a {
   .hero-channel-mark,
   .node-experience,
   .route-note,
-  .scroll-cue span,
   .final-route-line {
     animation: none;
   }

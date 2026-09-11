@@ -22,6 +22,7 @@ test("download website exposes architecture-specific release links", () => {
   );
 
   assert.match(html, /<h1[^>]*>Wayfinder<\/h1>/);
+  assert.doesNotMatch(html, /scroll-cue|继续浏览/);
   assert.match(html, /data-download="arm64"/);
   assert.match(html, /data-download="x64"/);
   assert.match(html, /data-download="windowsX64"/);
@@ -88,6 +89,7 @@ test("website scripts parse and visual CSS avoids decorative gradients", () => {
   assert.match(styles, /a:focus-visible/);
   assert.match(styles, /\.hero\s*\{/);
   assert.match(styles, /#voyageCanvas/);
+  assert.doesNotMatch(styles, /\.scroll-cue|@keyframes scroll-cue/);
   assert.doesNotMatch(styles, /scroll-snap-/);
   assert.match(script, /prefers-reduced-motion: reduce/);
   assert.match(script, /const workflowProgress = Math\.min\(1, progress \* 2\)/);
