@@ -6,19 +6,20 @@ https://www.producthunt.com/products/wayfinder-5?launch=wayfinder-6
 
 ## Current Positioning
 
+**Product name**
+
+Wayfinder AI
+
 **Tagline**
 
-Turn scattered AI work into experience you can reuse.
+See how your AI coding work actually evolved.
 
 **Description**
 
-Wayfinder is a local macOS app that turns Codex and Claude Code work into one
-visual voyage map. It automatically records prompts, responses, tool activity,
-file changes, branches, failures, and decisions while keeping the complete
-history on your Mac.
-
-Install Wayfinder once, continue working normally in your AI tools, then return
-to the app to inspect how a project evolved across tools and attempts.
+Wayfinder is a local-first desktop app for macOS and Windows that turns Codex
+and Claude Code sessions into a visual voyage map. It groups work by project,
+preserves branches and failures, and replays real file changes from local
+session history. No account or cloud sync.
 
 **Website**
 
@@ -26,6 +27,7 @@ https://wayfinder-ai.pages.dev
 
 ## Listing Status
 
-The public listing URL, description, maker comment, and forum thread use the
-standalone macOS positioning. Its three-image gallery shows the current desktop
-app, final voyage map, and current download-site workflow.
+The public listing should use the standalone, cross-platform desktop
+positioning. Its icon is the current black Wayfinder mark. The gallery should
+lead with the real desktop app, followed by the live website hero and the
+project-level voyage map.

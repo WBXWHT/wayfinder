@@ -48,8 +48,9 @@ platform awards carry more weight than broad directory counts.
 
 ## Excluded Channels
 
-- The WinGet submission was withdrawn on 2026-09-11 after Wayfinder returned
-  to a macOS-only product scope:
+- The WinGet submission was withdrawn during the temporary Windows rollback
+  on 2026-09-11. Windows support has since returned, but the pull request
+  remains closed and is not a live distribution channel:
   https://github.com/microsoft/winget-pkgs/pull/432783
 - `tauri-apps/awesome-tauri` stopped accepting application submissions and
   removed its application section on 2026-08-20. Do not open an application
@@ -80,6 +81,6 @@ remain external decisions.
 ## Resume Rule
 
 Do not add awesome-mac or Made with Tauri as an achieved distinction until the
-corresponding listing is publicly live. Do not present the withdrawn WinGet
+corresponding listing is publicly live. Do not present the closed WinGet
 submission as a supported distribution channel. Community posts may be linked
 as launch activity, but must not be called awards or curated features.

@@ -1775,7 +1775,8 @@ test(
 
       for (const viewport of [
         { width: 320, height: 568 },
-        { width: 812, height: 375 }
+        { width: 812, height: 375 },
+        { width: 1440, height: 900 }
       ]) {
         await cdp.send("Emulation.setDeviceMetricsOverride", {
           ...viewport,
@@ -1787,28 +1788,37 @@ test(
         });
         await waitForExpression(
           cdp,
-          "document.querySelectorAll('.download-row .download').length === 2"
+          `location.search === '?viewport=${viewport.width}' &&
+            document.querySelectorAll('.hero-actions .action').length === 2`
         );
         const layout = await evaluateJson(
           cdp,
           `(() => {
             const hero = document.querySelector('.hero').getBoundingClientRect();
             const downloads = [...document.querySelectorAll(
-              '.download-row .download'
+              '.hero-actions .action'
             )].map((element) => {
               const rect = element.getBoundingClientRect();
               return { top: rect.top, bottom: rect.bottom };
             });
             return {
               width: innerWidth,
+              height: innerHeight,
               scrollWidth: document.documentElement.scrollWidth,
               heroBottom: hero.bottom,
-              downloads
+              downloads,
+              storyHeights: [...document.querySelectorAll(
+                '.story-section'
+              )].map((section) => section.getBoundingClientRect().height)
             };
           })()`
         );
         assert.equal(layout.width, viewport.width);
         assert.equal(layout.scrollWidth, viewport.width);
+        assert.ok(
+          layout.heroBottom >= layout.height - .5,
+          JSON.stringify({ viewport, layout })
+        );
         assert.ok(
           layout.downloads.every(
             (download) =>
@@ -1816,6 +1826,16 @@ test(
               download.bottom <= layout.heroBottom + .5
           )
         );
+        if (viewport.width >= 1000) {
+          assert.ok(
+            Math.abs(layout.heroBottom - layout.height) <= .5,
+            JSON.stringify({ viewport, layout })
+          );
+          assert.ok(
+            Math.max(...layout.storyHeights) -
+              Math.min(...layout.storyHeights) <= .5
+          );
+        }
       }
 
       await delay(1_600);

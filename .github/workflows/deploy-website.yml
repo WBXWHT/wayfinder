@@ -47,14 +47,27 @@ jobs:
             throw new Error(`Unsupported release channel: ${release.channel}`);
           }
           const downloads = [
-            ["arm64", release.downloads?.arm64, "aarch64"],
-            ["x64", release.downloads?.x64, "x86_64"]
+            [
+              "arm64",
+              release.downloads?.arm64,
+              `${channel.assetPrefix}-macOS-aarch64.dmg`
+            ],
+            [
+              "x64",
+              release.downloads?.x64,
+              `${channel.assetPrefix}-macOS-x86_64.dmg`
+            ],
+            [
+              "windowsX64",
+              release.downloads?.windowsX64,
+              `${channel.assetPrefix}-Windows-x86_64.exe`
+            ]
           ];
-          for (const [architecture, raw, assetArchitecture] of downloads) {
+          for (const [architecture, raw, assetName] of downloads) {
             const url = new URL(raw);
             const expectedPath =
               `/WBXWHT/wayfinder/releases/download/${channel.tag}/` +
-              `${channel.assetPrefix}-macOS-${assetArchitecture}.dmg`;
+              assetName;
             if (
               url.protocol !== "https:" ||
               url.hostname !== "github.com" ||
