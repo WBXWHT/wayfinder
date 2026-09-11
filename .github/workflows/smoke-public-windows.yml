@@ -1,0 +1,68 @@
+name: Smoke Public Windows Installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published release tag to verify
+        required: true
+        default: alpha-v0.3.8
+
+permissions:
+  contents: read
+
+jobs:
+  install_and_launch:
+    runs-on: windows-latest
+    steps:
+      - name: Download, install, and launch the public installer
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $version = $env:RELEASE_TAG -replace "^alpha-v", ""
+          if ($version -notmatch "^\d+\.\d+\.\d+$") {
+            throw "Unsupported release tag: $env:RELEASE_TAG"
+          }
+
+          $asset = "Wayfinder-Alpha-$version-Windows-x86_64.exe"
+          $url = "https://github.com/$env:REPOSITORY/releases/download/" +
+            "$env:RELEASE_TAG/$asset"
+          $installer = Join-Path $env:RUNNER_TEMP $asset
+          $installDir = Join-Path $env:RUNNER_TEMP "WayfinderSmoke"
+
+          Invoke-WebRequest -Uri $url -OutFile $installer
+          if ((Get-Item $installer).Length -lt 1MB) {
+            throw "Downloaded installer is unexpectedly small"
+          }
+
+          $install = Start-Process -FilePath $installer -Wait -PassThru `
+            -ArgumentList @("/S", "/D=$installDir")
+          if ($install.ExitCode -ne 0) {
+            throw "Installer exited with code $($install.ExitCode)"
+          }
+
+          $app = Get-ChildItem -Path $installDir -Filter "*.exe" -Recurse |
+            Where-Object {
+              $_.Name -notmatch "uninstall" -and
+              $_.VersionInfo.ProductVersion -like "$version*"
+            } |
+            Select-Object -First 1
+          if (-not $app) {
+            throw "Installed Wayfinder executable was not found"
+          }
+
+          $process = Start-Process -FilePath $app.FullName -PassThru
+          try {
+            Start-Sleep -Seconds 12
+            if ($process.HasExited) {
+              throw "Wayfinder exited during the launch smoke test"
+            }
+            Write-Host "Wayfinder $version remained running for 12 seconds."
+          } finally {
+            if (-not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+            }
+          }

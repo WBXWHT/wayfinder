@@ -152,7 +152,7 @@ export function buildConversationForest(
     return {
       trees,
       sessionCount: curatedForest.sessionCount + liveForest.sessionCount,
-      nodeCount: state.nodes.length
+      nodeCount: curatedForest.nodeCount + liveForest.nodeCount
     };
   }
   return buildCuratedForest(state, state.nodes);
@@ -163,7 +163,13 @@ function buildCuratedForest(
   inputNodes: TimelineNode[]
 ): ConversationForest {
   const abandoned = abandonedNodeIds(state);
-  const nodes = [...inputNodes]
+  const hasSkillDefinitions = inputNodes.some(isSkillDefinitionImport);
+  const nodes = inputNodes
+    .filter(
+      (node) =>
+        !(hasSkillDefinitions && isFolderImportManifest(node))
+    )
+    .slice()
     .sort((a, b) => a.completedAt.localeCompare(b.completedAt))
     // Structure rule: a turn that a later restore/branch abandoned is marked
     // as a failed route (coral + reef) unless the user already judged it.
@@ -494,6 +500,18 @@ function metadataForNode(
   node: TimelineNode,
   firstBySession: Map<string, TimelineNode>
 ): ForestMetadata {
+  if (isSkillDefinitionImport(node)) {
+    const directory =
+      node.source?.type === "folder-import"
+        ? node.source.relativePath.split("/").filter(Boolean)[0]
+        : "";
+    const title = normalizeText(node.prompt || directory || "Skill");
+    return {
+      tree: title,
+      stage: "Skill 定义",
+      stageOrder: 0
+    };
+  }
   if (
     (node.source?.type === "trae-memory" ||
       node.source?.type === "folder-import") &&
@@ -519,6 +537,20 @@ function metadataForNode(
     stage: "实时会话",
     stageOrder: 0
   };
+}
+
+function isSkillDefinitionImport(node: TimelineNode): boolean {
+  return (
+    node.source?.type === "folder-import" &&
+    /(^|\/)SKILL\.md$/i.test(node.source.relativePath)
+  );
+}
+
+function isFolderImportManifest(node: TimelineNode): boolean {
+  return (
+    node.source?.type === "folder-import" &&
+    node.source.relativePath === "."
+  );
 }
 
 function splitIntoSessions(nodes: TimelineNode[]): TimelineNode[][] {

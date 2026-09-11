@@ -19,6 +19,11 @@ The website, README, install guide, and future release notes must present one
 path: install Wayfinder, continue working in Codex or Claude Code, and inspect
 the resulting visual voyage map in the app.
 
+Public positioning must describe Wayfinder as an AI collaboration history
+product for coding, research, writing, design, and other project work. Codex
+and Claude Code are the current early-access collection adapters, not the
+boundary of the product category.
+
 ## Retired Distribution Surfaces
 
 The following formats were published for earlier releases but are no longer

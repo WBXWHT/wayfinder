@@ -443,7 +443,7 @@ test("imported-only history keeps its curated chapter forest", () => {
   assert.ok(stages.includes("API 动态分成"));
 });
 
-test("folder imports keep their explicit voyage and branch structure", () => {
+test("unrelated Skill imports become independent voyages", () => {
   const root = folderImport(
     "skill-root",
     "2026-09-03T09:00:00.000Z",
@@ -468,20 +468,19 @@ test("folder imports keep their explicit voyage and branch structure", () => {
   const forest = buildConversationForest(
     projectState([root, translate, web])
   );
-  const tree = forest.trees[0];
-  const rootSession = tree.sessions.find(
-    (session) => session.stage === "Skill 文件夹"
-  );
-
-  assert.equal(forest.trees.length, 1);
-  assert.equal(tree.title, "Skill 内容库");
-  assert.equal(tree.sessions.length, 3);
-  assert.ok(rootSession);
+  assert.equal(forest.trees.length, 2);
+  assert.equal(forest.nodeCount, 2);
   assert.deepEqual(
-    tree.sessions
-      .filter((session) => session.id !== rootSession.id)
-      .map((session) => session.parentId),
-    [rootSession.id, rootSession.id]
+    forest.trees.map((tree) => tree.title).sort(),
+    ["翻译", "网页设计"].sort()
+  );
+  assert.ok(forest.trees.every((tree) => tree.sessions.length === 1));
+  assert.ok(
+    forest.trees.every(
+      (tree) =>
+        tree.sessions[0].stage === "Skill 定义" &&
+        tree.sessions[0].parentId === undefined
+    )
   );
 });
 
@@ -507,7 +506,7 @@ test("folder imports keep explicit metadata beside live file sessions", () => {
   );
 
   const forest = buildConversationForest(projectState([root, translate, live]));
-  const skillTree = forest.trees.find((tree) => tree.title === "Skill 内容库");
+  const skillTree = forest.trees.find((tree) => tree.title === "翻译");
   const liveTree = forest.trees.find((tree) =>
     tree.sessions.some((session) => session.nodeIds.includes(live.id))
   );
@@ -516,10 +515,10 @@ test("folder imports keep explicit metadata beside live file sessions", () => {
   assert.ok(liveTree);
   assert.deepEqual(
     skillTree.sessions.map((session) => session.stage),
-    ["Skill 文件夹", "翻译"]
+    ["Skill 定义"]
   );
-  assert.equal(skillTree.nodeCount, 2);
-  assert.equal(forest.nodeCount, 3);
+  assert.equal(skillTree.nodeCount, 1);
+  assert.equal(forest.nodeCount, 2);
 });
 
 function projectState(nodes) {
@@ -584,6 +583,7 @@ function liveTurn(id, hhmm, prompt, files) {
 }
 
 function folderImport(id, completedAt, stage, stageOrder, parentStage) {
+  const manifest = stage === "Skill 文件夹";
   return {
     id,
     kind: "imported",
@@ -605,7 +605,7 @@ function folderImport(id, completedAt, stage, stageOrder, parentStage) {
     validation: { status: "skipped" },
     source: {
       type: "folder-import",
-      relativePath: `${stage}/SKILL.md`,
+      relativePath: manifest ? "." : `${stage}/SKILL.md`,
       importedAt: completedAt,
       forest: {
         tree: "Skill 内容库",

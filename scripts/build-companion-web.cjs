@@ -131,18 +131,6 @@ const topbar = `<header class="topbar desktop-topbar">
       <div id="projectMeta" class="brand-meta">选择一个项目</div>
     </div>
   </div>
-  <label class="search" title="搜索航点、对话或文件">
-    <span class="codicon codicon-search" aria-hidden="true"></span>
-    <input id="search" type="search" placeholder="搜索航点、对话或文件"
-      aria-label="搜索航点、对话或文件">
-  </label>
-  <div class="top-actions">
-    <button id="fit" class="tool-button" title="回到默认视图"
-      aria-label="回到默认视图">
-      <span class="codicon codicon-target" aria-hidden="true"></span>
-      <span>复位</span>
-    </button>
-  </div>
 </header>`;
 
 const desktopOpen = `<div class="desktop-shell">
@@ -260,28 +248,29 @@ const desktopStyles = `
     cursor: pointer;
   }
   .project-item:hover { background: var(--hover); }
-  .project-item[aria-current="true"] { background: var(--selected); }
+  .project-item[aria-current="true"] {
+    background: color-mix(
+      in srgb,
+      var(--project-accent) 13%,
+      transparent
+    );
+  }
   .project-icon {
     display: grid;
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     place-items: center;
-    border-radius: 7px;
-    color: #277da1;
-    background: rgba(29, 143, 180, .10);
+    color: var(--project-accent);
+    background: transparent;
   }
-  .project-icon .codicon { font-size: 15px; }
-  .project-item:nth-child(3n + 2) .project-icon {
-    color: #7567b5;
-    background: rgba(117, 103, 181, .10);
-  }
-  .project-item:nth-child(3n) .project-icon {
-    color: #b98236;
-    background: rgba(185, 130, 54, .11);
+  .project-folder-route {
+    width: 21px;
+    height: 21px;
+    overflow: visible;
+    filter: drop-shadow(0 1px 0 rgba(255, 255, 255, .82));
   }
   .project-item[aria-current="true"] .project-icon {
-    color: #ffffff;
-    background: var(--accent);
+    color: var(--project-accent);
   }
   .project-copy { min-width: 0; }
   .project-name {
@@ -323,8 +312,7 @@ const desktopStyles = `
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .local-data-button,
-  .tool-button {
+  .local-data-button {
     display: inline-flex;
     min-height: 30px;
     align-items: center;
@@ -340,17 +328,15 @@ const desktopStyles = `
     font-weight: 600;
     cursor: pointer;
   }
-  .local-data-button:hover,
-  .tool-button:hover {
+  .local-data-button:hover {
     color: var(--text);
     background: var(--hover);
   }
   .desktop-topbar {
-    grid-template-columns: minmax(180px, 1fr) minmax(220px, 360px) auto;
+    justify-content: flex-start;
   }
   .project-toggle { display: none; flex: 0 0 30px; }
   .desktop-topbar .brand-mark { display: none; }
-  .desktop-topbar .top-actions { min-width: max-content; }
   .sidebar-scrim { display: none; }
   .toast {
     position: fixed;
@@ -399,16 +385,12 @@ const desktopStyles = `
       pointer-events: auto;
     }
     .desktop-topbar {
-      grid-template-columns: auto minmax(100px, 1fr) auto;
       gap: 6px;
       padding: 0 8px;
     }
     .workspace-context { min-width: 30px; }
     .desktop-topbar .workspace-context { display: flex; }
     .workspace-context .brand-copy { display: none; }
-    .desktop-topbar .search { min-width: 0; }
-    .top-actions { gap: 0; }
-    .tool-button > span:last-child { display: none; }
   }
   @media (prefers-color-scheme: dark) {
     body.desktop-mode {

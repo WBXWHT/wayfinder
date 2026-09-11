@@ -9,6 +9,16 @@ const closeProjectsButton = document.querySelector("#closeProjects");
 const openDataButton = document.querySelector("#openData");
 const toast = document.querySelector("#toast");
 const narrowProjects = globalThis.matchMedia("(max-width: 760px)");
+const PROJECT_ACCENTS = [
+  "#2f8fa8",
+  "#6f72c9",
+  "#c97a3d",
+  "#2e9468",
+  "#c85f73",
+  "#8b68b8",
+  "#3d7fbf",
+  "#8a8235"
+];
 
 let invoke;
 let projects = [];
@@ -38,6 +48,14 @@ function handleMapMessage(message) {
   // The final map sends "ready" through the VS Code adapter. Companion data is
   // loaded by start(); host-only commands are hidden in desktop mode.
   if (message?.type === "ready") return;
+  if (
+    message?.type === "voyageAccent" &&
+    /^#[0-9a-f]{6}$/i.test(String(message.color || ""))
+  ) {
+    projectList
+      .querySelector(`[data-project-id="${activeProjectId}"]`)
+      ?.style.setProperty("--project-accent", message.color);
+  }
 }
 
 function sendToMap(data) {
@@ -88,13 +106,22 @@ function renderProjectList() {
     item.dataset.projectId = project.id;
     item.setAttribute("aria-current", String(project.id === activeProjectId));
     item.title = project.root || project.name;
+    item.style.setProperty("--project-accent", projectAccent(project));
 
     const icon = document.createElement("span");
     icon.className = "project-icon";
     icon.setAttribute("aria-hidden", "true");
-    const iconGlyph = document.createElement("span");
-    iconGlyph.className = "codicon codicon-map";
-    icon.append(iconGlyph);
+    icon.innerHTML = `
+      <svg class="project-folder-route" data-lucide="folder-git-2"
+        viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="1.8" stroke-linecap="round"
+        stroke-linejoin="round">
+        <path d="M18 19a5 5 0 0 1-5-5v8"></path>
+        <path d="M9 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v5"></path>
+        <circle cx="13" cy="12" r="2"></circle>
+        <circle cx="20" cy="19" r="2"></circle>
+      </svg>
+    `;
 
     const copy = document.createElement("span");
     copy.className = "project-copy";
@@ -150,6 +177,15 @@ function projectParentLabel(root) {
   return parts.length > 1 ? parts[parts.length - 2] : "";
 }
 
+function projectAccent(project) {
+  const value = String(project?.id || project?.root || project?.name || "wayfinder");
+  let hash = 0;
+  for (const character of value) {
+    hash = (hash * 31 + character.codePointAt(0)) >>> 0;
+  }
+  return PROJECT_ACCENTS[hash % PROJECT_ACCENTS.length];
+}
+
 function visibleProjects(items) {
   return items.filter((project) => {
     if (project.nodeCount <= 0 && project.pendingCount <= 0) return false;
@@ -201,6 +237,7 @@ async function loadActiveProject() {
   sendToMap({
     type: "render",
     projectName: project?.name || "Wayfinder",
+    projectAccent: projectAccent(project),
     state,
     forest: buildConversationForest(state)
   });

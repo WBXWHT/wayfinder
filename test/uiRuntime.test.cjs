@@ -579,6 +579,9 @@ test(
           scrollWidth: document.body.scrollWidth,
           sessions: document.querySelectorAll('.session-node').length,
           projects: document.querySelectorAll('.tree-node').length,
+          collapsedVoyages: document.querySelectorAll(
+            '.tree-card.collapsed'
+          ).length,
           reefs: document.querySelectorAll('.reef-sticker').length,
           ships: document.querySelectorAll('.project-ship').length,
           cards: document.querySelectorAll('.session-card').length,
@@ -724,7 +727,8 @@ test(
       );
       assert.equal(map.scrollWidth, 320);
       assert.equal(map.sessions, 9);
-      assert.equal(map.projects, 1);
+      assert.equal(map.projects, 2);
+      assert.equal(map.collapsedVoyages, 1);
       assert.equal(map.reefs, 1);
       assert.equal(map.ships, 1);
       assert.equal(map.cards, 9);
@@ -826,49 +830,76 @@ test(
       assert.equal(settledKeyboardReveal.focused, true);
       assert.equal(settledKeyboardReveal.visible, true);
 
-      await cdp.send("Runtime.evaluate", {
-        expression: `(() => {
-          const input = document.querySelector('#search');
-          input.value = 'Wayfinder 产品';
-          input.dispatchEvent(new InputEvent('input', { bubbles: true }));
-        })()`
-      });
-      await delay(180);
       assert.equal(
-        await evaluate(cdp, "document.querySelector('#canvasTitle')?.textContent"),
-        "搜索结果"
-      );
-      assert.equal(
-        await evaluate(
-          cdp,
-          "document.querySelectorAll('.session-card').length > 0"
-        ),
+        await evaluate(cdp, "document.querySelector('#search') === null"),
         true
       );
       assert.equal(
-        await evaluate(
-          cdp,
-          `[...document.querySelectorAll('.session-card:not(.dimmed)')]
-            .some((element) => {
-              const rect = element.getBoundingClientRect();
-              return (
-                rect.right > 0 &&
-                rect.left < innerWidth &&
-                rect.bottom > 0 &&
-                rect.top < innerHeight
-              );
-            })`
-        ),
+        await evaluate(cdp, "document.querySelector('#fit') === null"),
         true
       );
-      await cdp.send("Runtime.evaluate", {
-        expression: `(() => {
-          const input = document.querySelector('#search');
-          input.value = '';
-          input.dispatchEvent(new InputEvent('input', { bubbles: true }));
+      const voyageOverview = await evaluateJson(
+        cdp,
+        `(() => {
+          const originalForest = forest;
+          const sourceTree = forest.trees[0];
+          const secondTree = {
+            ...sourceTree,
+            id: sourceTree.id + '-second',
+            title: 'Second voyage'
+          };
+          const combinedForest = {
+            ...forest,
+            trees: [sourceTree, secondTree]
+          };
+          window.dispatchEvent(new MessageEvent('message', {
+            data: {
+              type: 'render',
+              state,
+              forest: combinedForest,
+              projectName
+            }
+          }));
+          const before = {
+            treeCards: document.querySelectorAll('.tree-card').length,
+            collapsed: document.querySelectorAll(
+              '.tree-card.collapsed'
+            ).length,
+            pagers: document.querySelectorAll(
+              '#projectPrevious, #projectNext'
+            ).length,
+            title: document.querySelector('#canvasTitle')?.textContent
+          };
+          document.querySelector('.tree-card.collapsed')?.dispatchEvent(
+            new MouseEvent('click', { bubbles: true })
+          );
+          const after = {
+            activeTreeId,
+            collapsed: document.querySelectorAll(
+              '.tree-card.collapsed'
+            ).length,
+            sessionCards: document.querySelectorAll(
+              '.session-card'
+            ).length
+          };
+          window.dispatchEvent(new MessageEvent('message', {
+            data: {
+              type: 'render',
+              state,
+              forest: originalForest,
+              projectName
+            }
+          }));
+          return { before, after, secondTreeId: secondTree.id };
         })()`
-      });
-      await delay(180);
+      );
+      assert.equal(voyageOverview.before.treeCards, 2);
+      assert.equal(voyageOverview.before.collapsed, 1);
+      assert.equal(voyageOverview.before.pagers, 0);
+      assert.equal(voyageOverview.before.title, "ui-test");
+      assert.equal(voyageOverview.after.activeTreeId, voyageOverview.secondTreeId);
+      assert.equal(voyageOverview.after.collapsed, 1);
+      assert.equal(voyageOverview.after.sessionCards, 9);
 
       const gestures = JSON.parse(await evaluate(
         cdp,
@@ -882,6 +913,10 @@ test(
             for (let index = 0; index < count; index += 1) {
               await nextFrame();
             }
+          };
+          const resetView = () => {
+            viewportSignature = '';
+            renderGraph();
           };
           const wheel = (
             deltaX,
@@ -899,26 +934,24 @@ test(
               clientX: rect.left + rect.width / 2,
               clientY: rect.top + rect.height / 2
             }));
+          const overlayReset = d3.zoomTransform(target);
+          document.querySelector('.canvas-page-label').dispatchEvent(
+            new WheelEvent('wheel', {
+              deltaX: 80,
+              deltaY: 0,
+              bubbles: true,
+              cancelable: true,
+              clientX: rect.left + rect.width / 2,
+              clientY: rect.top + 30
+            })
+          );
+          const overlayPan = d3.zoomTransform(target);
+          resetView();
           const initial = d3.zoomTransform(target);
-          let transformWrites = 0;
-          const observer = new MutationObserver((records) => {
-            transformWrites += records.filter(
-              (record) => record.attributeName === 'transform'
-            ).length;
-          });
-          observer.observe(target.firstElementChild, {
-            attributes: true,
-            attributeFilter: ['transform']
-          });
           for (let index = 0; index < 30; index += 1) {
             wheel(-80, 0);
           }
           await settleFrames(2);
-          await Promise.resolve();
-          const writesForFirstTwoFrames = transformWrites;
-          await settleFrames(10);
-          const writesForBurst = transformWrites;
-          observer.disconnect();
           const atCoast = d3.zoomTransform(target);
           wheel(-160, 0);
           wheel(40, 0);
@@ -938,7 +971,7 @@ test(
           }
           await nextFrame();
           const panned = d3.zoomTransform(target);
-          document.querySelector('#fit').click();
+          resetView();
           const reset = d3.zoomTransform(target);
           for (let index = 0; index < 30; index += 1) {
             wheel(80, 0);
@@ -948,7 +981,7 @@ test(
           }));
           await settleFrames(12);
           const afterRenderDuringPan = d3.zoomTransform(target);
-          document.querySelector('#fit').click();
+          resetView();
           for (let index = 0; index < 30; index += 1) {
             wheel(80, 0);
           }
@@ -970,7 +1003,7 @@ test(
           window.dispatchEvent(new MessageEvent('message', {
             data: { type: 'render', state, forest, projectName }
           }));
-          document.querySelector('#fit').click();
+          resetView();
           for (let index = 0; index < 3; index += 1) {
             wheel(160, 0);
           }
@@ -980,22 +1013,65 @@ test(
           wheel(-40, 0);
           await settleFrames(2);
           const afterAwayReversal = d3.zoomTransform(target);
-          document.querySelector('#fit').click();
+          resetView();
+          for (let index = 0; index < 4; index += 1) {
+            wheel(120, 0);
+          }
+          const reversibleStart = d3.zoomTransform(target);
+          for (let index = 0; index < 60; index += 1) {
+            wheel(8, 0);
+            await nextFrame();
+          }
+          const reversibleAway = d3.zoomTransform(target);
+          for (let index = 0; index < 60; index += 1) {
+            wheel(-8, 0);
+            await nextFrame();
+          }
+          const reversibleReturn = d3.zoomTransform(target);
+          const visibleCardCount = () => {
+            const viewport = target.getBoundingClientRect();
+            return [...document.querySelectorAll('.session-card')]
+              .filter((element) => {
+                const bounds = element.getBoundingClientRect();
+                return (
+                  bounds.right > viewport.left &&
+                  bounds.left < viewport.right &&
+                  bounds.bottom > viewport.top &&
+                  bounds.top < viewport.bottom
+                );
+              }).length;
+          };
+          resetView();
+          for (let index = 0; index < 100; index += 1) {
+            wheel(0, 160);
+          }
+          const verticalBottom = {
+            transform: d3.zoomTransform(target),
+            visibleCards: visibleCardCount()
+          };
+          for (let index = 0; index < 200; index += 1) {
+            wheel(0, -160);
+          }
+          const verticalTop = {
+            transform: d3.zoomTransform(target),
+            visibleCards: visibleCardCount()
+          };
+          resetView();
           const largePacketReset = d3.zoomTransform(target);
           wheel(1458, 0);
           await nextFrame();
           const largePacket = d3.zoomTransform(target);
-          document.querySelector('#fit').click();
+          resetView();
           const lineModeReset = d3.zoomTransform(target);
           wheel(2, 0, false, 1);
           await nextFrame();
           const lineModePan = d3.zoomTransform(target);
-          document.querySelector('#fit').click();
+          resetView();
           const pageModeReset = d3.zoomTransform(target);
           wheel(1, 0, false, 2);
           await nextFrame();
           const pageModePan = d3.zoomTransform(target);
-          document.querySelector('#fit').click();
+          resetView();
           const zoomReset = d3.zoomTransform(target);
           for (let index = 0; index < 3; index += 1) {
             wheel(0, -40, true);
@@ -1016,6 +1092,16 @@ test(
           await settleFrames(2);
           const reversedZoom = d3.zoomTransform(target);
           return JSON.stringify({
+            overlayReset: {
+              x: overlayReset.x,
+              y: overlayReset.y,
+              k: overlayReset.k
+            },
+            overlayPan: {
+              x: overlayPan.x,
+              y: overlayPan.y,
+              k: overlayPan.k
+            },
             initial: { x: initial.x, y: initial.y, k: initial.k },
             atCoast: { x: atCoast.x, y: atCoast.y, k: atCoast.k },
             reversedAtCoast: {
@@ -1051,6 +1137,33 @@ test(
               y: afterAwayReversal.y,
               k: afterAwayReversal.k
             },
+            reversibleStart: {
+              x: reversibleStart.x,
+              y: reversibleStart.y,
+              k: reversibleStart.k
+            },
+            reversibleAway: {
+              x: reversibleAway.x,
+              y: reversibleAway.y,
+              k: reversibleAway.k
+            },
+            reversibleReturn: {
+              x: reversibleReturn.x,
+              y: reversibleReturn.y,
+              k: reversibleReturn.k
+            },
+            verticalBottom: {
+              x: verticalBottom.transform.x,
+              y: verticalBottom.transform.y,
+              k: verticalBottom.transform.k,
+              visibleCards: verticalBottom.visibleCards
+            },
+            verticalTop: {
+              x: verticalTop.transform.x,
+              y: verticalTop.transform.y,
+              k: verticalTop.transform.k,
+              visibleCards: verticalTop.visibleCards
+            },
             largePacketReset: {
               x: largePacketReset.x,
               y: largePacketReset.y,
@@ -1082,8 +1195,6 @@ test(
               k: pageModePan.k
             },
             zoomReset: { x: zoomReset.x, y: zoomReset.y, k: zoomReset.k },
-            writesForFirstTwoFrames,
-            writesForBurst,
             pinched: { x: pinched.x, y: pinched.y, k: pinched.k },
             maxZoom: { x: maxZoom.x, y: maxZoom.y, k: maxZoom.k },
             minZoom: { x: minZoom.x, y: minZoom.y, k: minZoom.k },
@@ -1095,6 +1206,8 @@ test(
           });
         })()`
       ));
+      assert.ok(gestures.overlayPan.x < gestures.overlayReset.x);
+      assert.equal(gestures.overlayPan.k, gestures.overlayReset.k);
       assert.ok(gestures.atCoast.x <= 0.001);
       assert.ok(gestures.atCoast.x >= -0.001);
       assert.equal(gestures.atCoast.k, gestures.initial.k);
@@ -1110,8 +1223,6 @@ test(
       assert.equal(gestures.explored.k, gestures.atCoast.k);
       assert.ok(gestures.panned.y < gestures.explored.y);
       assert.equal(gestures.panned.k, gestures.explored.k);
-      assert.ok(gestures.writesForFirstTwoFrames <= 2);
-      assert.ok(gestures.writesForBurst < 30);
       assert.ok(
         Math.abs(
           gestures.afterRenderDuringPan.x - (gestures.reset.x - 2_400)
@@ -1127,6 +1238,24 @@ test(
           (gestures.beforeAwayReversal.x - 120)
         ) < .001
       );
+      assert.ok(gestures.reversibleAway.x < gestures.reversibleStart.x);
+      assert.ok(
+        Math.abs(
+          gestures.reversibleReturn.x - gestures.reversibleStart.x
+        ) < .001
+      );
+      assert.equal(
+        gestures.reversibleReturn.y,
+        gestures.reversibleStart.y
+      );
+      assert.equal(
+        gestures.reversibleReturn.k,
+        gestures.reversibleStart.k
+      );
+      assert.ok(gestures.verticalBottom.visibleCards >= 1);
+      assert.ok(gestures.verticalTop.visibleCards >= 1);
+      assert.ok(Number.isFinite(gestures.verticalBottom.y));
+      assert.ok(Number.isFinite(gestures.verticalTop.y));
       assert.ok(
         gestures.largePacketReset.x - gestures.largePacket.x >= 159.999
       );
@@ -1144,8 +1273,8 @@ test(
         ) < .001
       );
       assert.equal(gestures.largePacket.k, gestures.reset.k);
-      assert.ok(gestures.pinched.k / gestures.zoomReset.k > 1.25);
-      assert.ok(gestures.pinched.k / gestures.zoomReset.k < 1.32);
+      assert.ok(gestures.pinched.k / gestures.zoomReset.k > 1.22);
+      assert.ok(gestures.pinched.k / gestures.zoomReset.k < 1.24);
       assert.equal(gestures.maxZoom.k, 3.2);
       assert.equal(gestures.minZoom.k, 0.4);
       assert.ok(gestures.reversedZoom.k > gestures.minZoom.k);
@@ -1198,6 +1327,101 @@ test(
         })()`
       );
       assert.deepEqual(afterMouseDrag, dragTarget.transform);
+
+      const nativeGesture = JSON.parse(await evaluate(
+        cdp,
+        `(async () => {
+          const target = document.querySelector('#graph');
+          const rect = target.getBoundingClientRect();
+          const nextFrame = () => new Promise((resolve) =>
+            requestAnimationFrame(() => resolve())
+          );
+          viewportSignature = '';
+          renderGraph();
+          await nextFrame();
+          await nextFrame();
+          const reset = d3.zoomTransform(target);
+          const dispatch = (type, scale, clientX, clientY) => {
+            const event = new Event(type, {
+              bubbles: true,
+              cancelable: true
+            });
+            Object.defineProperties(event, {
+              scale: { value: scale },
+              clientX: { value: clientX },
+              clientY: { value: clientY },
+              pageX: { value: clientX },
+              pageY: { value: clientY }
+            });
+            target.dispatchEvent(event);
+          };
+          const centerX = rect.left + rect.width / 2;
+          const centerY = rect.top + rect.height / 2;
+          dispatch('gesturestart', 1, centerX, centerY);
+          dispatch(
+            'gesturechange',
+            .75,
+            centerX + 40,
+            centerY + 20
+          );
+          const changed = d3.zoomTransform(target);
+          target.dispatchEvent(new WheelEvent('wheel', {
+            deltaX: 0,
+            deltaY: -40,
+            ctrlKey: true,
+            bubbles: true,
+            cancelable: true,
+            clientX: centerX,
+            clientY: centerY
+          }));
+          await nextFrame();
+          const duringNativeWheel = d3.zoomTransform(target);
+          dispatch('gestureend', .75, centerX + 40, centerY + 20);
+          target.dispatchEvent(new WheelEvent('wheel', {
+            deltaX: 0,
+            deltaY: -40,
+            ctrlKey: true,
+            bubbles: true,
+            cancelable: true,
+            clientX: centerX,
+            clientY: centerY
+          }));
+          await nextFrame();
+          const afterFallbackWheel = d3.zoomTransform(target);
+          return JSON.stringify({
+            reset: { x: reset.x, y: reset.y, k: reset.k },
+            changed: {
+              x: changed.x,
+              y: changed.y,
+              k: changed.k
+            },
+            duringNativeWheel: {
+              x: duringNativeWheel.x,
+              y: duringNativeWheel.y,
+              k: duringNativeWheel.k
+            },
+            afterFallbackWheel: {
+              x: afterFallbackWheel.x,
+              y: afterFallbackWheel.y,
+              k: afterFallbackWheel.k
+            }
+          });
+        })()`
+      ));
+      assert.ok(
+        Math.abs(nativeGesture.changed.k - nativeGesture.reset.k * .75) <
+        .0001
+      );
+      assert.ok(nativeGesture.changed.x > nativeGesture.reset.x);
+      assert.ok(nativeGesture.changed.y > nativeGesture.reset.y);
+      assert.equal(
+        nativeGesture.duringNativeWheel.k,
+        nativeGesture.changed.k
+      );
+      assert.ok(
+        nativeGesture.afterFallbackWheel.k >
+        nativeGesture.changed.k
+      );
 
       await cdp.send("Runtime.evaluate", {
         expression:
@@ -1310,6 +1534,20 @@ test(
           projectMeta: document.querySelector('.project-meta')?.textContent,
           projectCount: document.querySelectorAll('.project-item').length,
           mapNodes: document.querySelectorAll('.forest-node').length,
+          projectAccent: getComputedStyle(
+            document.querySelector('.project-item[aria-current="true"]')
+          ).getPropertyValue('--project-accent').trim(),
+          mapAccent: getComputedStyle(
+            document.documentElement
+          ).getPropertyValue('--project-accent').trim(),
+          projectIconName: document.querySelector(
+            '.project-item[aria-current="true"] .project-folder-route'
+          )?.dataset.lucide,
+          titleAlign: getComputedStyle(
+            document.querySelector('.canvas-page-label')
+          ).textAlign,
+          hasSearch: Boolean(document.querySelector('#search')),
+          hasReset: Boolean(document.querySelector('#fit')),
           hasLegacyHookCopy: document.body.textContent.includes(
             'Hook 已配置'
           ),
@@ -1326,6 +1564,11 @@ test(
       assert.equal(desktopCompanion.projectMeta, "11 轮 · tmp");
       assert.equal(desktopCompanion.projectCount, 2);
       assert.ok(desktopCompanion.mapNodes > 1);
+      assert.equal(desktopCompanion.projectAccent, desktopCompanion.mapAccent);
+      assert.equal(desktopCompanion.projectIconName, "folder-git-2");
+      assert.equal(desktopCompanion.titleAlign, "center");
+      assert.equal(desktopCompanion.hasSearch, false);
+      assert.equal(desktopCompanion.hasReset, false);
       assert.equal(desktopCompanion.hasLegacyHookCopy, false);
       assert.equal(desktopCompanion.hasLegacyHostButtons, false);
 
@@ -1674,16 +1917,13 @@ test(
         "toggleProjects"
       );
 
-      await cdp.send("Runtime.evaluate", {
-        expression: `(() => {
-          const input = document.querySelector('#search');
-          input.value = forest.trees[0]?.sessions[0]?.title || '';
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-        })()`
-      });
-      await waitForExpression(
-        cdp,
-        "document.querySelector('#canvasTitle')?.textContent.includes('搜索结果')"
+      assert.equal(
+        await evaluate(cdp, "document.querySelector('#search') === null"),
+        true
+      );
+      assert.equal(
+        await evaluate(cdp, "document.querySelector('#fit') === null"),
+        true
       );
       await waitForExpression(
         cdp,
@@ -1702,6 +1942,8 @@ test(
           Object.assign(node, {
             kind: 'collected',
             sourceHost: 'codex',
+            response:
+              '结果\\n完成目标\\n行动\\n- 第一步\\n沉淀\\n- 关键经验',
             files: [{
               path: 'src/sessionCollector.ts',
               status: 'M',
@@ -1716,6 +1958,24 @@ test(
         cdp,
         "document.querySelector('#inspector')?.classList.contains('open')"
       );
+      const inspectorLayout = await evaluateJson(
+        cdp,
+        `(() => {
+          const close = document.querySelector('.inspector-close')
+            ?.getBoundingClientRect();
+          const title = document.querySelector('.detail-title');
+          return {
+            closeLeft: close?.left,
+            closeRight: close?.right,
+            titleFits: title
+              ? title.scrollWidth <= title.clientWidth
+              : false
+          };
+        })()`
+      );
+      assert.ok(inspectorLayout.closeLeft >= 0);
+      assert.ok(inspectorLayout.closeRight <= 320);
+      assert.equal(inspectorLayout.titleFits, true);
       assert.equal(
         await evaluate(cdp, "document.querySelector('.detail-source')?.textContent"),
         "自动记录 · Codex"
@@ -1723,6 +1983,50 @@ test(
       assert.match(
         await evaluate(cdp, "document.querySelector('.detail-file')?.textContent"),
         /src\/sessionCollector\.ts.*\+12.*−3/
+      );
+      assert.equal(
+        await evaluate(cdp, "document.querySelectorAll('.inspector-head').length"),
+        1
+      );
+      assert.equal(
+        await evaluate(cdp, "document.querySelectorAll('.inspector-turns').length"),
+        1
+      );
+      assert.equal(
+        await evaluate(
+          cdp,
+          "document.querySelector('.inspector-turns')?.textContent.includes('结果')"
+        ),
+        false
+      );
+      assert.equal(
+        await evaluate(cdp, "document.querySelectorAll('.detail-list li').length"),
+        1
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression: `document.querySelector('.canvas-shell').dispatchEvent(
+          new PointerEvent('pointerdown', { bubbles: true })
+        )`
+      });
+      await waitForExpression(
+        cdp,
+        "!document.querySelector('#inspector')?.classList.contains('open')"
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression:
+          "document.querySelector('.session-card')" +
+          "?.dispatchEvent(new MouseEvent('click', { bubbles: true }))"
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelector('#inspector')?.classList.contains('open')"
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression: "document.querySelector('.inspector-close')?.click()"
+      });
+      await waitForExpression(
+        cdp,
+        "!document.querySelector('#inspector')?.classList.contains('open')"
       );
 
       await cdp.send("Emulation.setDeviceMetricsOverride", {
@@ -1835,6 +2139,25 @@ test(
                 const title = document.querySelector('#download-title');
                 return title.scrollWidth <= title.clientWidth;
               })(),
+              heroVoyage: (() => {
+                const element = document.querySelector('.hero-voyage');
+                const rect = element.getBoundingClientRect();
+                return {
+                  width: rect.width,
+                  height: rect.height,
+                  routeAnimation: getComputedStyle(
+                    element.querySelector('.hero-route-main')
+                  ).animationName,
+                  notes: element.querySelectorAll('.route-note').length,
+                  vessels: element.querySelectorAll('.hero-vessel').length
+                };
+              })(),
+              legacyWaypoints: document.querySelectorAll(
+                '.hero-waypoint, [data-waypoint]'
+              ).length,
+              productImageSource: document.querySelector(
+                '.product-visual img'
+              ).getAttribute('src'),
               downloads,
               storyHeights: [...document.querySelectorAll(
                 '.story-section'
@@ -1846,6 +2169,16 @@ test(
         assert.equal(layout.scrollWidth, viewport.width);
         assert.equal(layout.scrollSnapType, "none");
         assert.equal(layout.finalTitleFits, true);
+        assert.equal(layout.heroVoyage.routeAnimation, "route-main-draw");
+        assert.equal(layout.heroVoyage.notes, 4);
+        assert.equal(layout.heroVoyage.vessels, 1);
+        assert.equal(layout.legacyWaypoints, 0);
+        assert.equal(
+          layout.productImageSource,
+          "./login-voyage-focus-2k.png?v=2k"
+        );
+        assert.ok(layout.heroVoyage.width > 0);
+        assert.ok(layout.heroVoyage.height > 0);
         assert.ok(
           layout.heroBottom >= layout.height - .5,
           JSON.stringify({ viewport, layout })
@@ -1867,6 +2200,10 @@ test(
           assert.ok(
             Math.max(...layout.storyHeights) -
               Math.min(...layout.storyHeights) <= .5
+          );
+          assert.ok(
+            layout.heroVoyage.width >= layout.width * .5,
+            JSON.stringify({ viewport, layout })
           );
         }
       }

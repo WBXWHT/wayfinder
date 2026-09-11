@@ -91,52 +91,66 @@ test("sidebar renders one active project with accessible voyage paging", () => {
   assert.doesNotMatch(html, /section\.append\(detail\)/);
 });
 
-test("full map scopes layout to one project and removes legacy project list", () => {
+test("full map keeps one project canvas with expandable voyages", () => {
   const panel = new ExperienceMapPanel(".", "/tmp/project", {});
   const html = panel.html(webview);
 
-  assert.match(html, /id="projectPrevious"/);
-  assert.match(html, /id="projectNext"/);
-  assert.match(
-    html,
-    /const scopedTrees = query[\s\S]*?\? forest\.trees[\s\S]*?: activeTree/
-  );
-  assert.match(html, /共同港口，' \+ tree\.title \+ ' 从这里出发/);
+  assert.doesNotMatch(html, /id="projectPrevious"/);
+  assert.doesNotMatch(html, /id="projectNext"/);
+  assert.doesNotMatch(html, /id="search"/);
+  assert.doesNotMatch(html, /id="fit"/);
+  assert.match(html, /const trees = forest\.trees/);
+  assert.match(html, /function activateVoyage/);
+  assert.match(html, /collapsedVoyagePitch/);
+  assert.match(html, /tree-card\.collapsed/);
+  assert.match(html, /点击展开/);
+  assert.doesNotMatch(html, /共同港口/);
   assert.match(html, /grid-template-columns: minmax\(0, 1fr\)/);
-  assert.match(html, /classList\.toggle\(\s*'single-voyage'/);
   assert.match(html, /aria-label="航点详情"/);
   assert.match(html, /showEmptyInspector\(true\)/);
+  assert.match(html, /\.canvas-page-label \{[\s\S]*?text-align: center/);
+  assert.match(html, /\.inspector-head/);
+  assert.match(html, /\.inspector-turns/);
+  assert.match(html, /document\.addEventListener\('pointerdown'/);
+  assert.match(html, /function appendResponse/);
+  assert.match(html, /--project-accent/);
   assert.match(html, /routeIndexesFor\(tree\)/);
   assert.match(html, /\.forest-edge\.route-0/);
   assert.match(
     html,
     /\.forest-edge\.route-0,[\s\S]*?\.forest-edge\.route-3,[\s\S]*?--route-accent: var\(--route-blue\)/
   );
+  assert.match(
+    html,
+    /\.forest-edge\.main,[\s\S]*?--route-accent: var\(--voyage-accent/
+  );
   assert.match(html, /routeClass\(routeIndexById\.get\(session\.id\) \?\? -1\)/);
   assert.match(html, /const nodeCardWidth = 240/);
   assert.match(html, /const nodeCardHeight = 120/);
   assert.match(html, /const nodeVerticalPitch = 216/);
   assert.match(html, /const nodeHorizontalPitch = 324/);
+  assert.match(html, /const voyageStartX = 92/);
   assert.match(html, /const minimumReadableScale = \.86/);
   assert.match(html, /\.scaleExtent\(\[\.4, 3\.2\]\)/);
+  assert.match(html, /\.extent\(\[\s*\[0, 86\]/);
   assert.match(
     html,
-    /\.translateExtent\(\[\s*\[0, -Infinity\],\s*\[Infinity, Infinity\]\s*\]\)/
+    /\.translateExtent\(\[\s*\[0, contentTop\],\s*\[Infinity, contentBottom\]\s*\]\)/
   );
   assert.match(html, /event\.type === 'mousedown'/);
   assert.match(html, /event\.touches\?\.length \|\| 0/);
   assert.match(html, /'wheel\.zoom', null/);
   assert.match(html, /'wheel\.wayfinder'/);
-  assert.match(html, /\.constrain\(\(transform\) => \{/);
   assert.match(html, /function normalizedWheelDelta/);
-  assert.match(html, /function scheduleViewportFrame/);
+  assert.match(html, /function normalizeWheel/);
+  assert.match(html, /zoomBehavior\.translateBy/);
+  assert.match(html, /zoomBehavior\.scaleTo/);
+  assert.doesNotMatch(html, /function scheduleViewportFrame/);
   assert.match(html, /function revealCardInViewport/);
   assert.match(html, /\.on\('focus'/);
-  assert.match(html, /requestAnimationFrame/);
   assert.match(html, /Math\.max\(-160, Math\.min\(160, value \* unit\)\)/);
-  assert.match(html, /const changed =/);
   assert.match(html, /zoomBehavior\.transform/);
-  assert.match(html, /Math\.pow\(2, -delta \* \.01\)/);
+  assert.match(html, /Math\.pow\(2, delta\.z\)/);
   assert.match(html, /const firstControlX = sx \+ span \* \.32/);
   assert.match(html, /const secondControlX = sx \+ span \* \.62/);
   assert.match(html, /coastlineGeometry\(shoreTop, shoreBottom\)/);

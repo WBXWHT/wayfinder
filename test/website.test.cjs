@@ -17,6 +17,9 @@ test("download website exposes architecture-specific release links", () => {
   const productImage = fs.readFileSync(
     path.join(root, "website", "wayfinder-app-map.png")
   );
+  const productFocusImage = fs.readFileSync(
+    path.join(root, "website", "login-voyage-focus-2k.png")
+  );
 
   assert.match(html, /<h1[^>]*>Wayfinder<\/h1>/);
   assert.match(html, /data-download="arm64"/);
@@ -25,11 +28,16 @@ test("download website exposes architecture-specific release links", () => {
   assert.equal((html.match(/data-download="/g) || []).length, 6);
   assert.doesNotMatch(html, /data-default-download|data-version=/);
   assert.doesNotMatch(html, />[^<]*0\.3\.7[^<]*</);
-  assert.match(html, /class="hero-waypoint waypoint-start"/);
+  assert.match(html, /class="hero-voyage"/);
+  assert.match(html, /class="hero-vessel"/);
+  assert.match(html, /<animateMotion[\s\S]*?dur="7\.2s"/);
+  assert.doesNotMatch(html, /hero-waypoint|data-waypoint/);
   assert.match(html, /src="\.\/wayfinder-icon\.svg"/);
-  assert.match(html, /src="\.\/wayfinder-app-map\.png\?v=2k"/);
+  assert.match(html, /src="\.\/login-voyage-focus-2k\.png\?v=2k"/);
   assert.equal(productImage.readUInt32BE(16), 2_560);
   assert.equal(productImage.readUInt32BE(20), 1_440);
+  assert.equal(productFocusImage.readUInt32BE(16), 2_560);
+  assert.equal(productFocusImage.readUInt32BE(20), 1_440);
   assert.match(
     html,
     /data-download="arm64"[\s\S]*?href="https:\/\/github\.com\/WBXWHT\/wayfinder\/releases"/
@@ -75,8 +83,12 @@ test("website scripts parse and visual CSS avoids decorative gradients", () => {
   assert.match(styles, /#voyageCanvas/);
   assert.doesNotMatch(styles, /scroll-snap-/);
   assert.match(script, /prefers-reduced-motion: reduce/);
-  assert.match(script, /drawRouteSignals/);
-  assert.match(script, /updateActiveWaypoint/);
+  assert.match(script, /const heroVoyage/);
+  assert.doesNotMatch(script, /drawRouteSignals|updateActiveWaypoint/);
+  assert.match(styles, /@keyframes route-main-draw/);
+  assert.match(styles, /@keyframes route-success-draw/);
+  assert.match(styles, /@keyframes route-failure-draw/);
+  assert.doesNotMatch(styles, /hero-waypoint|waypoint-enter/);
   assert.match(script, /"windowsX64"/);
 });
 
@@ -99,6 +111,19 @@ test("Cloudflare deployment cannot silently claim the occupied project name", ()
   assert.match(workflow, /url\.pathname !== expectedPath/);
   assert.match(workflow, /--head/);
   assert.match(workflow, /--retry-all-errors/);
+});
+
+test("public Windows installer smoke test installs and launches the release", () => {
+  const workflow = fs.readFileSync(
+    path.join(root, ".github", "workflows", "smoke-public-windows.yml"),
+    "utf8"
+  );
+
+  assert.match(workflow, /runs-on: windows-latest/);
+  assert.match(workflow, /Invoke-WebRequest -Uri \$url -OutFile \$installer/);
+  assert.match(workflow, /ArgumentList @\("\/S", "\/D=\$installDir"\)/);
+  assert.match(workflow, /Start-Process -FilePath \$app\.FullName -PassThru/);
+  assert.match(workflow, /if \(\$process\.HasExited\)/);
 });
 
 test("published downloads expose every desktop installer equally", async () => {

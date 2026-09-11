@@ -10,7 +10,7 @@ is not an award and must not be presented as one.
 
 | Product | Public signal | Evidence |
 | --- | --- | --- |
-| SpecStory | 10K+ installs, 3K+ active developers, 50K+ conversations saved | https://specstory.com |
+| SpecStory | 226K+ installs, 15K+ developers, 8.1M+ conversations saved | https://specstory.com |
 | Pieces for Developers | Four Product Hunt awards, 2.5K followers, 35 reviews | https://www.producthunt.com/products/pieces-for-developers |
 | XHawk | Product Hunt #4 Product of the Day with 245 points | https://www.producthunt.com/products/xhawk |
 | Warp | Product Hunt Golden Kitty runner-up for Developer Tools | https://www.producthunt.com/products/warp |

@@ -174,7 +174,8 @@ export class ExperienceMapPanel implements vscode.Disposable {
       --ocean-line: #8bd2e3;
       --route: #2f9fbd;
       --route-dark: #176f89;
-      --route-trunk: #2f9fbd;
+      --project-accent: #2f9fbd;
+      --route-trunk: var(--project-accent);
       --route-blue: #4d9ff8;
       --route-violet: #8c72db;
       --route-gold: #d79b32;
@@ -216,15 +217,10 @@ export class ExperienceMapPanel implements vscode.Disposable {
       grid-template-rows: 52px minmax(0, 1fr);
     }
     .topbar {
-      display: grid;
+      display: flex;
       width: 100%;
       max-width: 100%;
       min-width: 0;
-      grid-template-columns:
-        minmax(0, 220px)
-        minmax(0, 520px)
-        minmax(30px, 1fr);
-      gap: 18px;
       align-items: center;
       padding: 0 18px;
       border-bottom: 1px solid var(--line);
@@ -246,10 +242,6 @@ export class ExperienceMapPanel implements vscode.Disposable {
     .brand-copy { min-width: 0; }
     .brand-title { font-size: 13px; font-weight: 650; }
     .brand-meta { overflow: hidden; margin-top: 1px; color: var(--muted); font-size: 10px; white-space: nowrap; }
-    .search { display: flex; min-width: 0; height: 32px; overflow: hidden; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid var(--vscode-input-border, var(--line)); border-radius: 6px; color: var(--muted); background: var(--vscode-input-background, var(--surface-2)); }
-    .search:focus-within { border-color: var(--accent); color: var(--text); }
-    .search input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; color: var(--vscode-input-foreground, var(--text)); background: transparent; font-size: 11px; }
-    .top-actions { display: flex; justify-content: flex-end; gap: 4px; }
     .icon-button { display: inline-grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 0; border-radius: 5px; color: var(--muted); background: transparent; cursor: pointer; }
     .icon-button:hover { color: var(--text); background: var(--hover); }
     .icon-button.active-good { color: var(--good); }
@@ -269,18 +261,10 @@ export class ExperienceMapPanel implements vscode.Disposable {
       top: 12px;
       left: 50%;
       z-index: 3;
-      display: grid;
+      display: block;
       min-width: min(390px, calc(100% - 28px));
-      grid-template-columns: 32px minmax(0, 1fr) 32px;
-      gap: 10px;
-      align-items: center;
       transform: translateX(-50%);
     }
-    .canvas-page-copy { min-width: 0; text-align: center; }
-    .canvas-head.single-voyage {
-      grid-template-columns: minmax(0, 1fr);
-    }
-    .canvas-head.single-voyage .project-pager-button { display: none; }
     .canvas-title {
       display: block;
       color: var(--ink);
@@ -289,23 +273,6 @@ export class ExperienceMapPanel implements vscode.Disposable {
       line-height: 17px;
     }
     .canvas-meta { display: block; margin-top: 2px; color: var(--sticker-muted); font-size: 9px; }
-    .project-pager-button {
-      display: grid;
-      width: 32px;
-      height: 32px;
-      padding: 0;
-      place-items: center;
-      border: 2px solid white;
-      border-radius: 50%;
-      color: var(--ink);
-      background: var(--paper);
-      box-shadow: 2px 3px 0 var(--sticker-shadow);
-      cursor: pointer;
-      transition: transform 130ms ease, box-shadow 130ms ease;
-    }
-    .project-pager-button:not(:disabled):hover { transform: translateY(-1px) rotate(-2deg); box-shadow: 3px 4px 0 var(--sticker-shadow); }
-    .project-pager-button:disabled { opacity: .3; box-shadow: none; cursor: default; }
-    .project-pager-button:focus-visible { outline: 2px solid var(--vscode-focusBorder, var(--accent)); outline-offset: 2px; }
     .canvas-page-label {
       min-width: 0;
       padding: 7px 14px;
@@ -313,6 +280,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
       border-radius: 9px;
       background: var(--paper);
       box-shadow: 2px 3px 0 var(--sticker-shadow);
+      text-align: center;
     }
     #graph {
       width: 100%;
@@ -377,6 +345,11 @@ export class ExperienceMapPanel implements vscode.Disposable {
     .session-card.route-5 {
       --route-accent: var(--route-gold);
     }
+    .forest-edge.main,
+    .session-node.main,
+    .session-card.main {
+      --route-accent: var(--voyage-accent, var(--project-accent));
+    }
     .forest-edge.good {
       stroke: color-mix(in srgb, var(--good) 58%, var(--ocean));
       stroke-width: 20;
@@ -407,6 +380,10 @@ export class ExperienceMapPanel implements vscode.Disposable {
     .forest-edge.dimmed { opacity: .12; }
     .forest-node,
     .forest-card { transition: opacity 150ms ease; }
+    .tree-node,
+    .tree-card {
+      --route-accent: var(--voyage-accent, var(--project-accent));
+    }
     .forest-node { pointer-events: none; }
     .forest-card { cursor: pointer; outline: 0; }
     .forest-node.dimmed,
@@ -538,6 +515,28 @@ export class ExperienceMapPanel implements vscode.Disposable {
     .session-node.bad .current-status-badge { fill: var(--coral); }
     .tree-card { pointer-events: none; }
     .tree-card .node-card-bg { fill: var(--paper); }
+    .tree-card.collapsed {
+      pointer-events: auto;
+      cursor: pointer;
+    }
+    .tree-card.collapsed .node-card-bg {
+      fill: color-mix(
+        in srgb,
+        var(--voyage-accent, var(--project-accent)) 8%,
+        var(--paper)
+      );
+      stroke: color-mix(
+        in srgb,
+        var(--voyage-accent, var(--project-accent)) 42%,
+        white
+      );
+    }
+    .collapsed-route,
+    .collapsed-path-bed { opacity: .82; }
+    .tree-card.collapsed:focus-visible .node-card-bg {
+      stroke: var(--voyage-accent, var(--project-accent));
+      stroke-width: 3;
+    }
     .tree-node-title {
       fill: var(--ink);
       font-family: var(--vscode-font-family);
@@ -551,14 +550,80 @@ export class ExperienceMapPanel implements vscode.Disposable {
       font-size: 9px;
       text-anchor: middle;
     }
-    .inspector { position: absolute; z-index: 5; top: 0; right: 0; bottom: 0; display: none; width: min(350px, 42vw); overflow: auto; padding: 18px; border-left: 1px solid var(--line); background: var(--surface-2); box-shadow: -8px 0 22px color-mix(in srgb, var(--text) 8%, transparent); animation: inspector-in 150ms ease-out; }
-    .inspector.open { display: block; }
-    .inspector-close { float: right; margin: -6px -6px 3px 8px; }
-    .inspector-empty { display: grid; min-height: 100%; place-content: center; color: var(--muted); text-align: center; font-size: 11px; line-height: 1.6; }
-    .detail-kicker { color: var(--accent); font-size: 10px; font-weight: 650; }
-    .detail-title { margin: 7px 0 13px; font-size: 14px; font-weight: 650; line-height: 1.45; }
-    .detail-session-meta { margin-bottom: 12px; color: var(--muted); font-size: 10px; }
-    .detail-turn { padding: 10px 0; border-top: 1px solid var(--line); }
+    .inspector {
+      position: absolute;
+      z-index: 5;
+      bottom: 16px;
+      left: 50%;
+      display: none;
+      width: min(720px, calc(100% - 32px));
+      max-height: min(62vh, 560px);
+      grid-template-rows: auto minmax(0, 1fr);
+      overflow: hidden;
+      border: 2px solid white;
+      border-radius: 8px;
+      color: var(--ink);
+      background: var(--paper);
+      box-shadow:
+        3px 5px 0 var(--sticker-shadow),
+        0 12px 34px rgba(22, 69, 82, .16);
+      transform: translateX(-50%);
+    }
+    .inspector.open {
+      display: grid;
+      animation: inspector-in 170ms cubic-bezier(.2, .8, .2, 1);
+    }
+    .inspector.good { --project-accent: var(--good); }
+    .inspector.bad { --project-accent: var(--coral); }
+    .inspector-head {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      display: grid;
+      min-width: 0;
+      grid-template-columns: 5px minmax(0, 1fr) 28px;
+      gap: 11px;
+      align-items: start;
+      overflow: hidden;
+      padding: 16px 14px 12px;
+      border-bottom: 1px solid color-mix(in srgb, var(--project-accent) 22%, transparent);
+      background: color-mix(in srgb, var(--project-accent) 7%, var(--paper));
+    }
+    .inspector-head::before {
+      grid-row: 1 / span 3;
+      align-self: stretch;
+      border-radius: 3px;
+      background: var(--project-accent);
+      content: "";
+    }
+    .inspector-copy { min-width: 0; overflow: hidden; }
+    .inspector-close {
+      display: grid;
+      width: 26px;
+      height: 26px;
+      padding: 0;
+      place-items: center;
+      border: 2px solid white;
+      border-radius: 50%;
+      color: var(--ink);
+      background: var(--paper);
+      box-shadow: 1px 2px 0 var(--sticker-shadow);
+      cursor: pointer;
+      justify-self: end;
+    }
+    .inspector-close:hover { transform: translateY(-1px) rotate(-3deg); }
+    .inspector-turns {
+      min-height: 0;
+      overflow: auto;
+      padding: 6px 14px 16px;
+      scrollbar-width: thin;
+      scrollbar-color: color-mix(in srgb, var(--project-accent) 55%, transparent) transparent;
+    }
+    .detail-kicker { color: color-mix(in srgb, var(--project-accent) 78%, var(--ink)); font-size: 9px; font-weight: 700; }
+    .detail-title { margin: 3px 0 0; overflow-wrap: anywhere; outline: 0; font-size: 15px; font-weight: 750; line-height: 1.4; }
+    .detail-session-meta { margin-top: 4px; color: var(--sticker-muted); font-size: 9px; }
+    .detail-turn { padding: 12px 0; border-bottom: 1px solid color-mix(in srgb, var(--sticker-shadow) 30%, transparent); }
+    .detail-turn:last-child { border-bottom: 0; }
     .detail-turn-head { display: grid; grid-template-columns: 7px minmax(0, 1fr) auto; gap: 7px; align-items: start; }
     .detail-turn-dot { width: 7px; height: 7px; margin-top: 4px; border-radius: 50%; background: var(--muted); opacity: .65; }
     .detail-turn.good .detail-turn-dot { background: var(--good); opacity: 1; }
@@ -566,8 +631,11 @@ export class ExperienceMapPanel implements vscode.Disposable {
     .detail-turn-title { font-size: 11px; font-weight: 600; line-height: 1.45; }
     .detail-turn-time { color: var(--muted); font-size: 9px; white-space: nowrap; }
     .detail-source { margin: 6px 0 0 14px; color: var(--muted); font-size: 9px; }
-    .detail-text { margin: 7px 0 0 14px; overflow-wrap: anywhere; color: var(--muted); font-size: 10px; line-height: 1.55; white-space: pre-wrap; }
-    .detail-note { margin: 8px 0 0 14px; padding-left: 8px; border-left: 2px solid var(--accent); font-size: 10px; line-height: 1.5; }
+    .detail-text { margin: 8px 0 0 14px; overflow-wrap: anywhere; color: var(--ink); font-size: 10px; line-height: 1.6; white-space: pre-wrap; }
+    .detail-list { display: grid; gap: 5px; margin: 9px 0 0 14px; padding: 0; list-style: none; color: var(--muted); font-size: 10px; line-height: 1.5; }
+    .detail-list li { position: relative; padding-left: 12px; }
+    .detail-list li::before { position: absolute; top: 0; left: 0; color: var(--project-accent); content: "•"; }
+    .detail-note { margin: 9px 0 0 14px; padding: 8px 10px; border-left: 3px solid var(--project-accent); border-radius: 0 5px 5px 0; background: color-mix(in srgb, var(--project-accent) 7%, transparent); font-size: 10px; line-height: 1.55; white-space: pre-wrap; }
     .detail-files { display: grid; gap: 4px; margin: 8px 0 0 14px; }
     .detail-file { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; color: var(--muted); font-size: 9px; }
     .detail-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -575,7 +643,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
     .detail-file-add { color: var(--good); }
     .detail-file-delete { color: var(--bad); }
     .detail-actions { display: flex; justify-content: flex-end; gap: 2px; margin-top: 7px; }
-    @keyframes inspector-in { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
+    @keyframes inspector-in { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
     @keyframes channel-reveal { from { opacity: 0; } to { opacity: 1; } }
     @keyframes bud-breathe {
       0%, 100% { opacity: .8; r: 16px; }
@@ -587,13 +655,12 @@ export class ExperienceMapPanel implements vscode.Disposable {
     }
     .empty-graph { display: grid; min-height: 100%; place-content: center; color: var(--muted); font-size: 11px; }
     @media (max-width: 860px) {
-      .topbar { grid-template-columns: 170px 1fr auto; gap: 10px; padding: 0 12px; }
-      .inspector { width: min(330px, 68vw); }
+      .topbar { padding: 0 12px; }
+      .inspector { width: calc(100% - 24px); }
     }
     @media (max-width: 520px) {
-      .topbar { grid-template-columns: minmax(0, 1fr) auto; }
       .brand { display: none; }
-      .inspector { width: 100%; }
+      .inspector { bottom: 8px; width: calc(100% - 16px); max-height: 72vh; }
     }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
@@ -619,41 +686,28 @@ export class ExperienceMapPanel implements vscode.Disposable {
           <div id="projectMeta" class="brand-meta">航海图</div>
         </div>
       </div>
-      <label class="search" title="搜索航点、对话或文件">
-        <span class="codicon codicon-search" aria-hidden="true"></span>
-        <input id="search" type="search" placeholder="搜索航点、对话或文件" aria-label="搜索航点、对话或文件">
-      </label>
-      <div class="top-actions">
-        <button id="fit" class="icon-button" title="回到默认视图" aria-label="回到默认视图"><span class="codicon codicon-target"></span></button>
-      </div>
     </header>
     <div class="layout">
       <main class="canvas-shell">
-        <nav class="canvas-head" aria-label="切换项目航海图">
-          <button id="projectPrevious" class="project-pager-button" type="button"><span class="codicon codicon-chevron-left"></span></button>
+        <div class="canvas-head" aria-label="当前项目航海图">
           <div class="canvas-page-label">
             <span id="canvasTitle" class="canvas-title" tabindex="-1"></span>
             <span id="canvasMeta" class="canvas-meta"></span>
           </div>
-          <button id="projectNext" class="project-pager-button" type="button"><span class="codicon codicon-chevron-right"></span></button>
-        </nav>
+        </div>
         <svg id="graph" role="application" aria-label="Wayfinder 航海图"></svg>
       </main>
-      <aside id="inspector" class="inspector" aria-label="航点详情">
-        <div class="inspector-empty">选择一个航点<br>查看按时间排列的全部对话</div>
-      </aside>
+      <aside id="inspector" class="inspector" aria-label="航点详情"></aside>
     </div>
   </div>
   <script nonce="${nonce}" src="${d3}"></script>
   <script nonce="${nonce}">
     const wayfinderApi = acquireVsCodeApi();
     const graph = d3.select('#graph');
+    const canvasShell = d3.select('.canvas-shell');
     const inspector = document.getElementById('inspector');
-    const searchInput = document.getElementById('search');
     const canvasTitle = document.getElementById('canvasTitle');
     const canvasMeta = document.getElementById('canvasMeta');
-    const projectPrevious = document.getElementById('projectPrevious');
-    const projectNext = document.getElementById('projectNext');
     let state;
     let forest;
     let projectName = '';
@@ -662,23 +716,44 @@ export class ExperienceMapPanel implements vscode.Disposable {
     let lastFocusedSessionId = '';
     let graphLayer;
     let zoomBehavior;
-    let fitAllRequested = false;
-    let composingSearch = false;
     let viewportSignature = '';
-    let wheelFrame = 0;
-    let pendingPanX = 0;
-    let pendingPanY = 0;
-    let pendingScale = 1;
-    let pendingZoomPoint = null;
     let graphBounds = null;
+    let nativeGestureActive = false;
+    let nativeGestureStartScale = 1;
+    let nativeGesturePreviousPoint = null;
     const nodeCardWidth = 240;
     const nodeCardHeight = 120;
     const nodeCardTop = 24;
+    const startCardWidth = 190;
+    const startCardHeight = 58;
+    const startCardTop = 12;
+    const collapsedCardWidth = 190;
+    const collapsedCardHeight = 58;
+    const collapsedVoyagePitch = 92;
     const nodeVerticalPitch = 216;
     const nodeHorizontalPitch = 324;
+    const voyageStartX = 92;
     const mapStartX = 184;
     const mapTopInset = 112;
     const minimumReadableScale = .86;
+    const projectAccents = [
+      '#2f8fa8',
+      '#6f72c9',
+      '#c97a3d',
+      '#2e9468',
+      '#c85f73',
+      '#8b68b8',
+      '#3d7fbf',
+      '#8a8235'
+    ];
+
+    function projectAccentFor(value) {
+      let hash = 0;
+      for (const character of String(value || 'wayfinder')) {
+        hash = (hash * 31 + character.codePointAt(0)) >>> 0;
+      }
+      return projectAccents[hash % projectAccents.length];
+    }
 
     function normalizedWheelDelta(value, deltaMode, pageSize) {
       if (!Number.isFinite(value)) return 0;
@@ -686,22 +761,102 @@ export class ExperienceMapPanel implements vscode.Disposable {
       return Math.max(-160, Math.min(160, value * unit));
     }
 
-    function scheduleViewportFrame() {
-      if (wheelFrame) return;
-      wheelFrame = requestAnimationFrame(flushViewportFrame);
+    // Match mature infinite-canvas input semantics: content follows the
+    // fingers, while modifier-wheel input becomes a bounded zoom step.
+    function normalizeWheel(event, pageSize) {
+      let deltaX = normalizedWheelDelta(
+        event.deltaX,
+        event.deltaMode,
+        pageSize
+      );
+      let deltaY = normalizedWheelDelta(
+        event.deltaY,
+        event.deltaMode,
+        pageSize
+      );
+      let deltaZ = 0;
+      if (event.ctrlKey || event.metaKey) {
+        deltaZ = -Math.max(-10, Math.min(10, deltaY)) / 100;
+        deltaX = 0;
+        deltaY = 0;
+      } else if (event.shiftKey && Math.abs(deltaX) <= .1) {
+        deltaX = deltaY;
+        deltaY = 0;
+      }
+      return { x: -deltaX, y: -deltaY, z: deltaZ };
     }
 
-    function discardPendingViewportInput() {
-      if (wheelFrame) cancelAnimationFrame(wheelFrame);
-      wheelFrame = 0;
-      pendingPanX = 0;
-      pendingPanY = 0;
-      pendingScale = 1;
-      pendingZoomPoint = null;
+    function resetNativeGesture() {
+      nativeGestureActive = false;
+      nativeGestureStartScale = 1;
+      nativeGesturePreviousPoint = null;
     }
+
+    const nativeGesturePoint = (event) => {
+      const bounds = graphBounds || graph.node().getBoundingClientRect();
+      const clientX = Number.isFinite(event.clientX)
+        ? event.clientX
+        : Number.isFinite(event.pageX)
+          ? event.pageX
+          : bounds.left + bounds.width / 2;
+      const clientY = Number.isFinite(event.clientY)
+        ? event.clientY
+        : Number.isFinite(event.pageY)
+          ? event.pageY
+          : bounds.top + bounds.height / 2;
+      return [
+        clientX - bounds.left,
+        clientY - bounds.top
+      ];
+    };
+
+    graph.node().addEventListener('gesturestart', (event) => {
+      if (!zoomBehavior || !graphLayer) return;
+      event.preventDefault();
+      event.stopPropagation();
+      nativeGestureActive = true;
+      nativeGestureStartScale = d3.zoomTransform(graph.node()).k;
+      nativeGesturePreviousPoint = nativeGesturePoint(event);
+    }, { passive: false });
+
+    graph.node().addEventListener('gesturechange', (event) => {
+      if (
+        !nativeGestureActive ||
+        !nativeGesturePreviousPoint ||
+        !zoomBehavior
+      ) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      const point = nativeGesturePoint(event);
+      const gestureScale =
+        Number.isFinite(event.scale) && event.scale > 0 ? event.scale : 1;
+      const nextScale = Math.max(
+        .4,
+        Math.min(3.2, nativeGestureStartScale * gestureScale)
+      );
+      const deltaX = point[0] - nativeGesturePreviousPoint[0];
+      const deltaY = point[1] - nativeGesturePreviousPoint[1];
+      graph.call(zoomBehavior.scaleTo, nextScale, point);
+      const scaled = d3.zoomTransform(graph.node());
+      graph.call(
+        zoomBehavior.translateBy,
+        deltaX / scaled.k,
+        deltaY / scaled.k
+      );
+      nativeGesturePreviousPoint = point;
+    }, { passive: false });
+
+    graph.node().addEventListener('gestureend', (event) => {
+      if (!nativeGestureActive) return;
+      event.preventDefault();
+      event.stopPropagation();
+      resetNativeGesture();
+    }, { passive: false });
 
     function revealCardInViewport(node) {
-      discardPendingViewportInput();
+      resetNativeGesture();
       const current = d3.zoomTransform(graph.node());
       const viewportWidth = graph.node().clientWidth;
       const viewportHeight = graph.node().clientHeight;
@@ -738,72 +893,8 @@ export class ExperienceMapPanel implements vscode.Disposable {
       }
     }
 
-    function flushViewportFrame() {
-      wheelFrame = 0;
-      if (!zoomBehavior || !graphLayer) return;
-      const current = d3.zoomTransform(graph.node());
-      let nextX = current.x;
-      let nextY = current.y;
-      let nextScale = current.k;
-      const queuedPanX = pendingPanX;
-      const queuedPanY = pendingPanY;
-      const queuedScale = pendingScale;
-      const framePanX = Math.max(-240, Math.min(240, queuedPanX));
-      const framePanY = Math.max(-240, Math.min(240, queuedPanY));
-      const frameScale = Math.max(.72, Math.min(1.4, queuedScale));
-      const zoomPoint = pendingZoomPoint;
-      pendingPanX -= framePanX;
-      pendingPanY -= framePanY;
-      pendingScale = queuedScale / frameScale;
-      if (Math.abs(pendingScale - 1) < .0001) pendingScale = 1;
-      pendingZoomPoint = null;
-
-      if (frameScale !== 1 && zoomPoint) {
-        nextScale = Math.max(.4, Math.min(3.2, current.k * frameScale));
-        const ratio = nextScale / current.k;
-        nextX = zoomPoint[0] - (zoomPoint[0] - current.x) * ratio;
-        nextY = zoomPoint[1] - (zoomPoint[1] - current.y) * ratio;
-        if (
-          (nextScale === 3.2 && pendingScale > 1) ||
-          (nextScale === .4 && pendingScale < 1)
-        ) {
-          pendingScale = 1;
-        }
-        if (pendingScale !== 1) pendingZoomPoint = zoomPoint;
-      }
-      nextX = Math.min(0, nextX - framePanX);
-      nextY -= framePanY;
-      if (nextX === 0 && framePanX < 0 && pendingPanX < 0) {
-        pendingPanX = 0;
-      }
-      const next = d3.zoomIdentity
-        .translate(nextX, nextY)
-        .scale(nextScale);
-      const changed =
-        Math.abs(next.x - current.x) > .001 ||
-        Math.abs(next.y - current.y) > .001 ||
-        Math.abs(next.k - current.k) > .0001;
-      if (changed) {
-        graph.call(zoomBehavior.transform, next);
-      }
-
-      if (
-        Math.abs(pendingPanX) > .001 ||
-        Math.abs(pendingPanY) > .001 ||
-        Math.abs(pendingScale - 1) > .0001
-      ) {
-        scheduleViewportFrame();
-      }
-    }
-
     function renderGraph() {
-      const hadPendingWheel = Boolean(wheelFrame);
-      if (wheelFrame) {
-        cancelAnimationFrame(wheelFrame);
-        wheelFrame = 0;
-      }
       const previousTransform = d3.zoomTransform(graph.node());
-      const query = searchInput.value.trim().toLocaleLowerCase('zh-CN');
       if (!forest.trees.some((tree) => tree.id === activeTreeId)) {
         activeTreeId = forest.trees[0]?.id || '';
       }
@@ -812,31 +903,19 @@ export class ExperienceMapPanel implements vscode.Disposable {
         forest.trees.findIndex((tree) => tree.id === activeTreeId)
       );
       const activeTree = forest.trees[activeIndex];
-      document.querySelector('.canvas-head')?.classList.toggle(
-        'single-voyage',
-        forest.trees.length <= 1 || Boolean(query)
+      const activeAccent = projectAccentFor(
+        activeTree?.id || state.projectId || projectName
       );
-      projectPrevious.disabled = activeIndex === 0;
-      projectPrevious.title = projectPrevious.disabled
-        ? '已经是第一条航程'
-        : '上一条航程：' + forest.trees[activeIndex - 1].title;
-      projectPrevious.setAttribute('aria-label', projectPrevious.title);
-      projectNext.disabled =
-        !activeTree || activeIndex === forest.trees.length - 1;
-      projectNext.title = projectNext.disabled
-        ? '已经是最后一条航程'
-        : '下一条航程：' + forest.trees[activeIndex + 1].title;
-      projectNext.setAttribute('aria-label', projectNext.title);
+      document.documentElement.style.setProperty(
+        '--project-accent',
+        activeAccent
+      );
+      send('voyageAccent', { color: activeAccent });
       const nextViewportSignature =
-        (state.projectId || projectName) + '|' + activeTreeId + '|' + query;
-      const preserveViewport =
-        viewportSignature === nextViewportSignature && !fitAllRequested;
-      const resumePendingWheel = hadPendingWheel && preserveViewport;
+        (state.projectId || projectName) + '|' + activeTreeId;
+      const preserveViewport = viewportSignature === nextViewportSignature;
       if (!preserveViewport) {
-        pendingPanX = 0;
-        pendingPanY = 0;
-        pendingScale = 1;
-        pendingZoomPoint = null;
+        resetNativeGesture();
       }
       graph.selectAll('*').remove();
       const viewportWidth = Math.max(
@@ -857,46 +936,14 @@ export class ExperienceMapPanel implements vscode.Disposable {
         }
         return cardContentBySessionId.get(session.id);
       };
-      const scopedTrees = query
-        ? forest.trees
-        : activeTree
-          ? [activeTree]
-          : [];
-      const trees = query
-        ? scopedTrees
-            .map((tree) => filterTreeForQuery(tree, nodeById, query))
-            .filter(Boolean)
-        : scopedTrees;
-      canvasTitle.textContent = query
-        ? '搜索结果'
-        : activeTree?.title || '航海图';
-      canvasMeta.textContent = query
+      const trees = forest.trees;
+      canvasTitle.textContent = projectName || '航海图';
+      canvasMeta.textContent = trees.length
         ? trees.length +
           ' 条航程 · ' +
-          forest.trees.reduce(
-            (total, tree) =>
-              total +
-              (
-                tree.title.toLocaleLowerCase('zh-CN').includes(query)
-                  ? tree.sessions
-                  : tree.sessions.filter((session) =>
-                      sessionMatches(session, nodeById, query)
-                    )
-              ).length,
-            0
-          ) +
-          ' 个航点'
-        : activeTree
-          ? '航程 ' +
-          (activeIndex + 1) +
-          ' / ' +
-          forest.trees.length +
-          ' · ' +
-          activeTree.sessions.length +
-          ' 个航点 · ' +
-          activeTree.nodeCount +
+          forest.nodeCount +
           ' 轮'
-          : '';
+        : '';
       if (trees.length === 0) {
         graph.append('text')
           .attr('class', 'node-meta')
@@ -904,9 +951,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
           .attr('y', height / 2)
           .attr('text-anchor', 'middle')
           .text(
-            query
-              ? '当前项目没有匹配的航点'
-              : '当前项目还没有航点'
+            '当前项目还没有航点'
           );
         return;
       }
@@ -918,29 +963,54 @@ export class ExperienceMapPanel implements vscode.Disposable {
       let contentRight = -Infinity;
       let contentBottom = -Infinity;
       for (const tree of trees) {
-        const root = d3.hierarchy(hierarchyFor(tree));
+        const expanded = tree.id === activeTreeId;
+        const voyageAccent = projectAccentFor(tree.id);
+        const root = d3.hierarchy(
+          expanded
+            ? hierarchyFor(tree)
+            : { label: tree.title, children: [] }
+        );
         d3.tree()
           .nodeSize([nodeVerticalPitch, nodeHorizontalPitch])
           .separation(() => 1)(root);
         const minX = d3.min(root.descendants(), (node) => node.x) || 0;
         const maxX = d3.max(root.descendants(), (node) => node.x) || 0;
         const baseY = offsetY - minX;
+        let treeLeft = Infinity;
+        let treeTop = Infinity;
+        let treeRight = -Infinity;
+        let treeBottom = -Infinity;
         root.each((node) => {
-          node.screenX = node.y + mapStartX;
+          const isVoyageStart = !node.data.session;
+          node.screenX = isVoyageStart
+            ? voyageStartX
+            : node.y + mapStartX;
           node.screenY = node.x + baseY;
-          contentLeft = Math.min(
-            contentLeft,
-            node.screenX - nodeCardWidth / 2 - 5
-          );
-          contentTop = Math.min(contentTop, node.screenY - 24);
-          contentRight = Math.max(
-            contentRight,
-            node.screenX + nodeCardWidth / 2 + 5
-          );
-          contentBottom = Math.max(
-            contentBottom,
-            node.screenY + nodeCardTop + nodeCardHeight + 5
-          );
+          const cardWidth = isVoyageStart
+            ? expanded
+              ? startCardWidth
+              : collapsedCardWidth
+            : nodeCardWidth;
+          const cardTop = isVoyageStart
+            ? startCardTop
+            : nodeCardTop;
+          const cardHeight = isVoyageStart
+            ? expanded
+              ? startCardHeight
+              : collapsedCardHeight
+            : nodeCardHeight;
+          const left = node.screenX - cardWidth / 2 - 5;
+          const top = node.screenY - 42;
+          const right = node.screenX + cardWidth / 2 + 5;
+          const bottom = node.screenY + cardTop + cardHeight + 5;
+          contentLeft = Math.min(contentLeft, left);
+          contentTop = Math.min(contentTop, top);
+          contentRight = Math.max(contentRight, right);
+          contentBottom = Math.max(contentBottom, bottom);
+          treeLeft = Math.min(treeLeft, left);
+          treeTop = Math.min(treeTop, top);
+          treeRight = Math.max(treeRight, right);
+          treeBottom = Math.max(treeBottom, bottom);
         });
         const mainPath = mainPathFor(tree);
         const current = currentSessionFor(tree);
@@ -948,11 +1018,24 @@ export class ExperienceMapPanel implements vscode.Disposable {
         layouts.push({
           tree,
           root,
+          expanded,
+          voyageAccent,
+          bounds: {
+            left: treeLeft,
+            top: treeTop,
+            right: treeRight,
+            bottom: treeBottom
+          },
           mainPath,
           routeIndexById,
           currentId: current?.id || ''
         });
-        offsetY += maxX - minX + nodeVerticalPitch + nodeCardHeight;
+        offsetY += expanded
+          ? Math.max(
+              maxX - minX + nodeCardHeight + 70,
+              collapsedVoyagePitch * 2
+            )
+          : collapsedVoyagePitch;
       }
       const contentBounds = {
         left: contentLeft,
@@ -960,6 +1043,9 @@ export class ExperienceMapPanel implements vscode.Disposable {
         right: contentRight,
         bottom: contentBottom
       };
+      const activeBounds =
+        layouts.find((layout) => layout.expanded)?.bounds ||
+        contentBounds;
       const worldWidth = Math.max(
         width / minimumReadableScale,
         contentRight + 140
@@ -1024,6 +1110,10 @@ export class ExperienceMapPanel implements vscode.Disposable {
         );
       zoomBehavior = d3.zoom()
         .scaleExtent([.4, 3.2])
+        .extent([
+          [0, 86],
+          [width, Math.max(87, height - 28)]
+        ])
         .filter((event) => {
           if (event.type === 'mousedown') return false;
           if (event.type === 'touchstart') {
@@ -1032,17 +1122,9 @@ export class ExperienceMapPanel implements vscode.Disposable {
           return true;
         })
         .translateExtent([
-          [0, -Infinity],
-          [Infinity, Infinity]
+          [0, contentTop],
+          [Infinity, contentBottom]
         ])
-        .constrain((transform) => {
-          const clampedX = Math.min(0, transform.x);
-          return clampedX === transform.x
-            ? transform
-            : d3.zoomIdentity
-                .translate(clampedX, transform.y)
-                .scale(transform.k);
-        })
         .on('zoom', (event) => {
           globalThis.__WAYFINDER_VIEWPORT_ACTIVE_UNTIL__ = Date.now() + 320;
           graphLayer.attr('transform', event.transform);
@@ -1050,66 +1132,58 @@ export class ExperienceMapPanel implements vscode.Disposable {
       graph
         .call(zoomBehavior)
         .on('dblclick.zoom', null)
-        .on('wheel.zoom', null)
-        .on(
-          'wheel.wayfinder',
-          (event) => {
+        .on('wheel.zoom', null);
+      const handleViewportWheel = (event) => {
             event.preventDefault();
+            event.stopPropagation();
             globalThis.__WAYFINDER_VIEWPORT_ACTIVE_UNTIL__ = Date.now() + 320;
+            if (
+              event.ctrlKey &&
+              nativeGestureActive
+            ) {
+              return;
+            }
             const pageSize = graphBounds?.height || graph.node().clientHeight;
-            if (event.ctrlKey || event.metaKey) {
-              const delta = Math.max(
-                -12,
-                Math.min(
-                  12,
-                  normalizedWheelDelta(event.deltaY, event.deltaMode, pageSize)
-                )
-              );
-              pendingScale *= Math.pow(2, -delta * .01);
-              pendingZoomPoint = [
+            const delta = normalizeWheel(event, pageSize);
+            const before = d3.zoomTransform(graph.node());
+            if (delta.z) {
+              const point = [
                 event.clientX - (graphBounds?.left || 0),
                 event.clientY - (graphBounds?.top || 0)
               ];
-              scheduleViewportFrame();
-              return;
+              graph.call(
+                zoomBehavior.scaleBy,
+                Math.pow(2, delta.z),
+                point
+              );
+            } else if (delta.x || delta.y) {
+              graph.call(
+                zoomBehavior.translateBy,
+                delta.x / before.k,
+                delta.y / before.k
+              );
             }
-            const horizontalDelta =
-              Math.abs(event.deltaX) > .1
-                ? normalizedWheelDelta(
-                    event.deltaX,
-                    event.deltaMode,
-                    pageSize
-                  )
-                : event.shiftKey
-                  ? normalizedWheelDelta(
-                      event.deltaY,
-                      event.deltaMode,
-                      pageSize
-                    )
-                  : 0;
-            const verticalDelta = event.shiftKey
-              ? 0
-              : normalizedWheelDelta(
-                  event.deltaY,
-                  event.deltaMode,
-                  pageSize
-                );
-            if (pendingPanX < 0 && horizontalDelta > 0) {
-              const currentX = d3.zoomTransform(graph.node()).x;
-              if (currentX - pendingPanX >= 0) {
-                pendingPanX = currentX;
-              }
-            }
-            pendingPanX += horizontalDelta;
-            pendingPanY += verticalDelta;
-            scheduleViewportFrame();
-          },
-          { passive: false }
-        );
+      };
+      graph.on(
+        'wheel.wayfinder',
+        handleViewportWheel,
+        { passive: false }
+      );
+      canvasShell.on(
+        'wheel.wayfinder',
+        (event) => {
+          if (graph.node().contains(event.target)) return;
+          if (event.target.closest('button, input')) return;
+          handleViewportWheel(event);
+        },
+        { passive: false }
+      );
 
       const allNodes = layouts.flatMap(({
         tree,
         root,
+        expanded,
+        voyageAccent,
         mainPath,
         routeIndexById,
         currentId
@@ -1117,6 +1191,8 @@ export class ExperienceMapPanel implements vscode.Disposable {
         root.descendants().map((node) => ({
           tree,
           node,
+          expanded,
+          voyageAccent,
           mainPath,
           routeIndexById,
           currentId
@@ -1125,12 +1201,16 @@ export class ExperienceMapPanel implements vscode.Disposable {
       const allLinks = layouts.flatMap(({
         tree,
         root,
+        expanded,
+        voyageAccent,
         mainPath,
         routeIndexById
       }) =>
         root.links().map((link) => ({
           tree,
           link,
+          expanded,
+          voyageAccent,
           mainPath,
           routeIndexById
         }))
@@ -1139,11 +1219,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
         .filter(({ tree, node }) => {
           const session = node.data.session;
           if (!session) return false;
-          return (
-            !query ||
-            tree.title.toLocaleLowerCase('zh-CN').includes(query) ||
-            sessionMatches(session, nodeById, query)
-          );
+          return tree.id === activeTree?.id;
         })
         .sort((left, right) => left.node.screenY - right.node.screenY)[0]
         ?.node;
@@ -1163,10 +1239,16 @@ export class ExperienceMapPanel implements vscode.Disposable {
         node,
         mainPath,
         routeIndexById,
-        currentId
+        currentId,
+        expanded
       }, baseClass, sessionClass, rootClass) => {
         if (!node.data.session) {
-          return baseClass + ' ' + rootClass;
+          return (
+            baseClass +
+            ' ' +
+            rootClass +
+            (expanded ? ' expanded' : ' collapsed')
+          );
         }
         const session = node.data.session;
         return (
@@ -1224,19 +1306,42 @@ export class ExperienceMapPanel implements vscode.Disposable {
         );
       };
       const routeLayer = graphLayer.append('g').attr('class', 'route-layer');
-      routeLayer.selectAll('.forest-path-bed')
+      const collapsedVoyages = layouts.filter((layout) => !layout.expanded);
+      const collapsedRoutePath = ({ root }) =>
+        'M ' + voyageStartX + ' ' + root.screenY +
+        ' C ' + (voyageStartX + 46) + ' ' + root.screenY +
+        ', ' + (voyageStartX + 116) + ' ' + root.screenY +
+        ', ' + (voyageStartX + 172) + ' ' + root.screenY;
+      routeLayer.selectAll('.collapsed-path-bed')
+        .data(collapsedVoyages)
+        .join('path')
+        .attr('class', 'forest-path-bed main collapsed-path-bed')
+        .style('--voyage-accent', ({ voyageAccent }) => voyageAccent)
+        .attr('d', collapsedRoutePath);
+      routeLayer.selectAll('.collapsed-route')
+        .data(collapsedVoyages)
+        .join('path')
+        .attr('class', 'forest-edge route-trunk main collapsed-route')
+        .style('--voyage-accent', ({ voyageAccent }) => voyageAccent)
+        .attr('pathLength', 1)
+        .attr('d', collapsedRoutePath);
+      routeLayer.selectAll('.expanded-path-bed')
         .data(allLinks)
         .join('path')
         .attr('class', (item) =>
-          'forest-path-bed ' +
+          'forest-path-bed expanded-path-bed ' +
           (linkClass(item).includes('main') ? 'main' : '') +
           (linkClass(item).includes('dimmed') ? ' dimmed' : '')
         )
+        .style('--voyage-accent', ({ voyageAccent }) => voyageAccent)
         .attr('d', branchPath);
-      routeLayer.selectAll('.forest-edge')
+      routeLayer.selectAll('.expanded-edge')
         .data(allLinks)
         .join('path')
-        .attr('class', (item) => 'forest-edge ' + linkClass(item))
+        .attr('class', (item) =>
+          'forest-edge expanded-edge ' + linkClass(item)
+        )
+        .style('--voyage-accent', ({ voyageAccent }) => voyageAccent)
         .attr('pathLength', 1)
         .attr('d', branchPath);
       const decorationLayer = graphLayer.append('g')
@@ -1261,6 +1366,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
             (dimmed ? ' dimmed' : '')
           );
         })
+        .style('--voyage-accent', ({ voyageAccent }) => voyageAccent)
         .attr('transform', ({ link }) =>
           'translate(' +
           ((link.source.screenX + link.target.screenX) / 2) +
@@ -1283,6 +1389,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
         .attr('class', (item) =>
           nodeClasses(item, 'forest-node', 'session-node', 'tree-node')
         )
+        .style('--voyage-accent', ({ voyageAccent }) => voyageAccent)
         .attr('transform', ({ node }) =>
           'translate(' + node.screenX + ',' + node.screenY + ')'
         )
@@ -1290,7 +1397,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
         .attr('aria-label', ({ tree, node }) =>
           node.data.session
             ? null
-            : '共同港口，' + tree.title + ' 从这里出发'
+            : '航程起点，' + tree.title
         );
       nodes.each(function({ tree, node, currentId }) {
         const selection = d3.select(this);
@@ -1413,15 +1520,23 @@ export class ExperienceMapPanel implements vscode.Disposable {
             'tree-card'
           )
         )
+        .style('--voyage-accent', ({ voyageAccent }) => voyageAccent)
         .attr('transform', ({ node }) =>
           'translate(' + node.screenX + ',' + node.screenY + ')'
         )
-        .attr('role', ({ node }) => node.data.session ? 'button' : 'img')
-        .attr('tabindex', ({ node }) => node.data.session ? 0 : null)
-        .attr('aria-label', ({ tree, node }) => {
+        .attr('role', ({ node, expanded }) =>
+          node.data.session || !expanded ? 'button' : 'img'
+        )
+        .attr('tabindex', ({ node, expanded }) =>
+          node.data.session || !expanded ? 0 : null
+        )
+        .attr('aria-label', ({ tree, node, expanded }) => {
           const session = node.data.session;
           if (!session) {
-            return '共同港口，' + tree.title + ' 从这里出发';
+            return expanded
+              ? '当前航程起点，' + tree.title
+              : '展开航程，' + tree.title + '，' +
+                tree.sessions.length + ' 个航点';
           }
           const content = contentForCard(session);
           return (
@@ -1449,6 +1564,9 @@ export class ExperienceMapPanel implements vscode.Disposable {
         .attr('data-focus-key', ({ node }) =>
           node.data.session ? 'session:' + node.data.session.id : null
         )
+        .attr('data-tree-id', ({ tree, node }) =>
+          node.data.session ? null : tree.id
+        )
         .attr('data-route-index', ({ node, routeIndexById }) =>
           node.data.session
             ? String(routeIndexById.get(node.data.session.id))
@@ -1456,8 +1574,11 @@ export class ExperienceMapPanel implements vscode.Disposable {
         )
         .on('click', (event, item) => {
           const session = item.node.data.session;
-          if (!session) return;
           event.stopPropagation();
+          if (!session) {
+            if (!item.expanded) activateVoyage(item.tree.id);
+            return;
+          }
           selectSession(session, nodeById);
         })
         .on('focus', (event, item) => {
@@ -1465,15 +1586,66 @@ export class ExperienceMapPanel implements vscode.Disposable {
         })
         .on('keydown', (event, item) => {
           const session = item.node.data.session;
-          if (!session || (event.key !== 'Enter' && event.key !== ' ')) {
+          if (event.key !== 'Enter' && event.key !== ' ') {
             return;
           }
           event.preventDefault();
           event.stopPropagation();
+          if (!session) {
+            if (!item.expanded) activateVoyage(item.tree.id);
+            return;
+          }
           selectSession(session, nodeById);
         });
-      cards.each(function({ tree, node }) {
+      cards.each(function({ tree, node, expanded }) {
         const selection = d3.select(this);
+        const session = node.data.session;
+        if (!session) {
+          const cardWidth = expanded
+            ? startCardWidth
+            : collapsedCardWidth;
+          const cardHeight = expanded
+            ? startCardHeight
+            : collapsedCardHeight;
+          selection.append('rect')
+            .attr('class', 'node-card-shadow')
+            .attr('x', -cardWidth / 2 + 2)
+            .attr('y', startCardTop + 3)
+            .attr('width', cardWidth)
+            .attr('height', cardHeight)
+            .attr('rx', 7);
+          selection.append('rect')
+            .attr('class', 'node-card-bg')
+            .attr('x', -cardWidth / 2)
+            .attr('y', startCardTop)
+            .attr('width', cardWidth)
+            .attr('height', cardHeight)
+            .attr('rx', 7);
+          const titleLines = cardTextLines(
+            tree.title,
+            22,
+            2
+          );
+          const title = selection.append('text')
+            .attr('class', 'tree-node-title')
+            .attr('x', 0);
+          titleLines.forEach((line, index) => {
+            title.append('tspan')
+              .attr('x', 0)
+              .attr('y', startCardTop + 19 + index * 13)
+              .text(line);
+          });
+          selection.append('text')
+            .attr('class', 'tree-node-meta')
+            .attr('x', 0)
+            .attr('y', startCardTop + cardHeight - 9)
+            .text(
+              expanded
+                ? '当前航程 · ' + tree.sessions.length + ' 个航点'
+                : tree.sessions.length + ' 个航点 · 点击展开'
+            );
+          return;
+        }
         selection.append('rect')
           .attr('class', 'node-card-shadow')
           .attr('x', -nodeCardWidth / 2 + 3)
@@ -1488,20 +1660,6 @@ export class ExperienceMapPanel implements vscode.Disposable {
           .attr('width', nodeCardWidth)
           .attr('height', nodeCardHeight)
           .attr('rx', 7);
-        const session = node.data.session;
-        if (!session) {
-          selection.append('text')
-            .attr('class', 'tree-node-title')
-            .attr('x', 0)
-            .attr('y', nodeCardTop + 24)
-            .text('共同港口');
-          selection.append('text')
-            .attr('class', 'tree-node-meta')
-            .attr('x', 0)
-            .attr('y', nodeCardTop + 43)
-            .text(tree.title + ' · ' + tree.sessions.length + ' 航点');
-          return;
-        }
         selection.append('rect')
           .attr('class', 'node-card-accent')
           .attr('x', -nodeCardWidth / 2 + 7)
@@ -1545,75 +1703,28 @@ export class ExperienceMapPanel implements vscode.Disposable {
         );
       });
 
-      if (query) {
-        const applySearchDimming = (selection) =>
-          selection.classed('dimmed', ({ tree, node }) => {
-          const treeMatches =
-            tree.title.toLocaleLowerCase('zh-CN').includes(query);
-          if (!node.data.session) {
-            return !treeMatches;
-          }
-          return (
-            !treeMatches &&
-            !sessionMatches(node.data.session, nodeById, query)
-          );
-        });
-        applySearchDimming(nodes);
-        applySearchDimming(cards);
-        cards.attr('tabindex', ({ tree, node }) => {
-          if (!node.data.session) return -1;
-          return (
-            tree.title.toLocaleLowerCase('zh-CN').includes(query) ||
-            sessionMatches(node.data.session, nodeById, query)
-          )
-            ? 0
-            : -1;
-        });
-      }
       if (preserveViewport) {
         graph.call(zoomBehavior.transform, previousTransform);
       } else {
         fitGraph(
           viewportWidth,
           height,
-          contentBounds,
+          activeBounds,
           minimumReadableScale,
           narrowFocusRight
         );
       }
       viewportSignature = nextViewportSignature;
-      fitAllRequested = false;
-      if (resumePendingWheel) scheduleViewportFrame();
     }
 
-    function filterTreeForQuery(tree, nodeById, query) {
-      if (tree.title.toLocaleLowerCase('zh-CN').includes(query)) {
-        return tree;
-      }
-      const byId = new Map(tree.sessions.map((session) => [session.id, session]));
-      const included = new Set(
-        tree.sessions
-          .filter((session) => sessionMatches(session, nodeById, query))
-          .map((session) => session.id)
-      );
-      [...included].forEach((id) => {
-        let current = byId.get(id);
-        const visited = new Set();
-        while (
-          current?.parentId &&
-          byId.has(current.parentId) &&
-          !visited.has(current.id)
-        ) {
-          visited.add(current.id);
-          included.add(current.parentId);
-          current = byId.get(current.parentId);
-        }
-      });
-      if (included.size === 0) return null;
-      return Object.assign({}, tree, {
-        sessions: tree.sessions.filter((session) => included.has(session.id)),
-        lineageSessions: tree.sessions
-      });
+    function activateVoyage(treeId) {
+      if (!treeId || treeId === activeTreeId) return;
+      activeTreeId = treeId;
+      selectedSessionId = '';
+      showEmptyInspector();
+      viewportSignature = '';
+      renderGraph();
+      canvasTitle.focus();
     }
 
     function hierarchyFor(tree) {
@@ -1797,7 +1908,13 @@ export class ExperienceMapPanel implements vscode.Disposable {
 
     function showInspector(session, nodeById, focusTitle) {
       inspector.classList.add('open');
+      inspector.classList.toggle('good', session.verdict === 'success');
+      inspector.classList.toggle('bad', session.verdict === 'failure');
       inspector.replaceChildren();
+      const head = document.createElement('header');
+      head.className = 'inspector-head';
+      const copy = document.createElement('div');
+      copy.className = 'inspector-copy';
       const close = actionButton(
         'close',
         '关闭详情',
@@ -1825,14 +1942,70 @@ export class ExperienceMapPanel implements vscode.Disposable {
         session.nodeIds.length +
         (importedFolder ? ' 个导入条目 · ' : ' 轮对话 · ') +
         dateRange(session.startedAt, session.completedAt);
-      inspector.append(close, kicker, title, meta);
+      copy.append(kicker, title, meta);
+      head.append(copy, close);
+      const turns = document.createElement('div');
+      turns.className = 'inspector-turns';
       session.nodeIds
         .map((id) => nodeById.get(id))
         .filter(Boolean)
-        .forEach((node) => inspector.append(renderTurn(node)));
+        .forEach((node) => turns.append(renderTurn(node)));
+      inspector.append(head, turns);
       if (focusTitle) {
         title.focus();
       }
+    }
+
+    function responseGroups(value) {
+      const groups = [];
+      let current = { kind: 'body', lines: [] };
+      String(value || '').split('\\n').forEach((rawLine) => {
+        const line = rawLine.trim();
+        const heading = line.replace(/[：:]$/, '');
+        const kind =
+          heading === '结果'
+            ? 'outcome'
+            : heading === '行动'
+              ? 'actions'
+              : heading === '沉淀'
+                ? 'learned'
+                : '';
+        if (kind) {
+          if (current.lines.length) groups.push(current);
+          current = { kind, lines: [] };
+          return;
+        }
+        if (line) current.lines.push(line);
+      });
+      if (current.lines.length) groups.push(current);
+      return groups;
+    }
+
+    function appendResponse(section, value) {
+      const groups = responseGroups(value);
+      if (groups.length === 0) return;
+      groups.forEach((group) => {
+        if (group.kind === 'actions') {
+          const list = document.createElement('ul');
+          list.className = 'detail-list';
+          group.lines.forEach((line) => {
+            const item = document.createElement('li');
+            item.textContent = line.replace(/^[-*]\\s*/, '');
+            list.append(item);
+          });
+          section.append(list);
+          return;
+        }
+        const block = document.createElement(
+          group.kind === 'learned' ? 'div' : 'p'
+        );
+        block.className =
+          group.kind === 'learned' ? 'detail-note' : 'detail-text';
+        block.textContent = group.lines
+          .map((line) => line.replace(/^[-*]\\s*/, ''))
+          .join('\\n');
+        section.append(block);
+      });
     }
 
     function renderTurn(node) {
@@ -1868,10 +2041,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
         section.append(source);
       }
       if (node.response) {
-        const text = document.createElement('p');
-        text.className = 'detail-text';
-        text.textContent = node.response;
-        section.append(text);
+        appendResponse(section, node.response);
       }
       if (node.note) {
         const note = document.createElement('div');
@@ -1970,7 +2140,8 @@ export class ExperienceMapPanel implements vscode.Disposable {
     function showEmptyInspector(restoreFocus = false) {
       selectedSessionId = '';
       inspector.classList.remove('open');
-      inspector.innerHTML = '<div class="inspector-empty">选择一个航点<br>查看按时间排列的全部对话</div>';
+      inspector.classList.remove('good', 'bad');
+      inspector.replaceChildren();
       graphLayer?.selectAll('.forest-node, .forest-card')
         .classed('selected', false)
         .classed('dimmed', false);
@@ -1987,26 +2158,6 @@ export class ExperienceMapPanel implements vscode.Disposable {
       } else if (!restoreFocus) {
         lastFocusedSessionId = '';
       }
-    }
-
-    function sessionMatches(session, nodeById, query) {
-      return [
-        session.stage,
-        session.branch,
-        session.title,
-        session.preview,
-        ...session.nodeIds.flatMap((id) => {
-          const node = nodeById.get(id);
-          return node
-            ? [
-                node.prompt,
-                node.response,
-                node.note,
-                ...(node.files || []).map((file) => file.path)
-              ]
-            : [];
-        })
-      ].join(' ').toLocaleLowerCase('zh-CN').includes(query);
     }
 
     function appendReef(selection, compact) {
@@ -2141,7 +2292,12 @@ export class ExperienceMapPanel implements vscode.Disposable {
     }
 
     function compactCardSummary(value) {
-      return String(value || '')
+      const groups = responseGroups(value);
+      const preferred =
+        groups.find((group) => group.kind === 'outcome') ||
+        groups.find((group) => group.kind === 'body') ||
+        groups[0];
+      return (preferred?.lines.join(' ') || String(value || ''))
         .slice(0, 240)
         .replace(/[#>*_()]/g, ' ')
         .replace(/\\s+/g, ' ')
@@ -2246,7 +2402,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
           availableHeight / contentHeight
         )
       );
-      const x = sideInset - bounds.left * scale;
+      const x = Math.min(0, sideInset - bounds.left * scale);
       const narrowX = width <= 520
         ? width -
           20 -
@@ -2308,51 +2464,20 @@ export class ExperienceMapPanel implements vscode.Disposable {
         target?.focus();
       }
     });
-    const updateSearch = () => {
-      if (!state) return;
-      selectedSessionId = '';
-      showEmptyInspector();
-      renderGraph();
-    };
-    searchInput.addEventListener('compositionstart', () => {
-      composingSearch = true;
-    });
-    searchInput.addEventListener('compositionend', () => {
-      composingSearch = false;
-      updateSearch();
-    });
-    searchInput.addEventListener('input', () => {
-      if (!composingSearch) updateSearch();
-    });
-    const switchProject = (offset) => {
-      if (!state || !forest.trees.length) return;
-      const activeIndex = forest.trees.findIndex(
-        (tree) => tree.id === activeTreeId
-      );
-      const nextIndex = activeIndex + offset;
-      if (nextIndex < 0 || nextIndex >= forest.trees.length) return;
-      activeTreeId = forest.trees[nextIndex].id;
-      selectedSessionId = '';
-      searchInput.value = '';
-      showEmptyInspector();
-      renderGraph();
-      document.getElementById('canvasTitle')?.focus();
-    };
-    projectPrevious.addEventListener('click', () => switchProject(-1));
-    projectNext.addEventListener('click', () => switchProject(1));
-    document.getElementById('fit').addEventListener('click', () => {
-      if (!state) return;
-      fitAllRequested = true;
-      renderGraph();
-    });
     window.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && inspector.classList.contains('open')) {
         showEmptyInspector(true);
       }
-      if (event.key === '/' && document.activeElement !== searchInput) {
-        event.preventDefault();
-        searchInput.focus();
+    });
+    document.addEventListener('pointerdown', (event) => {
+      if (
+        !inspector.classList.contains('open') ||
+        inspector.contains(event.target) ||
+        event.target.closest('.session-card')
+      ) {
+        return;
       }
+      showEmptyInspector();
     });
     window.addEventListener('resize', () => {
       if (state) renderGraph();

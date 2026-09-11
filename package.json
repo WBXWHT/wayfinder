@@ -1,8 +1,8 @@
 {
   "name": "wayfinder",
   "displayName": "Wayfinder",
-  "description": "A local macOS and Windows app that turns Codex and Claude Code work into one visual voyage map.",
-  "version": "0.3.7",
+  "description": "A local-first desktop app that shows how work with AI evolved.",
+  "version": "0.3.8",
   "private": true,
   "license": "MIT",
   "repository": {

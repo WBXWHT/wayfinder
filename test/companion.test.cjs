@@ -32,9 +32,13 @@ test("companion web bundle reuses the final map and project navigation", () => {
   assert.match(html, /trail-start-pole/);
   assert.match(html, /forest-node/);
   assert.match(html, /src="\.\/wayfinder-icon\.png"/);
-  assert.match(html, /iconGlyph\.className = "codicon codicon-map"/);
+  assert.match(html, /data-lucide="folder-git-2"/);
+  assert.match(html, /class="project-folder-route"/);
   assert.match(html, /id="openData" class="local-data-button"/);
-  assert.match(html, /id="fit" class="tool-button"/);
+  assert.doesNotMatch(html, /id="fit"/);
+  assert.doesNotMatch(html, /id="search"/);
+  assert.match(html, /--project-accent/);
+  assert.match(html, /projectAccent: projectAccent\(project\)/);
   assert.doesNotMatch(html, /id="refresh"/);
   assert.doesNotMatch(html, /id="settingsDialog"/);
   assert.match(html, /const focusedProjectId =/);

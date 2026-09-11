@@ -1,5 +1,6 @@
 const canvas = document.querySelector("#voyageCanvas");
 const context = canvas?.getContext("2d");
+const heroVoyage = document.querySelector(".hero-voyage");
 let width = 0;
 let height = 0;
 let pointerX = 0;
@@ -7,47 +8,10 @@ let pointerY = 0;
 let startedAt = performance.now();
 let animationFrame;
 let scrollFrame;
-let activeWaypoint;
 const motionPreference = globalThis.matchMedia?.(
   "(prefers-reduced-motion: reduce)"
 );
 let reducedMotion = motionPreference?.matches || false;
-
-const routes = [
-  {
-    id: "primary",
-    color: "#168db5",
-    points: [[.57, .2], [.65, .39], [.7, .57], [.78, .82]],
-    nodes: [[.57, .2], [.65, .39], [.7, .57], [.78, .82]]
-  },
-  {
-    id: "branch",
-    color: "#238f7b",
-    points: [[.65, .39], [.76, .36], [.84, .46], [.9, .68]],
-    nodes: [[.84, .46], [.9, .68]]
-  },
-  {
-    id: "failed",
-    color: "#df6259",
-    failed: true,
-    points: [[.7, .57], [.78, .54], [.83, .62], [.87, .77]],
-    nodes: [[.87, .77]]
-  }
-];
-
-const waypointAnchors = {
-  start: routes[0].points[0],
-  branch: routes[1].points[2],
-  failed: routes[2].points[3]
-};
-
-function mapPoint([x, y]) {
-  const compact = width <= 820;
-  return [
-    (compact ? .5 + x * .52 : x) * width,
-    y * height * (compact ? .57 : 1)
-  ];
-}
 
 function resize() {
   if (!canvas || !context) return;
@@ -58,42 +22,14 @@ function resize() {
   canvas.width = Math.round(width * ratio);
   canvas.height = Math.round(height * ratio);
   context.setTransform(ratio, 0, 0, ratio, 0, 0);
-  positionWaypoints();
-}
-
-function positionWaypoints() {
-  for (const element of document.querySelectorAll("[data-waypoint]")) {
-    const point = waypointAnchors[element.dataset.waypoint];
-    if (!point) continue;
-    const [x, y] = mapPoint(point);
-    element.style.setProperty("--waypoint-x", `${x}px`);
-    element.style.setProperty("--waypoint-y", `${y}px`);
-  }
 }
 
 function draw(time) {
   if (!context) return;
   context.clearRect(0, 0, width, height);
   drawMapSurface(time);
-  const progress = Math.min(1, (time - startedAt) / 1_250);
-  const shiftX = pointerX * 8;
-  const shiftY = pointerY * 8;
-  context.save();
-  context.translate(shiftX, shiftY);
-  for (const route of routes) {
-    drawRoute(route, progress, time);
-  }
-  drawRouteSignals(time, progress);
-  context.restore();
-  updateActiveWaypoint(time);
-  document.querySelector(".hero-waypoints")?.style.setProperty(
-    "--route-shift-x",
-    `${shiftX}px`
-  );
-  document.querySelector(".hero-waypoints")?.style.setProperty(
-    "--route-shift-y",
-    `${shiftY}px`
-  );
+  heroVoyage?.style.setProperty("--route-shift-x", `${pointerX * 8}px`);
+  heroVoyage?.style.setProperty("--route-shift-y", `${pointerY * 8}px`);
   animationFrame = reducedMotion ? undefined : requestAnimationFrame(draw);
 }
 
@@ -170,154 +106,6 @@ function drawMapSurface(time) {
   context.lineDashOffset = -(time - startedAt) / 120;
   context.stroke();
   context.setLineDash([]);
-}
-
-function drawRoute(route, progress, time) {
-  const points = route.points.map(mapPoint);
-  const traceRoute = () => {
-    context.beginPath();
-    context.moveTo(...points[0]);
-    for (let index = 1; index < points.length; index += 1) {
-      const [previousX, previousY] = points[index - 1];
-      const [x, y] = points[index];
-      const middleY = previousY + (y - previousY) * .5;
-      context.bezierCurveTo(previousX, middleY, x, middleY, x, y);
-    }
-  };
-  traceRoute();
-  context.strokeStyle = "#d9dfe3";
-  context.lineWidth = 8;
-  context.lineCap = "round";
-  context.setLineDash([]);
-  context.stroke();
-  traceRoute();
-  context.strokeStyle = route.color;
-  context.lineWidth = 3;
-  context.setLineDash(route.failed ? [7, 8] : []);
-  context.lineDashOffset = route.failed ? -(time - startedAt) / 80 : 0;
-  context.globalAlpha = .22 + progress * .78;
-  context.stroke();
-  context.setLineDash([]);
-  context.globalAlpha = 1;
-
-  route.nodes.forEach((point, index) => {
-    const delay = index / Math.max(1, route.nodes.length) * .38;
-    const nodeProgress = Math.max(0, Math.min(1, (progress - delay) / .55));
-    if (!nodeProgress) return;
-    const [px, py] = mapPoint(point);
-    const pulse = reducedMotion
-      ? 0
-      : Math.max(0, Math.sin(time / 430 - index * .85)) * 2.2;
-    context.beginPath();
-    context.arc(px, py, (8 + pulse) * nodeProgress, 0, Math.PI * 2);
-    context.fillStyle = "#f5f7f9";
-    context.fill();
-    context.lineWidth = 3;
-    context.strokeStyle = route.color;
-    context.stroke();
-    context.beginPath();
-    context.arc(px, py, 3 * nodeProgress, 0, Math.PI * 2);
-    context.fillStyle = route.color;
-    context.fill();
-  });
-}
-
-function pointOnRoute(route, progress) {
-  const points = route.points.map(mapPoint);
-  const scaled = Math.max(0, Math.min(.9999, progress)) * (points.length - 1);
-  const index = Math.min(points.length - 2, Math.floor(scaled));
-  const t = scaled - index;
-  const [x0, y0] = points[index];
-  const [x3, y3] = points[index + 1];
-  const middleY = y0 + (y3 - y0) * .5;
-  const x1 = x0;
-  const y1 = middleY;
-  const x2 = x3;
-  const y2 = middleY;
-  const inverse = 1 - t;
-  const x =
-    inverse ** 3 * x0 +
-    3 * inverse ** 2 * t * x1 +
-    3 * inverse * t ** 2 * x2 +
-    t ** 3 * x3;
-  const y =
-    inverse ** 3 * y0 +
-    3 * inverse ** 2 * t * y1 +
-    3 * inverse * t ** 2 * y2 +
-    t ** 3 * y3;
-  const dx =
-    3 * inverse ** 2 * (x1 - x0) +
-    6 * inverse * t * (x2 - x1) +
-    3 * t ** 2 * (x3 - x2);
-  const dy =
-    3 * inverse ** 2 * (y1 - y0) +
-    6 * inverse * t * (y2 - y1) +
-    3 * t ** 2 * (y3 - y2);
-  return { x, y, angle: Math.atan2(dy, dx) };
-}
-
-function drawRouteSignals(time, entranceProgress) {
-  if (entranceProgress < .82) return;
-  const cycle = ((time - startedAt) % 7_200) / 7_200;
-  const primaryProgress = Math.min(1, cycle / .54);
-  drawSignal(routes[0], primaryProgress, true);
-  if (cycle >= .28 && cycle <= .78) {
-    drawSignal(routes[1], (cycle - .28) / .5);
-  }
-  if (cycle >= .52) {
-    drawSignal(routes[2], (cycle - .52) / .48);
-  }
-}
-
-function drawSignal(route, progress, boat = false) {
-  const point = pointOnRoute(route, progress);
-  context.save();
-  context.translate(point.x, point.y);
-  context.rotate(point.angle);
-  context.shadowColor = route.color;
-  context.shadowBlur = 14;
-  if (boat) {
-    context.beginPath();
-    context.moveTo(-9, 5);
-    context.lineTo(9, 5);
-    context.lineTo(5, 10);
-    context.lineTo(-6, 10);
-    context.closePath();
-    context.fillStyle = "#fffdf8";
-    context.fill();
-    context.lineWidth = 2;
-    context.strokeStyle = route.color;
-    context.stroke();
-    context.beginPath();
-    context.moveTo(-1, 4);
-    context.lineTo(-1, -10);
-    context.lineTo(8, 3);
-    context.closePath();
-    context.fillStyle = route.color;
-    context.fill();
-  } else {
-    context.beginPath();
-    context.arc(0, 0, 7, 0, Math.PI * 2);
-    context.fillStyle = "#fffdf8";
-    context.fill();
-    context.lineWidth = 3;
-    context.strokeStyle = route.color;
-    context.stroke();
-  }
-  context.restore();
-}
-
-function updateActiveWaypoint(time) {
-  const cycle = ((time - startedAt) % 7_200) / 7_200;
-  const next = cycle < .3 ? "start" : cycle < .65 ? "branch" : "failed";
-  if (next === activeWaypoint) return;
-  activeWaypoint = next;
-  document.querySelectorAll("[data-waypoint]").forEach((element) => {
-    element.classList.toggle(
-      "is-current",
-      element.dataset.waypoint === activeWaypoint
-    );
-  });
 }
 
 async function loadDownloads() {
