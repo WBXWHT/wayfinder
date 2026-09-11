@@ -603,7 +603,7 @@ const RELATE_TAU_MS = 300_000; // 5 min — FindParent time term
 const RELATE_MIN = 0.12; // below this, nothing relates → new root (new boat)
 const FILE_DIVERGE = 0.2; // touched-file overlap under this = changed battleground
 const RECENT_PARENT_CANDIDATES = 32;
-const EXHAUSTIVE_PARENT_THRESHOLD = 2_048;
+const EXHAUSTIVE_PARENT_THRESHOLD = 256;
 const MAX_FUZZY_SEMANTIC_TERMS = 6;
 const MAX_STRUCTURAL_SUBSET_ITEMS = 6;
 const MAX_RELATION_SCORE = 0.7;
