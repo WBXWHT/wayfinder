@@ -11,7 +11,7 @@
   <title>Wayfinder — 看清你与 AI 的协作如何走到结果</title>
   <link rel="icon" href="./wayfinder-icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./wayfinder-icon.png">
-  <link rel="stylesheet" href="./styles.css?v=0.3.10-voyage">
+  <link rel="stylesheet" href="./styles.css?v=0.3.10-anchored">
 </head>
 <body>
   <header class="site-header">
@@ -71,9 +71,58 @@
             <circle cx="600" cy="500" r="17"></circle>
             <circle cx="600" cy="500" r="6"></circle>
           </g>
+          <g class="route-note note-goal is-current" data-node="goal"
+            data-anchor-x="130" data-anchor-y="150">
+            <path class="route-note-leader" d="M147 150 H174"></path>
+            <text class="route-note-number" x="184" y="138">01</text>
+            <text class="route-note-title" x="212" y="138">确认目标</text>
+            <text class="route-note-copy" x="184" y="168">把同一件事的对话和操作放进一条航程</text>
+          </g>
+          <g class="route-note note-branch" data-node="branch"
+            data-anchor-x="300" data-anchor-y="390">
+            <path class="route-note-leader" d="M283 390 H82"></path>
+            <text class="route-note-number" x="82" y="372">02</text>
+            <text class="route-note-title" x="110" y="372">保留分叉</text>
+            <text class="route-note-copy" x="82" y="420">失败方案与有效路径同时可见</text>
+          </g>
+          <g class="route-note note-proof" data-node="proof"
+            data-anchor-x="600" data-anchor-y="500">
+            <path class="route-note-leader"
+              d="M583 500 H558 V448 H378"></path>
+            <text class="route-note-number" x="378" y="432">03</text>
+            <text class="route-note-title" x="406" y="432">查看记录</text>
+            <text class="route-note-copy" x="378" y="476">
+              <tspan x="378">点击航点，查看当时的对话、文件修改</tspan>
+              <tspan x="378" dy="17">和测试结果</tspan>
+            </text>
+          </g>
+          <g class="route-note note-experience" data-node="experience"
+            data-anchor-x="650" data-anchor-y="760">
+            <path class="route-note-leader"
+              d="M629 760 H564 V808 H366"></path>
+            <text class="route-note-number" x="366" y="792">04</text>
+            <text class="route-note-title" x="394" y="792">沉淀经验</text>
+            <text class="route-note-copy" x="366" y="838">看懂走过的路，也知道下次怎么走</text>
+          </g>
           <g class="hero-arrival" transform="translate(650,760)">
             <circle class="arrival-ring" r="24"></circle>
             <circle class="arrival-ring arrival-ring-late" r="24"></circle>
+          </g>
+          <g class="hero-reef" transform="translate(520,735)">
+            <path class="hero-reef-outline" d="M-24 17 L-16-16 L-5-5 L5-27 L24 17 Z"></path>
+            <path class="hero-reef-rock" d="M-24 17 L-16-16 L-5-5 L5-27 L24 17 Z"></path>
+            <path class="hero-reef-facet" d="M5-27 L0 9 L-5-5 M-16-16 L-11 6"></path>
+          </g>
+          <g class="hero-impact" transform="translate(520,735)">
+            <path d="M-33-18 L-41-26 M-7-37 L-7-48 M25-25 L34-34"></path>
+          </g>
+          <g class="hero-map-node node-failed">
+            <circle cx="520" cy="735" r="17"></circle>
+            <path d="M514 729 L526 741 M526 729 L514 741"></path>
+          </g>
+          <g class="hero-map-node node-experience">
+            <circle cx="650" cy="760" r="21"></circle>
+            <path d="M640 760 L648 768 L662 751"></path>
           </g>
           <g class="hero-vessel" transform="translate(130,150)">
             <g transform="translate(0,-8) scale(2.25)">
@@ -95,39 +144,47 @@
               </g>
             </g>
           </g>
-          <g class="hero-reef" transform="translate(520,735)">
-            <path class="hero-reef-outline" d="M-24 17 L-16-16 L-5-5 L5-27 L24 17 Z"></path>
-            <path class="hero-reef-rock" d="M-24 17 L-16-16 L-5-5 L5-27 L24 17 Z"></path>
-            <path class="hero-reef-facet" d="M5-27 L0 9 L-5-5 M-16-16 L-11 6"></path>
-          </g>
-          <g class="hero-impact" transform="translate(520,735)">
-            <path d="M-33-18 L-41-26 M-7-37 L-7-48 M25-25 L34-34"></path>
-          </g>
-          <g class="hero-map-node node-failed">
-            <circle cx="520" cy="735" r="17"></circle>
-            <path d="M514 729 L526 741 M526 729 L514 741"></path>
-          </g>
-          <g class="hero-map-node node-experience">
-            <circle cx="650" cy="760" r="21"></circle>
-            <path d="M640 760 L648 768 L662 751"></path>
+          <g class="hero-celebration" transform="translate(650,760)">
+            <g class="celebration-rays">
+              <line class="celebration-ray" data-angle="-90"></line>
+              <line class="celebration-ray" data-angle="-50"></line>
+              <line class="celebration-ray" data-angle="-10"></line>
+              <line class="celebration-ray" data-angle="30"></line>
+              <line class="celebration-ray" data-angle="70"></line>
+              <line class="celebration-ray" data-angle="110"></line>
+              <line class="celebration-ray" data-angle="150"></line>
+              <line class="celebration-ray" data-angle="190"></line>
+              <line class="celebration-ray" data-angle="230"></line>
+            </g>
+            <g class="celebration-confetti">
+              <rect class="celebration-piece piece-gold"
+                data-angle="-104" data-distance="72" data-delay="80"
+                x="-2" y="-4" width="4" height="8" rx="1"></rect>
+              <circle class="celebration-piece piece-green"
+                data-angle="-76" data-distance="82" data-delay="20" r="3"></circle>
+              <rect class="celebration-piece piece-blue"
+                data-angle="-48" data-distance="68" data-delay="140"
+                x="-3" y="-2" width="6" height="4" rx="1"></rect>
+              <circle class="celebration-piece piece-coral"
+                data-angle="-18" data-distance="78" data-delay="70" r="2.7"></circle>
+              <rect class="celebration-piece piece-gold"
+                data-angle="18" data-distance="66" data-delay="180"
+                x="-2" y="-4" width="4" height="8" rx="1"></rect>
+              <circle class="celebration-piece piece-blue"
+                data-angle="58" data-distance="84" data-delay="100" r="3"></circle>
+              <rect class="celebration-piece piece-green"
+                data-angle="112" data-distance="72" data-delay="160"
+                x="-3" y="-2" width="6" height="4" rx="1"></rect>
+              <circle class="celebration-piece piece-gold"
+                data-angle="152" data-distance="80" data-delay="40" r="2.8"></circle>
+              <rect class="celebration-piece piece-coral"
+                data-angle="198" data-distance="67" data-delay="130"
+                x="-2" y="-4" width="4" height="8" rx="1"></rect>
+              <circle class="celebration-piece piece-green"
+                data-angle="232" data-distance="76" data-delay="210" r="2.6"></circle>
+            </g>
           </g>
         </svg>
-        <div class="route-note note-goal">
-          <span>01</span><strong>明确目标</strong>
-          <small>把相关 AI 协作归入同一航程</small>
-        </div>
-        <div class="route-note note-branch">
-          <span>02</span><strong>保留分叉</strong>
-          <small>失败方案与有效路径同时可见</small>
-        </div>
-        <div class="route-note note-proof">
-          <span>03</span><strong>连接证据</strong>
-          <small>文件变更和测试回到对应航点</small>
-        </div>
-        <div class="route-note note-experience">
-          <span>04</span><strong>沉淀经验</strong>
-          <small>看懂走过的路，也知道下次怎么走</small>
-        </div>
       </div>
       <div class="hero-copy">
         <p class="eyebrow">AI COLLABORATION HISTORY · MACOS + WINDOWS</p>
@@ -249,17 +306,16 @@
           </a>
         </div>
       </div>
+      <div class="final-meta" aria-label="Wayfinder 网站信息">
+        <span>Wayfinder</span>
+        <span>本地优先 · 开源</span>
+        <span class="footer-links">
+          <a href="./privacy.html">隐私</a>
+          <a href="https://github.com/StayCurious-Xuan/wayfinder/issues">反馈</a>
+        </span>
+      </div>
     </section>
   </main>
-
-  <footer>
-    <span>Wayfinder</span>
-    <span>本地优先 · 开源</span>
-    <span class="footer-links">
-      <a href="./privacy.html">隐私</a>
-      <a href="https://github.com/StayCurious-Xuan/wayfinder/issues">反馈</a>
-    </span>
-  </footer>
-  <script src="./app.js?v=0.3.10-voyage" defer></script>
+  <script src="./app.js?v=0.3.10-anchored" defer></script>
 </body>
 </html>

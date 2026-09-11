@@ -2436,6 +2436,25 @@ test(
                 const title = document.querySelector('#download-title');
                 return title.scrollWidth <= title.clientWidth;
               })(),
+              finalMeta: (() => {
+                const section = document.querySelector('.final-cta')
+                  .getBoundingClientRect();
+                const meta = document.querySelector('.final-meta')
+                  .getBoundingClientRect();
+                return {
+                  inside: meta.top >= section.top &&
+                    meta.bottom <= section.bottom,
+                  color: getComputedStyle(
+                    document.querySelector('.final-meta')
+                  ).color,
+                  linkColor: getComputedStyle(
+                    document.querySelector('.final-meta a')
+                  ).color,
+                  outsideFooter: Boolean(
+                    document.querySelector('body > footer')
+                  )
+                };
+              })(),
               heroVoyage: (() => {
                 const element = document.querySelector('.hero-voyage');
                 const rect = element.getBoundingClientRect();
@@ -2480,6 +2499,10 @@ test(
         assert.equal(layout.scrollWidth, viewport.width);
         assert.equal(layout.scrollSnapType, "none");
         assert.equal(layout.finalTitleFits, true);
+        assert.equal(layout.finalMeta.inside, true);
+        assert.equal(layout.finalMeta.color, "rgb(255, 255, 255)");
+        assert.equal(layout.finalMeta.linkColor, "rgb(255, 255, 255)");
+        assert.equal(layout.finalMeta.outsideFooter, false);
         assert.ok(layout.heroVoyage.scene);
         assert.equal(layout.heroVoyage.endpointsInside, true);
         assert.equal(layout.heroVoyage.channelBases, 3);
@@ -2526,6 +2549,43 @@ test(
         }
       }
 
+      const noteAnchors = await evaluateJson(cdp, `(() => {
+        const svg = document.querySelector('.hero-route-map');
+        const toScreen = (element, point) => {
+          const result = new DOMPoint(point.x, point.y).matrixTransform(
+            element.getScreenCTM()
+          );
+          return { x: result.x, y: result.y };
+        };
+        return [...document.querySelectorAll('.route-note')].map((note) => {
+          const node = document.querySelector(
+            '.node-' + note.dataset.node + ' circle'
+          );
+          const leader = note.querySelector('.route-note-leader');
+          const point = leader.getPointAtLength(0);
+          const start = toScreen(leader, point);
+          const center = toScreen(svg, {
+            x: Number(note.dataset.anchorX),
+            y: Number(note.dataset.anchorY)
+          });
+          const radius = node.getBoundingClientRect().width / 2;
+          return {
+            title: note.querySelector('.route-note-title').textContent,
+            edgeGap: Math.abs(
+              Math.hypot(start.x - center.x, start.y - center.y) - radius
+            )
+          };
+        });
+      })()`);
+      assert.deepEqual(
+        noteAnchors.map((note) => note.title),
+        ["确认目标", "保留分叉", "查看记录", "沉淀经验"]
+      );
+      assert.ok(
+        noteAnchors.every((note) => note.edgeGap <= 0.1),
+        JSON.stringify(noteAnchors)
+      );
+
       const voyageScenes = await evaluateJson(cdp, `(() => {
         const samples = [0, 3500, 5000, 5200, 7500, 11250, 13000, 13500, 16000];
         return samples.map(time => {
@@ -2543,7 +2603,14 @@ test(
             checkColor: getComputedStyle(document.querySelector('.node-experience circle')).stroke,
             impactOpacity: Number(getComputedStyle(document.querySelector('.hero-impact')).opacity),
             ringRadius: Number(document.querySelector('.arrival-ring').getAttribute('r')),
-            ringOpacity: Number(getComputedStyle(document.querySelector('.arrival-ring')).opacity)
+            ringOpacity: Number(getComputedStyle(document.querySelector('.arrival-ring')).opacity),
+            celebrationOpacity: Number(getComputedStyle(
+              document.querySelector('.hero-celebration')
+            ).opacity),
+            visibleRays: [...document.querySelectorAll('.celebration-ray')]
+              .filter((element) => Number(element.style.opacity) > 0).length,
+            visiblePieces: [...document.querySelectorAll('.celebration-piece')]
+              .filter((element) => Number(element.style.opacity) > 0).length
           };
         });
       })()`);
@@ -2556,8 +2623,12 @@ test(
       assert.equal(voyageScenes[4].crossOpacity, 1);
       assert.equal(voyageScenes[5].course, "success");
       assert.deepEqual(voyageScenes[6].boat, { x: 650, y: 760 });
+      assert.deepEqual(voyageScenes[7].boat, { x: 650, y: 760 });
       assert.ok(voyageScenes[7].ringRadius > 24);
       assert.ok(voyageScenes[7].ringOpacity > 0);
+      assert.equal(voyageScenes[7].celebrationOpacity, 1);
+      assert.equal(voyageScenes[7].visibleRays, 9);
+      assert.equal(voyageScenes[7].visiblePieces, 10);
       assert.deepEqual(voyageScenes[8].boat, voyageScenes[0].boat);
       assert.equal(voyageScenes[8].reefOpacity, 1);
       assert.ok(voyageScenes.every((scene) =>

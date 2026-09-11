@@ -16,6 +16,9 @@ const reef = document.querySelector(".hero-reef");
 const failedMarker = document.querySelector(".node-failed");
 const impact = document.querySelector(".hero-impact");
 const arrivalRings = document.querySelectorAll(".arrival-ring");
+const celebration = document.querySelector(".hero-celebration");
+const celebrationRays = document.querySelectorAll(".celebration-ray");
+const celebrationPieces = document.querySelectorAll(".celebration-piece");
 const routeNotes = document.querySelectorAll(".route-note");
 let width = 0;
 let height = 0;
@@ -29,6 +32,9 @@ const motionPreference = globalThis.matchMedia?.(
   "(prefers-reduced-motion: reduce)"
 );
 let reducedMotion = motionPreference?.matches || false;
+
+const clamp01 = (value) => Math.max(0, Math.min(1, value));
+const easeOutCubic = (value) => 1 - ((1 - value) ** 3);
 
 // One clock controls both attempts so the boat and outcome markers cannot drift.
 function voyageFrame(elapsed) {
@@ -60,6 +66,40 @@ function voyageFrame(elapsed) {
   };
 }
 
+function renderCelebration(arrival) {
+  const active = !reducedMotion && arrival >= 0 && arrival <= 1800;
+  if (celebration) celebration.style.opacity = active ? 1 : 0;
+  celebrationRays.forEach((ray, index) => {
+    const progress = clamp01((arrival - index * 22) / 680);
+    const visible = active && progress > 0 && progress < 1;
+    const angle = Number(ray.dataset.angle) * Math.PI / 180;
+    const travel = easeOutCubic(progress);
+    const inner = 30 + travel * 12;
+    const outer = inner + 12 + (1 - progress) * 10;
+    ray.setAttribute("x1", Math.cos(angle) * inner);
+    ray.setAttribute("y1", Math.sin(angle) * inner);
+    ray.setAttribute("x2", Math.cos(angle) * outer);
+    ray.setAttribute("y2", Math.sin(angle) * outer);
+    ray.style.opacity = visible ? Math.sin(progress * Math.PI) * .92 : 0;
+  });
+  celebrationPieces.forEach((piece, index) => {
+    const delay = Number(piece.dataset.delay);
+    const progress = clamp01((arrival - delay) / 1150);
+    const visible = active && progress > 0 && progress < 1;
+    const angle = Number(piece.dataset.angle) * Math.PI / 180;
+    const distance = Number(piece.dataset.distance) * easeOutCubic(progress);
+    const x = Math.cos(angle) * distance;
+    const y = Math.sin(angle) * distance + progress * progress * 24;
+    const scale = Math.min(1, progress * 5);
+    const opacity = progress < .68 ? 1 : (1 - progress) / .32;
+    piece.setAttribute(
+      "transform",
+      `translate(${x},${y}) rotate(${index * 23 + progress * 150}) scale(${scale})`
+    );
+    piece.style.opacity = visible ? Math.max(0, opacity) : 0;
+  });
+}
+
 function renderHeroVoyage(elapsed) {
   if (!heroVoyage || !vessel || !heroCourses.main) return;
   const frame = voyageFrame(reducedMotion ? 14500 : elapsed);
@@ -69,11 +109,10 @@ function renderHeroVoyage(elapsed) {
   const point = course.path.getPointAtLength(course.length * frame.boatProgress);
   const bump = frame.collision < 0
     ? 0 : Math.sin(frame.collision * Math.PI * 5) * (1 - frame.collision);
-  const dock = frame.arrival < 0 ? 0 : Math.min(1, frame.arrival / 600);
   const bowOffset = frame.course === "failure"
     ? Math.max(0, (frame.boatProgress - .88) / .12) * 24 : 0;
   vessel.setAttribute("transform",
-    `translate(${point.x + bump * 10 - dock * 58 - bowOffset},${point.y - Math.abs(bump) * 12 - dock * 12})`
+    `translate(${point.x + bump * 10 - bowOffset},${point.y - Math.abs(bump) * 12})`
   );
   vessel.style.opacity = frame.boatOpacity;
   reef.style.opacity = frame.reefVisible ? 1 : 0;
@@ -92,6 +131,7 @@ function renderHeroVoyage(elapsed) {
     ring.style.opacity = visible ? (1 - progress) * .8 : 0;
     ring.setAttribute("r", 24 + Math.max(0, Math.min(1, progress)) * 44);
   });
+  renderCelebration(frame.arrival);
   const activeNote = frame.arrival >= 0 ? 3
     : frame.mainProgress < 1 ? 0 : frame.reefVisible ? 1 : 2;
   routeNotes.forEach((note, index) => {

@@ -399,6 +399,47 @@ h1 {
   stroke-linecap: round;
 }
 
+.hero-celebration {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.celebration-ray {
+  stroke: #f3bd4f;
+  stroke-width: 3;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.celebration-ray:nth-child(3n + 2) {
+  stroke: var(--green);
+}
+
+.celebration-ray:nth-child(3n) {
+  stroke: var(--blue);
+}
+
+.celebration-piece {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.piece-gold {
+  fill: #f3bd4f;
+}
+
+.piece-green {
+  fill: var(--green);
+}
+
+.piece-blue {
+  fill: var(--blue);
+}
+
+.piece-coral {
+  fill: var(--coral);
+}
+
 .arrival-ring {
   opacity: 0;
   fill: none;
@@ -460,69 +501,50 @@ h1 {
 }
 
 .route-note {
-  position: absolute;
-  display: grid;
-  width: 220px;
-  grid-template-columns: 28px 1fr;
   color: var(--ink);
-  opacity: .46;
-  transition:
-    opacity 220ms ease,
-    transform 220ms ease;
+  opacity: .38;
+  transition: opacity 220ms ease;
 }
 
 .route-note.is-current {
   opacity: 1;
-  transform: translateX(7px);
 }
 
-.route-note::before {
-  position: absolute;
-  top: 28px;
-  left: 28px;
-  width: 48px;
-  height: 1px;
-  background: currentColor;
-  content: "";
-  opacity: .3;
+.route-note-leader {
+  fill: none;
+  stroke: #52656d;
+  stroke-width: 1.25;
+  stroke-dasharray: 4 5;
+  opacity: .48;
+  transition:
+    opacity 220ms ease,
+    stroke 220ms ease;
+  vector-effect: non-scaling-stroke;
 }
 
-.route-note > span {
-  grid-row: 1 / 3;
-  color: var(--blue);
+.route-note.is-current .route-note-leader {
+  stroke: var(--blue);
+  opacity: 1;
+}
+
+.route-note text {
+  letter-spacing: 0;
+}
+
+.route-note-number {
+  fill: var(--blue);
   font: 10px ui-monospace, "SFMono-Regular", monospace;
 }
 
-.route-note strong {
-  font-size: 14px;
-  line-height: 1.25;
+.route-note-title {
+  fill: var(--ink);
+  font-size: 15px;
+  font-weight: 720;
 }
 
-.route-note small {
-  margin-top: 16px;
-  color: var(--muted);
+.route-note-copy {
+  fill: var(--muted);
   font-size: 11px;
-  line-height: 1.45;
-}
-
-.note-goal {
-  top: 12%;
-  left: 25%;
-}
-
-.note-branch {
-  top: 43%;
-  left: 12%;
-}
-
-.note-proof {
-  top: 62%;
-  left: 12%;
-}
-
-.note-experience {
-  top: 86%;
-  left: 50%;
 }
 
 .hero-status {
@@ -851,7 +873,7 @@ h1 {
   display: grid;
   overflow: hidden;
   place-items: center;
-  padding: 78px 24px;
+  padding: 70px 24px 126px;
   color: #f8fafb;
   text-align: center;
   background: #171a1e;
@@ -940,6 +962,32 @@ h1 {
 .final-downloads .download-option:hover span,
 .final-downloads .download-option.is-recommended span {
   color: #5d6670;
+}
+
+.final-meta {
+  position: absolute;
+  z-index: 2;
+  right: 36px;
+  bottom: 0;
+  left: 36px;
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  border-top: 1px solid rgba(255, 255, 255, .18);
+  color: #ffffff;
+  font-size: 11px;
+}
+
+.final-meta .footer-links {
+  display: flex;
+  gap: 20px;
+}
+
+.final-meta a {
+  padding: 10px 0;
+  color: #ffffff;
 }
 
 footer {
@@ -1082,14 +1130,6 @@ footer a {
 
   .hero-voyage {
     left: 46%;
-  }
-
-  .route-note {
-    width: 176px;
-  }
-
-  .route-note small {
-    max-width: 145px;
   }
 
   .workflow,
@@ -1238,6 +1278,7 @@ footer a {
 
   .final-cta {
     min-height: 680px;
+    padding-bottom: 112px;
   }
 
   .final-copy h2 {
@@ -1279,6 +1320,11 @@ footer a {
 
   footer {
     padding: 0 20px;
+  }
+
+  .final-meta {
+    right: 20px;
+    left: 20px;
   }
 }
 
@@ -1383,8 +1429,14 @@ footer a {
     border-left: 0;
   }
 
-  footer > span:nth-child(2) {
-    display: none;
+  .final-meta {
+    min-height: 66px;
+    gap: 12px;
+    font-size: 10px;
+  }
+
+  .final-meta .footer-links {
+    gap: 12px;
   }
 }
 
@@ -1400,6 +1452,7 @@ footer a {
   .hero-channel-mark,
   .node-experience,
   .route-note,
+  .hero-celebration,
   .final-route-line {
     animation: none;
   }
@@ -1411,7 +1464,10 @@ footer a {
 
   .route-note {
     opacity: .72;
-    transform: none;
+  }
+
+  .hero-celebration {
+    display: none;
   }
 
   .reveal {
