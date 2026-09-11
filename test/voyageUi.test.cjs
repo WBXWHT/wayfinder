@@ -107,10 +107,16 @@ test("full map keeps one project canvas with expandable voyages", () => {
   assert.doesNotMatch(html, /共同港口/);
   assert.match(html, /grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(html, /aria-label="航点详情"/);
-  assert.match(html, /showEmptyInspector\(true\)/);
+  assert.match(html, /closeInspector\(true\)/);
   assert.match(html, /\.canvas-page-label \{[\s\S]*?text-align: center/);
   assert.match(html, /\.inspector-head/);
   assert.match(html, /\.inspector-turns/);
+  assert.match(html, /\.layout\.inspector-open/);
+  assert.match(html, /@media \(min-width: 1200px\)/);
+  assert.match(html, /--inspector-accent/);
+  assert.match(html, /function captureViewport/);
+  assert.match(html, /restoreViewport\(previousViewport\)/);
+  assert.match(html, /requestAnimationFrame\(revealSelectedSession\)/);
   assert.match(html, /document\.addEventListener\('pointerdown'/);
   assert.match(html, /function appendResponse/);
   assert.match(html, /--project-accent/);
@@ -127,7 +133,9 @@ test("full map keeps one project canvas with expandable voyages", () => {
   assert.match(html, /routeClass\(routeIndexById\.get\(session\.id\) \?\? -1\)/);
   assert.match(html, /const nodeCardWidth = 240/);
   assert.match(html, /const nodeCardHeight = 120/);
-  assert.match(html, /const nodeVerticalPitch = 216/);
+  assert.match(html, /const collapsedVoyagePitch = 136/);
+  assert.match(html, /const expandedVoyageGap = 112/);
+  assert.match(html, /const nodeVerticalPitch = 232/);
   assert.match(html, /const nodeHorizontalPitch = 324/);
   assert.match(html, /const voyageStartX = 92/);
   assert.match(html, /const minimumReadableScale = \.86/);

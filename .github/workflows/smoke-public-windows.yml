@@ -6,7 +6,7 @@ on:
       tag:
         description: Published release tag to verify
         required: true
-        default: alpha-v0.3.9
+        default: alpha-v0.3.10
 
 permissions:
   contents: read

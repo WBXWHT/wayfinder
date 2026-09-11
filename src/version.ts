@@ -1,1 +1,1 @@
-export const WAYFINDER_VERSION = "0.3.9";
+export const WAYFINDER_VERSION = "0.3.10";

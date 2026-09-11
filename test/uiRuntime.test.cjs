@@ -848,9 +848,14 @@ test(
             id: sourceTree.id + '-second',
             title: 'Second voyage'
           };
+          const thirdTree = {
+            ...sourceTree,
+            id: sourceTree.id + '-third',
+            title: 'Third voyage'
+          };
           const combinedForest = {
             ...forest,
-            trees: [sourceTree, secondTree]
+            trees: [sourceTree, secondTree, thirdTree]
           };
           window.dispatchEvent(new MessageEvent('message', {
             data: {
@@ -868,7 +873,10 @@ test(
             pagers: document.querySelectorAll(
               '#projectPrevious, #projectNext'
             ).length,
-            title: document.querySelector('#canvasTitle')?.textContent
+            title: document.querySelector('#canvasTitle')?.textContent,
+            voyageStarts: [...document.querySelectorAll('.tree-card')]
+              .map((card) => card.__data__.node.screenY)
+              .sort((a, b) => a - b)
           };
           document.querySelector('.tree-card.collapsed')?.dispatchEvent(
             new MouseEvent('click', { bubbles: true })
@@ -893,12 +901,18 @@ test(
           return { before, after, secondTreeId: secondTree.id };
         })()`
       );
-      assert.equal(voyageOverview.before.treeCards, 2);
-      assert.equal(voyageOverview.before.collapsed, 1);
+      assert.equal(voyageOverview.before.treeCards, 3);
+      assert.equal(voyageOverview.before.collapsed, 2);
       assert.equal(voyageOverview.before.pagers, 0);
       assert.equal(voyageOverview.before.title, "ui-test");
+      assert.ok(
+        voyageOverview.before.voyageStarts.every(
+          (value, index, values) =>
+            index === 0 || value - values[index - 1] >= 136
+        )
+      );
       assert.equal(voyageOverview.after.activeTreeId, voyageOverview.secondTreeId);
-      assert.equal(voyageOverview.after.collapsed, 1);
+      assert.equal(voyageOverview.after.collapsed, 2);
       assert.equal(voyageOverview.after.sessionCards, 9);
 
       const gestures = JSON.parse(await evaluate(
@@ -1572,6 +1586,162 @@ test(
       assert.equal(desktopCompanion.hasLegacyHookCopy, false);
       assert.equal(desktopCompanion.hasLegacyHostButtons, false);
 
+      const desktopViewportBeforeInspector = await evaluateJson(
+        cdp,
+        `(() => {
+          const transform = d3.zoomTransform(document.querySelector('#graph'));
+          return { x: transform.x, y: transform.y, k: transform.k };
+        })()`
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression: `(() => {
+          const viewport = document.querySelector('#graph').getBoundingClientRect();
+          const target = [...document.querySelectorAll('.session-card')]
+            .filter((card) => {
+              const rect = card.getBoundingClientRect();
+              return (
+                rect.right > viewport.left &&
+                rect.left < viewport.right &&
+                rect.bottom > viewport.top &&
+                rect.top < viewport.bottom
+              );
+            })
+            .sort(
+              (left, right) =>
+                right.getBoundingClientRect().bottom -
+                left.getBoundingClientRect().bottom
+            )[0];
+          target?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        })()`
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelector('#inspector')?.classList.contains('open')"
+      );
+      const desktopInspector = await evaluateJson(
+        cdp,
+        `(() => {
+          const panel = document.querySelector('#inspector');
+          const graph = document.querySelector('#graph');
+          const selected = document.querySelector('.session-card.selected');
+          const panelRect = panel?.getBoundingClientRect();
+          const graphRect = graph?.getBoundingClientRect();
+          const selectedRect = selected?.getBoundingClientRect();
+          const selectedStyle = selected
+            ? getComputedStyle(selected)
+            : undefined;
+          const expectedAccent = selected?.classList.contains('good')
+            ? 'var(--good)'
+            : selected?.classList.contains('bad')
+              ? 'var(--coral)'
+              : selectedStyle?.getPropertyValue('--voyage-accent').trim();
+          return {
+            docked: document.querySelector('.layout')
+              ?.classList.contains('inspector-open'),
+            width: panelRect?.width,
+            overlap: graphRect && panelRect
+              ? graphRect.right - panelRect.left
+              : Infinity,
+            selectedVisible: Boolean(
+              graphRect &&
+              selectedRect &&
+              selectedRect.left >= graphRect.left &&
+              selectedRect.right <= graphRect.right &&
+              selectedRect.top >= graphRect.top &&
+              selectedRect.bottom <= graphRect.bottom
+            ),
+            titleSize: Number.parseFloat(
+              getComputedStyle(
+                document.querySelector('.detail-title')
+              ).fontSize
+            ),
+            accent: panel?.style.getPropertyValue('--inspector-accent'),
+            expectedAccent
+          };
+        })()`
+      );
+      assert.equal(desktopInspector.docked, true);
+      assert.ok(desktopInspector.width <= 336);
+      assert.ok(desktopInspector.overlap <= 0.5);
+      assert.equal(desktopInspector.selectedVisible, true);
+      assert.ok(desktopInspector.titleSize <= 14);
+      assert.equal(desktopInspector.accent, desktopInspector.expectedAccent);
+      await cdp.send("Runtime.evaluate", {
+        expression: "document.querySelector('.inspector-close')?.click()"
+      });
+      await waitForExpression(
+        cdp,
+        "!document.querySelector('.layout')?.classList.contains('inspector-open')"
+      );
+      const desktopViewportAfterInspector = await evaluateJson(
+        cdp,
+        `(() => {
+          const transform = d3.zoomTransform(document.querySelector('#graph'));
+          return { x: transform.x, y: transform.y, k: transform.k };
+        })()`
+      );
+      for (const key of ["x", "y", "k"]) {
+        assert.ok(
+          Math.abs(
+            desktopViewportAfterInspector[key] -
+            desktopViewportBeforeInspector[key]
+          ) < .001,
+          JSON.stringify({
+            key,
+            before: desktopViewportBeforeInspector,
+            after: desktopViewportAfterInspector
+          })
+        );
+      }
+
+      await cdp.send("Emulation.setDeviceMetricsOverride", {
+        width: 1080,
+        height: 720,
+        deviceScaleFactor: 1,
+        mobile: false
+      });
+      await delay(120);
+      await cdp.send("Runtime.evaluate", {
+        expression: `document.querySelector('.session-card')?.dispatchEvent(
+          new MouseEvent('click', { bubbles: true })
+        )`
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelector('#inspector')?.classList.contains('open')"
+      );
+      const mediumInspector = await evaluateJson(
+        cdp,
+        `(() => {
+          const layout = document.querySelector('.layout');
+          const graph = document.querySelector('#graph').getBoundingClientRect();
+          const panel = document.querySelector('#inspector').getBoundingClientRect();
+          return {
+            columns: getComputedStyle(layout).gridTemplateColumns
+              .split(' ').length,
+            graphWidth: graph.width,
+            verticalOverlap: graph.bottom - panel.top
+          };
+        })()`
+      );
+      assert.equal(mediumInspector.columns, 1);
+      assert.ok(mediumInspector.graphWidth >= 800);
+      assert.ok(mediumInspector.verticalOverlap <= 0.5);
+      await cdp.send("Runtime.evaluate", {
+        expression: "document.querySelector('.inspector-close')?.click()"
+      });
+      await waitForExpression(
+        cdp,
+        "!document.querySelector('.layout')?.classList.contains('inspector-open')"
+      );
+      await cdp.send("Emulation.setDeviceMetricsOverride", {
+        width: 1440,
+        height: 900,
+        deviceScaleFactor: 1,
+        mobile: false
+      });
+      await delay(120);
+
       await cdp.send("Runtime.evaluate", {
         expression: `(() => {
           const graph = document.querySelector('#graph');
@@ -1931,7 +2101,22 @@ test(
       );
       await cdp.send("Runtime.evaluate", {
         expression: `(() => {
-          const target = document.querySelector('.session-card');
+          const viewport = document.querySelector('#graph').getBoundingClientRect();
+          const target = [...document.querySelectorAll('.session-card')]
+            .filter((card) => {
+              const rect = card.getBoundingClientRect();
+              return (
+                rect.right > viewport.left &&
+                rect.left < viewport.right &&
+                rect.bottom > viewport.top &&
+                rect.top < viewport.bottom
+              );
+            })
+            .sort(
+              (left, right) =>
+                right.getBoundingClientRect().bottom -
+                left.getBoundingClientRect().bottom
+            )[0];
           const sessionId = target?.dataset.sessionId;
           const session = forest.trees
             .flatMap((tree) => tree.sessions)
@@ -1958,15 +2143,32 @@ test(
         cdp,
         "document.querySelector('#inspector')?.classList.contains('open')"
       );
+      await waitForExpression(
+        cdp,
+        `(() => {
+          const panel = document.querySelector('#inspector')
+            ?.getBoundingClientRect();
+          const selected = document.querySelector('.session-card.selected')
+            ?.getBoundingClientRect();
+          return Boolean(panel && selected && selected.bottom <= panel.top);
+        })()`
+      );
       const inspectorLayout = await evaluateJson(
         cdp,
         `(() => {
           const close = document.querySelector('.inspector-close')
             ?.getBoundingClientRect();
           const title = document.querySelector('.detail-title');
+          const panel = document.querySelector('#inspector')
+            ?.getBoundingClientRect();
+          const selected = document.querySelector('.session-card.selected')
+            ?.getBoundingClientRect();
           return {
             closeLeft: close?.left,
             closeRight: close?.right,
+            selectedAbovePanel: Boolean(
+              panel && selected && selected.bottom <= panel.top
+            ),
             titleFits: title
               ? title.scrollWidth <= title.clientWidth
               : false
@@ -1975,6 +2177,7 @@ test(
       );
       assert.ok(inspectorLayout.closeLeft >= 0);
       assert.ok(inspectorLayout.closeRight <= 320);
+      assert.equal(inspectorLayout.selectedAbovePanel, true);
       assert.equal(inspectorLayout.titleFits, true);
       assert.equal(
         await evaluate(cdp, "document.querySelector('.detail-source')?.textContent"),

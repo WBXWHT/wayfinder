@@ -253,7 +253,13 @@ export class ExperienceMapPanel implements vscode.Disposable {
       max-width: 100%;
       min-width: 0;
       min-height: 0;
+      --inspector-width: clamp(286px, 25vw, 336px);
       grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr);
+      background: var(--ocean);
+    }
+    .layout.inspector-open {
+      grid-template-rows: minmax(0, 1fr) auto;
     }
     .canvas-shell { position: relative; min-width: 0; min-height: 0; overflow: hidden; contain: layout paint; background: var(--ocean); }
     .canvas-head {
@@ -551,63 +557,91 @@ export class ExperienceMapPanel implements vscode.Disposable {
       text-anchor: middle;
     }
     .inspector {
-      position: absolute;
+      --inspector-accent: var(--project-accent);
+      position: relative;
       z-index: 5;
-      bottom: 16px;
-      left: 50%;
       display: none;
-      width: min(720px, calc(100% - 32px));
-      max-height: min(62vh, 560px);
+      width: min(560px, calc(100% - 24px));
+      max-height: min(42vh, 360px);
       grid-template-rows: auto minmax(0, 1fr);
+      align-self: end;
+      justify-self: center;
       overflow: hidden;
-      border: 2px solid white;
+      margin: 0 12px 12px;
+      border: 2px solid color-mix(
+        in srgb,
+        var(--inspector-accent) 46%,
+        white
+      );
       border-radius: 8px;
       color: var(--ink);
-      background: var(--paper);
+      background: color-mix(
+        in srgb,
+        var(--inspector-accent) 6%,
+        var(--paper)
+      );
       box-shadow:
-        3px 5px 0 var(--sticker-shadow),
-        0 12px 34px rgba(22, 69, 82, .16);
-      transform: translateX(-50%);
+        3px 5px 0 color-mix(
+          in srgb,
+          var(--inspector-accent) 22%,
+          transparent
+        ),
+        0 10px 28px rgba(22, 69, 82, .14);
+      transform: none;
     }
     .inspector.open {
       display: grid;
-      animation: inspector-in 170ms cubic-bezier(.2, .8, .2, 1);
+      animation: inspector-sheet-in 170ms cubic-bezier(.2, .8, .2, 1);
     }
-    .inspector.good { --project-accent: var(--good); }
-    .inspector.bad { --project-accent: var(--coral); }
     .inspector-head {
       position: sticky;
       top: 0;
       z-index: 1;
       display: grid;
       min-width: 0;
-      grid-template-columns: 5px minmax(0, 1fr) 28px;
-      gap: 11px;
+      grid-template-columns: 4px minmax(0, 1fr) 24px;
+      gap: 9px;
       align-items: start;
       overflow: hidden;
-      padding: 16px 14px 12px;
-      border-bottom: 1px solid color-mix(in srgb, var(--project-accent) 22%, transparent);
-      background: color-mix(in srgb, var(--project-accent) 7%, var(--paper));
+      padding: 12px 12px 10px;
+      border-bottom: 1px solid color-mix(
+        in srgb,
+        var(--inspector-accent) 24%,
+        transparent
+      );
+      background: color-mix(
+        in srgb,
+        var(--inspector-accent) 13%,
+        var(--paper)
+      );
     }
     .inspector-head::before {
       grid-row: 1 / span 3;
       align-self: stretch;
       border-radius: 3px;
-      background: var(--project-accent);
+      background: var(--inspector-accent);
       content: "";
     }
     .inspector-copy { min-width: 0; overflow: hidden; }
     .inspector-close {
       display: grid;
-      width: 26px;
-      height: 26px;
+      width: 24px;
+      height: 24px;
       padding: 0;
       place-items: center;
-      border: 2px solid white;
+      border: 1px solid color-mix(
+        in srgb,
+        var(--inspector-accent) 28%,
+        white
+      );
       border-radius: 50%;
       color: var(--ink);
       background: var(--paper);
-      box-shadow: 1px 2px 0 var(--sticker-shadow);
+      box-shadow: 1px 2px 0 color-mix(
+        in srgb,
+        var(--inspector-accent) 18%,
+        transparent
+      );
       cursor: pointer;
       justify-self: end;
     }
@@ -615,17 +649,17 @@ export class ExperienceMapPanel implements vscode.Disposable {
     .inspector-turns {
       min-height: 0;
       overflow: auto;
-      padding: 6px 14px 16px;
+      padding: 4px 12px 12px;
       scrollbar-width: thin;
-      scrollbar-color: color-mix(in srgb, var(--project-accent) 55%, transparent) transparent;
+      scrollbar-color: color-mix(in srgb, var(--inspector-accent) 55%, transparent) transparent;
     }
-    .detail-kicker { color: color-mix(in srgb, var(--project-accent) 78%, var(--ink)); font-size: 9px; font-weight: 700; }
-    .detail-title { margin: 3px 0 0; overflow-wrap: anywhere; outline: 0; font-size: 15px; font-weight: 750; line-height: 1.4; }
-    .detail-session-meta { margin-top: 4px; color: var(--sticker-muted); font-size: 9px; }
-    .detail-turn { padding: 12px 0; border-bottom: 1px solid color-mix(in srgb, var(--sticker-shadow) 30%, transparent); }
+    .detail-kicker { color: color-mix(in srgb, var(--inspector-accent) 78%, var(--ink)); font-size: 9px; font-weight: 700; }
+    .detail-title { margin: 2px 0 0; overflow-wrap: anywhere; outline: 0; font-size: 14px; font-weight: 750; line-height: 1.35; }
+    .detail-session-meta { margin-top: 3px; color: var(--sticker-muted); font-size: 9px; }
+    .detail-turn { padding: 10px 0; border-bottom: 1px solid color-mix(in srgb, var(--inspector-accent) 16%, transparent); }
     .detail-turn:last-child { border-bottom: 0; }
     .detail-turn-head { display: grid; grid-template-columns: 7px minmax(0, 1fr) auto; gap: 7px; align-items: start; }
-    .detail-turn-dot { width: 7px; height: 7px; margin-top: 4px; border-radius: 50%; background: var(--muted); opacity: .65; }
+    .detail-turn-dot { width: 7px; height: 7px; margin-top: 4px; border-radius: 50%; background: var(--inspector-accent); opacity: .72; }
     .detail-turn.good .detail-turn-dot { background: var(--good); opacity: 1; }
     .detail-turn.bad .detail-turn-dot { background: var(--bad); opacity: 1; }
     .detail-turn-title { font-size: 11px; font-weight: 600; line-height: 1.45; }
@@ -634,8 +668,8 @@ export class ExperienceMapPanel implements vscode.Disposable {
     .detail-text { margin: 8px 0 0 14px; overflow-wrap: anywhere; color: var(--ink); font-size: 10px; line-height: 1.6; white-space: pre-wrap; }
     .detail-list { display: grid; gap: 5px; margin: 9px 0 0 14px; padding: 0; list-style: none; color: var(--muted); font-size: 10px; line-height: 1.5; }
     .detail-list li { position: relative; padding-left: 12px; }
-    .detail-list li::before { position: absolute; top: 0; left: 0; color: var(--project-accent); content: "•"; }
-    .detail-note { margin: 9px 0 0 14px; padding: 8px 10px; border-left: 3px solid var(--project-accent); border-radius: 0 5px 5px 0; background: color-mix(in srgb, var(--project-accent) 7%, transparent); font-size: 10px; line-height: 1.55; white-space: pre-wrap; }
+    .detail-list li::before { position: absolute; top: 0; left: 0; color: var(--inspector-accent); content: "•"; }
+    .detail-note { margin: 9px 0 0 14px; padding: 8px 10px; border-left: 3px solid var(--inspector-accent); border-radius: 0 5px 5px 0; background: color-mix(in srgb, var(--inspector-accent) 9%, transparent); font-size: 10px; line-height: 1.55; white-space: pre-wrap; }
     .detail-files { display: grid; gap: 4px; margin: 8px 0 0 14px; }
     .detail-file { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; color: var(--muted); font-size: 9px; }
     .detail-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -643,7 +677,8 @@ export class ExperienceMapPanel implements vscode.Disposable {
     .detail-file-add { color: var(--good); }
     .detail-file-delete { color: var(--bad); }
     .detail-actions { display: flex; justify-content: flex-end; gap: 2px; margin-top: 7px; }
-    @keyframes inspector-in { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+    @keyframes inspector-sheet-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes inspector-dock-in { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
     @keyframes channel-reveal { from { opacity: 0; } to { opacity: 1; } }
     @keyframes bud-breathe {
       0%, 100% { opacity: .8; r: 16px; }
@@ -654,13 +689,30 @@ export class ExperienceMapPanel implements vscode.Disposable {
       50% { transform: translateY(-1.5px); }
     }
     .empty-graph { display: grid; min-height: 100%; place-content: center; color: var(--muted); font-size: 11px; }
+    @media (min-width: 1200px) {
+      .layout.inspector-open {
+        grid-template-columns: minmax(0, 1fr) var(--inspector-width);
+        grid-template-rows: minmax(0, 1fr);
+      }
+      .inspector {
+        grid-column: 2;
+        grid-row: 1;
+        width: auto;
+        max-height: min(72vh, 620px);
+        margin: 12px 12px 12px 0;
+        align-self: center;
+        transform: none;
+      }
+      .inspector.open {
+        animation-name: inspector-dock-in;
+      }
+    }
     @media (max-width: 860px) {
       .topbar { padding: 0 12px; }
-      .inspector { width: calc(100% - 24px); }
     }
     @media (max-width: 520px) {
       .brand { display: none; }
-      .inspector { bottom: 8px; width: calc(100% - 16px); max-height: 72vh; }
+      .inspector { width: calc(100% - 16px); max-height: 42vh; margin: 0 8px 8px; }
     }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
@@ -705,6 +757,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
     const wayfinderApi = acquireVsCodeApi();
     const graph = d3.select('#graph');
     const canvasShell = d3.select('.canvas-shell');
+    const layout = document.querySelector('.layout');
     const inspector = document.getElementById('inspector');
     const canvasTitle = document.getElementById('canvasTitle');
     const canvasMeta = document.getElementById('canvasMeta');
@@ -718,6 +771,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
     let zoomBehavior;
     let viewportSignature = '';
     let graphBounds = null;
+    let viewportBeforeInspector = null;
     let nativeGestureActive = false;
     let nativeGestureStartScale = 1;
     let nativeGesturePreviousPoint = null;
@@ -729,8 +783,9 @@ export class ExperienceMapPanel implements vscode.Disposable {
     const startCardTop = 12;
     const collapsedCardWidth = 190;
     const collapsedCardHeight = 58;
-    const collapsedVoyagePitch = 92;
-    const nodeVerticalPitch = 216;
+    const collapsedVoyagePitch = 136;
+    const expandedVoyageGap = 112;
+    const nodeVerticalPitch = 232;
     const nodeHorizontalPitch = 324;
     const voyageStartX = 92;
     const mapStartX = 184;
@@ -893,6 +948,26 @@ export class ExperienceMapPanel implements vscode.Disposable {
       }
     }
 
+    function captureViewport() {
+      if (!zoomBehavior) return null;
+      const current = d3.zoomTransform(graph.node());
+      return {
+        x: current.x,
+        y: current.y,
+        scale: current.k
+      };
+    }
+
+    function restoreViewport(snapshot) {
+      if (!snapshot || !zoomBehavior) return;
+      graph.call(
+        zoomBehavior.transform,
+        d3.zoomIdentity
+          .translate(snapshot.x, snapshot.y)
+          .scale(snapshot.scale)
+      );
+    }
+
     function renderGraph() {
       const previousTransform = d3.zoomTransform(graph.node());
       if (!forest.trees.some((tree) => tree.id === activeTreeId)) {
@@ -1032,7 +1107,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
         });
         offsetY += expanded
           ? Math.max(
-              maxX - minX + nodeCardHeight + 70,
+              maxX - minX + nodeCardHeight + expandedVoyageGap,
               collapsedVoyagePitch * 2
             )
           : collapsedVoyagePitch;
@@ -1900,13 +1975,39 @@ export class ExperienceMapPanel implements vscode.Disposable {
     }
 
     function selectSession(session, nodeById) {
+      const inspectorWasOpen = inspector.classList.contains('open');
+      if (!inspectorWasOpen) {
+        viewportBeforeInspector = captureViewport();
+      }
       selectedSessionId = session.id;
       lastFocusedSessionId = session.id;
-      renderGraph();
       showInspector(session, nodeById, true);
+      if (!inspectorWasOpen) {
+        viewportSignature = '';
+      }
+      renderGraph();
+      requestAnimationFrame(revealSelectedSession);
+    }
+
+    function revealSelectedSession() {
+      const selectedCard = document.querySelector('.session-card.selected');
+      const selectedNode = selectedCard?.__data__?.node;
+      if (selectedNode) {
+        revealCardInViewport(selectedNode);
+      }
     }
 
     function showInspector(session, nodeById, focusTitle) {
+      const selectedTree = forest.trees.find((tree) =>
+        tree.sessions.some((candidate) => candidate.id === session.id)
+      );
+      const accent = session.verdict === 'success'
+        ? 'var(--good)'
+        : session.verdict === 'failure'
+          ? 'var(--coral)'
+          : projectAccentFor(selectedTree?.id || activeTreeId);
+      inspector.style.setProperty('--inspector-accent', accent);
+      layout.classList.add('inspector-open');
       inspector.classList.add('open');
       inspector.classList.toggle('good', session.verdict === 'success');
       inspector.classList.toggle('bad', session.verdict === 'failure');
@@ -1918,7 +2019,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
       const close = actionButton(
         'close',
         '关闭详情',
-        () => showEmptyInspector(true)
+        () => closeInspector(true)
       );
       close.classList.add('inspector-close');
       const kicker = document.createElement('div');
@@ -2137,10 +2238,13 @@ export class ExperienceMapPanel implements vscode.Disposable {
       return section;
     }
 
-    function showEmptyInspector(restoreFocus = false) {
+    function showEmptyInspector() {
       selectedSessionId = '';
+      viewportBeforeInspector = null;
+      layout.classList.remove('inspector-open');
       inspector.classList.remove('open');
       inspector.classList.remove('good', 'bad');
+      inspector.style.removeProperty('--inspector-accent');
       inspector.replaceChildren();
       graphLayer?.selectAll('.forest-node, .forest-card')
         .classed('selected', false)
@@ -2150,14 +2254,23 @@ export class ExperienceMapPanel implements vscode.Disposable {
         .classed('dimmed', false);
       graphLayer?.selectAll('.forest-card[data-session-id]')
         .attr('aria-pressed', 'false');
-      if (restoreFocus && lastFocusedSessionId) {
-        const target = document.querySelector(
-          '[data-session-id="' + lastFocusedSessionId + '"]'
-        );
-        target?.focus();
-      } else if (!restoreFocus) {
-        lastFocusedSessionId = '';
+      lastFocusedSessionId = '';
+    }
+
+    function closeInspector(restoreFocus = false) {
+      const focusSessionId = restoreFocus ? lastFocusedSessionId : '';
+      const previousViewport = viewportBeforeInspector;
+      showEmptyInspector();
+      if (state) {
+        viewportSignature = '';
+        renderGraph();
       }
+      if (focusSessionId) {
+        document.querySelector(
+          '[data-session-id="' + focusSessionId + '"]'
+        )?.focus();
+      }
+      restoreViewport(previousViewport);
     }
 
     function appendReef(selection, compact) {
@@ -2453,18 +2566,20 @@ export class ExperienceMapPanel implements vscode.Disposable {
         ' 条航程 · ' +
         forest.nodeCount +
         ' 轮';
-      renderGraph();
       const selected = forest.trees
         .flatMap((tree) => tree.sessions)
         .find((session) => session.id === selectedSessionId);
+      if (!selected && inspector.classList.contains('open')) {
+        showEmptyInspector();
+      }
+      renderGraph();
       if (selected) {
         showInspector(
           selected,
           new Map(state.nodes.map((node) => [node.id, node])),
           focusWasTitle
         );
-      } else if (inspector.classList.contains('open')) {
-        showEmptyInspector();
+        requestAnimationFrame(revealSelectedSession);
       }
       if (focusKey) {
         const target = [...document.querySelectorAll('[data-focus-key]')]
@@ -2474,7 +2589,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
     });
     window.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && inspector.classList.contains('open')) {
-        showEmptyInspector(true);
+        closeInspector(true);
       }
     });
     document.addEventListener('pointerdown', (event) => {
@@ -2485,10 +2600,14 @@ export class ExperienceMapPanel implements vscode.Disposable {
       ) {
         return;
       }
-      showEmptyInspector();
+      closeInspector();
     });
     window.addEventListener('resize', () => {
-      if (state) renderGraph();
+      if (!state) return;
+      renderGraph();
+      if (selectedSessionId) {
+        requestAnimationFrame(revealSelectedSession);
+      }
     });
     send('ready');
   </script>
