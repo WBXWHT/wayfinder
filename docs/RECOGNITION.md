@@ -26,6 +26,8 @@ platform awards carry more weight than broad directory counts.
 - Value: independently maintained macOS software list with more than 110K
   GitHub stars.
 - Current status: pull request open and mergeable; maintainer review pending.
+  Its description and four localized entries point to
+  `StayCurious-Xuan/wayfinder`.
 
 ## Supporting Exposure
 
@@ -77,6 +79,11 @@ point. Do not cite it as an award. A future launch is justified only after a
 substantial product iteration and a prepared user community; Product Hunt
 permits relaunch requests for significant updates, but approval and ranking
 remain external decisions.
+
+The current listing uses three synthetic public-demo screenshots at
+2560x1280 or 2560x1440. The GitHub release and both official GitHub Show and
+Tell posts use the same public imagery and link to the current username and
+0.3.10 release.
 
 ## Resume Rule
 
