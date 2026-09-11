@@ -2158,6 +2158,9 @@ test(
               productImageSource: document.querySelector(
                 '.product-visual img'
               ).getAttribute('src'),
+              productImageWidth: document.querySelector(
+                '.product-visual img'
+              ).getBoundingClientRect().width,
               downloads,
               storyHeights: [...document.querySelectorAll(
                 '.story-section'
@@ -2203,6 +2206,10 @@ test(
           );
           assert.ok(
             layout.heroVoyage.width >= layout.width * .5,
+            JSON.stringify({ viewport, layout })
+          );
+          assert.ok(
+            layout.productImageWidth >= layout.width * .65,
             JSON.stringify({ viewport, layout })
           );
         }
