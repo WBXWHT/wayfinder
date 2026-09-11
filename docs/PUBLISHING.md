@@ -15,6 +15,10 @@ Wayfinder is distributed as a desktop application for macOS and Windows.
 | Issues | https://github.com/StayCurious-Xuan/wayfinder/issues | Public support channel |
 | Privacy | https://github.com/StayCurious-Xuan/wayfinder/blob/main/PRIVACY.md | Local-data policy |
 
+Public screenshots must use synthetic demo data rather than a real
+`~/.wayfinder` workspace. The current reusable assets live under
+`docs/assets/public/` and are at least 2560 pixels wide.
+
 The website, README, install guide, and future release notes must first explain
 Wayfinder's value across AI-assisted conversations, research, writing, design,
 coding, and other project work. The current early-access flow is then:
@@ -69,3 +73,11 @@ hashes and user downloads remain reproducible.
 External showcase and package-catalog submissions are tracked in
 [RECOGNITION.md](RECOGNITION.md). Pending submissions must not be described as
 awards or accepted listings.
+
+## GitHub Identity
+
+The project owner is `StayCurious-Xuan`; `WBXWHT` is the retired username.
+GitHub redirects old repository URLs, but it does not redirect the old profile
+URL or GitHub Pages sites. Keep public links on the current username. The Tauri
+bundle identifier `io.github.WBXWHT.wayfinder` remains unchanged because it is
+an installed-application identity, not a public profile link.

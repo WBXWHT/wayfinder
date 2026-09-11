@@ -31,11 +31,23 @@ https://wayfinder-ai.pages.dev
 ## Listing Status
 
 The public listing uses the standalone, cross-platform desktop positioning.
-Its launch name is `Wayfinder AI`, its source link is public, and its current
-black Wayfinder mark is used as the launch thumbnail. The gallery includes the
-unified project map, waypoint evidence sheet, and live website hero. The maker
-comment and forum thread use the broader AI collaboration positioning while
-stating that Codex and Claude Code are the current early-access collectors.
+Its launch name is `Wayfinder AI`, its source link points to
+`StayCurious-Xuan/wayfinder`, and its current black Wayfinder mark is used as
+the launch thumbnail. The gallery uses only simulated public-demo data and
+contains three high-resolution images: a 2560x1280 website hero, a 2560x1440
+voyage overview, and a 2560x1440 branch close-up. The maker comment and forum
+thread use the broader AI collaboration positioning while stating that Codex
+and Claude Code are the current early-access collectors.
+
+## Public Media Assets
+
+- `docs/assets/public/wayfinder-social-preview-2k.png`
+- `docs/assets/public/wayfinder-voyage-overview-2k.png`
+- `docs/assets/public/wayfinder-voyage-branch-2k.png`
+
+Do not upload screenshots from a real `~/.wayfinder` workspace. Public
+screenshots must use the synthetic `登录回跳稳定性` example and be at least
+2560 pixels wide.
 
 ## Maker Comment
 
