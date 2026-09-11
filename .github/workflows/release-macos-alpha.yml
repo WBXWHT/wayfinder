@@ -32,6 +32,8 @@ jobs:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
         with:
           result-encoding: string
+          retries: 3
+          retry-exempt-status-codes: 400,401,403,404,422
           script: |
             const resolveTagCommit = async (tag) => {
               try {
@@ -309,6 +311,8 @@ jobs:
           RELEASE_ID: ${{ needs.prepare.outputs.release_id }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
         with:
+          retries: 3
+          retry-exempt-status-codes: 400,401,403,404,422
           script: |
             const fs = require("fs");
             const path = require("path");
