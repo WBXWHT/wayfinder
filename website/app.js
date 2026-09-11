@@ -173,7 +173,7 @@ function draw(time) {
 }
 
 function drawMapSurface(time) {
-  const coastBase = width <= 820 ? width * .86 : width * .5;
+  const coastBase = width <= 900 ? width * .86 : width * .5;
   const coastX = (y) =>
     coastBase + Math.sin(y / 142) * 10 + Math.sin(y / 57) * 4;
   context.fillStyle = "#e8f6fa";

@@ -13,11 +13,19 @@ Wayfinder is designed for AI collaboration across coding, research, writing,
 design, and other project work. The current early-access collectors support
 Codex and Claude Code.
 
-[Download Wayfinder](https://github.com/StayCurious-Xuan/wayfinder/releases) ·
+[![CI](https://github.com/StayCurious-Xuan/wayfinder/actions/workflows/ci.yml/badge.svg)](https://github.com/StayCurious-Xuan/wayfinder/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/StayCurious-Xuan/wayfinder?include_prereleases&label=release)](https://github.com/StayCurious-Xuan/wayfinder/releases)
+[![License](https://img.shields.io/github/license/StayCurious-Xuan/wayfinder)](LICENSE)
+
+[Download Wayfinder](https://github.com/StayCurious-Xuan/wayfinder/releases/tag/alpha-v0.3.10) ·
 [Website](https://wayfinder-ai.pages.dev) ·
 [Install guide](docs/INSTALL.md) ·
+[Changelog](CHANGELOG.md) ·
+[Security](SECURITY.md) ·
 [Privacy](PRIVACY.md) ·
 [Report an issue](https://github.com/StayCurious-Xuan/wayfinder/issues)
+
+**No account. No telemetry. No cloud sync.**
 
 ![Wayfinder showing a simulated AI collaboration voyage with failed and successful branches](docs/assets/public/wayfinder-voyage-overview-2k.png)
 
@@ -49,10 +57,11 @@ source, and Wayfinder does not invent missing history or historical diffs.
 
 Wayfinder early access is available for:
 
-| Platform | Build |
-| --- | --- |
-| macOS | Apple Silicon and Intel |
-| Windows | x64 |
+| Platform | Build | Download |
+| --- | --- | --- |
+| macOS | Apple Silicon | [DMG](https://github.com/StayCurious-Xuan/wayfinder/releases/download/alpha-v0.3.10/Wayfinder-Alpha-0.3.10-macOS-aarch64.dmg) |
+| macOS | Intel | [DMG](https://github.com/StayCurious-Xuan/wayfinder/releases/download/alpha-v0.3.10/Wayfinder-Alpha-0.3.10-macOS-x86_64.dmg) |
+| Windows | x64 | [EXE](https://github.com/StayCurious-Xuan/wayfinder/releases/download/alpha-v0.3.10/Wayfinder-Alpha-0.3.10-Windows-x86_64.exe) |
 
 Download the latest installers and checksums from
 [GitHub Releases](https://github.com/StayCurious-Xuan/wayfinder/releases). The current
@@ -91,3 +100,7 @@ npm run companion:build
 
 The test suite covers collection, voyage grouping, the desktop renderer,
 trackpad pan and zoom, detail inspection, and narrow-screen behavior.
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Public
+copy and screenshot rules live in
+[docs/PUBLIC-PRESENTATION.md](docs/PUBLIC-PRESENTATION.md).

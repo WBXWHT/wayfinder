@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://wayfinder-ai.pages.dev/sitemap.xml

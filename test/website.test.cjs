@@ -103,6 +103,12 @@ test("website scripts parse and visual CSS avoids decorative gradients", () => {
   assert.match(script, /function voyageFrame\(elapsed\)/);
   assert.match(script, /getPointAtLength/);
   assert.match(styles, /animation: final-route-move 2\.667s linear infinite/);
+  assert.match(script, /width <= 900 \? width \* \.86 : width \* \.5/);
+  assert.match(styles, /@media \(max-width: 900px\)/);
+  assert.match(
+    styles,
+    /@media \(min-width: 560px\) and \(max-width: 900px\) and \(max-height: 600px\)/
+  );
   assert.match(styles, /\.hero-route-rail\s*\{[\s\S]*?stroke-width: 31/);
   assert.match(styles, /\.hero-route\s*\{[\s\S]*?stroke-width: 21/);
   assert.match(styles, /\.hero-vessel-bob\s*\{/);

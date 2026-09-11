@@ -11,7 +11,8 @@ test("public screenshots use simulated data at 2K or higher", () => {
   const images = [
     "docs/assets/public/wayfinder-social-preview-2k.png",
     "docs/assets/public/wayfinder-voyage-overview-2k.png",
-    "docs/assets/public/wayfinder-voyage-branch-2k.png"
+    "docs/assets/public/wayfinder-voyage-branch-2k.png",
+    "website/wayfinder-social-preview-2k.png"
   ];
 
   for (const image of images) {
@@ -26,6 +27,58 @@ test("repository overview uses the public 2K presentation assets", () => {
   const readme = read("README.md").toString("utf8");
   assert.match(readme, /wayfinder-social-preview-2k\.png/);
   assert.match(readme, /wayfinder-voyage-overview-2k\.png/);
+  assert.match(readme, /No account\. No telemetry\. No cloud sync\./);
+  assert.match(readme, /Wayfinder-Alpha-0\.3\.10-macOS-aarch64\.dmg/);
+  assert.match(readme, /Wayfinder-Alpha-0\.3\.10-macOS-x86_64\.dmg/);
+  assert.match(readme, /Wayfinder-Alpha-0\.3\.10-Windows-x86_64\.exe/);
   assert.doesNotMatch(readme, /wayfinder-product-hunt-map\.png/);
   assert.doesNotMatch(readme, /WBXWHT/);
+});
+
+test("website metadata states the product category and current platforms", () => {
+  const html = read("website/index.html").toString("utf8");
+  assert.match(html, /本地优先的 AI 协作航迹桌面应用/);
+  assert.match(html, /提供 macOS 与 Windows 版本/);
+  assert.match(
+    html,
+    /把 AI 协作中的目标、分叉与证据，整理成一张可回看的项目航海图/
+  );
+  assert.match(html, /照常使用 AI，Wayfinder 自动整理成图/);
+  assert.match(html, /rel="canonical" href="https:\/\/wayfinder-ai\.pages\.dev\/"/);
+  assert.match(html, /name="twitter:card" content="summary_large_image"/);
+  assert.match(html, /property="og:site_name" content="Wayfinder"/);
+  assert.match(html, /property="og:locale" content="zh_CN"/);
+  assert.match(html, /property="og:image:width" content="2560"/);
+  assert.match(html, /property="og:image:alt" content="Wayfinder [^"]+"/);
+  assert.match(html, /name="twitter:image:alt" content="Wayfinder [^"]+"/);
+  assert.match(html, /"@type": "SoftwareApplication"/);
+  assert.match(
+    read("website/robots.txt").toString("utf8"),
+    /Sitemap: https:\/\/wayfinder-ai\.pages\.dev\/sitemap\.xml/
+  );
+  assert.match(
+    read("website/sitemap.xml").toString("utf8"),
+    /https:\/\/wayfinder-ai\.pages\.dev\/privacy\.html/
+  );
+});
+
+test("contribution guide defines durable commit and privacy standards", () => {
+  const guide = read("CONTRIBUTING.md").toString("utf8");
+  assert.match(guide, /feat\(map\): preserve the selected voyage during refresh/);
+  assert.match(guide, /Why:[\s\S]*What:[\s\S]*Verification:/);
+  assert.ok(guide.includes("Never commit a real `~/.wayfinder` workspace"));
+});
+
+test("public support and release documents are explicit and current", () => {
+  const security = read("SECURITY.md").toString("utf8");
+  const changelog = read("CHANGELOG.md").toString("utf8");
+  const bugTemplate = read(
+    ".github/ISSUE_TEMPLATE/bug-report.yml"
+  ).toString("utf8");
+
+  assert.match(security, /private vulnerability reporting/);
+  assert.ok(security.includes("`~/.wayfinder`"));
+  assert.match(changelog, /## \[0\.3\.10\] - 2026-09-11/);
+  assert.match(changelog, /Windows x64 installer/);
+  assert.match(bugTemplate, /synthetic data/);
 });
