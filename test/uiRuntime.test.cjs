@@ -2845,6 +2845,8 @@ test(
       });
       for (const viewport of [
         { width: 320, height: 568 },
+        { width: 390, height: 844 },
+        { width: 430, height: 932 },
         { width: 812, height: 375 },
         { width: 1440, height: 900 }
       ]) {
@@ -2890,6 +2892,15 @@ test(
               heroHeight: getComputedStyle(
                 document.querySelector('.hero')
               ).height,
+              heroTitleFontSize: Number.parseFloat(getComputedStyle(
+                document.querySelector('#hero-title')
+              ).fontSize),
+              heroStatusDisplay: getComputedStyle(
+                document.querySelector('.hero-status')
+              ).display,
+              evidenceColumns: getComputedStyle(
+                document.querySelector('.evidence-lines > div')
+              ).gridTemplateColumns,
               downloadColumns: getComputedStyle(
                 document.querySelector('.hero-downloads')
               ).gridTemplateColumns,
@@ -2993,6 +3004,11 @@ test(
               download.right <= layout.width + .5
           )
         );
+        if (viewport.width <= 540) {
+          assert.ok(layout.heroTitleFontSize <= 42);
+          assert.equal(layout.heroStatusDisplay, "none");
+          assert.match(layout.evidenceColumns, /^56px /);
+        }
         if (viewport.width >= 1000) {
           assert.ok(
             Math.abs(layout.heroBottom - layout.height) <= .5,

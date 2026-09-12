@@ -58,8 +58,9 @@ metrics, visual identity, or category boundaries.
   and all supported download platforms.
 - Open Graph, Twitter card, canonical URL, and structured application metadata
   must agree with visible copy.
-- Check desktop, 320px portrait, and 844x390 short-landscape viewports for
-  overflow, clipping, and overlap before publishing.
+- Check desktop, 320px, 390px, and 430px portrait, plus 844x390
+  short-landscape viewports for overflow, clipping, and overlap before
+  publishing.
 - Do not add testimonials, usage counts, awards, or trust logos without a
   public source.
 

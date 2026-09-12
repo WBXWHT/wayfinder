@@ -1372,7 +1372,7 @@ footer a {
   }
 }
 
-@media (max-width: 420px) {
+@media (max-width: 540px) {
   .hero {
     min-height: 0;
     padding-bottom: 36px;
@@ -1419,6 +1419,17 @@ footer a {
     padding: 8px 4px;
   }
 
+  .evidence-lines > div {
+    grid-template-columns: 56px minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .route-sample {
+    width: 48px;
+  }
+}
+
+@media (max-width: 420px) {
   .fact-line {
     display: grid;
     gap: 7px;
