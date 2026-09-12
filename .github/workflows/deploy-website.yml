@@ -1,11 +1,16 @@
 name: Deploy Download Website
 on:
   workflow_dispatch:
-  push:
+  workflow_run:
+    workflows:
+      - Verify Wayfinder
+    types:
+      - completed
     branches:
       - main
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -14,16 +19,60 @@ concurrency:
 
 jobs:
   deploy:
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: "22.13.1"
       - name: Require the latest main commit
+        env:
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
+          set -euo pipefail
           latest="$(git ls-remote origin refs/heads/main | cut -f1)"
-          test "$latest" = "$GITHUB_SHA"
+          test "$latest" = "$DEPLOY_SHA"
+          test "$(git rev-parse HEAD)" = "$DEPLOY_SHA"
+      - name: Require successful CI for the deployed commit
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        with:
+          script: |
+            if (context.eventName === "workflow_run") {
+              const run = context.payload.workflow_run;
+              if (
+                run.conclusion !== "success" ||
+                run.head_branch !== "main" ||
+                run.head_sha !== process.env.DEPLOY_SHA
+              ) {
+                throw new Error("Deployment requires a successful main CI run");
+              }
+              return;
+            }
+            const runs = await github.paginate(
+              github.rest.actions.listWorkflowRuns,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: "ci.yml",
+                branch: "main",
+                event: "push",
+                status: "completed",
+                head_sha: process.env.DEPLOY_SHA,
+                per_page: 100
+              }
+            );
+            if (!runs.some((run) => run.conclusion === "success")) {
+              throw new Error(
+                `No successful CI run exists for ${process.env.DEPLOY_SHA}`
+              );
+            }
       - name: Validate Cloudflare project name
         env:
           PROJECT_NAME: ${{ vars.CLOUDFLARE_PROJECT_NAME }}
@@ -68,8 +117,11 @@ jobs:
           }
           NODE
       - name: Verify public release downloads
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           node <<'NODE' > "$RUNNER_TEMP/wayfinder-downloads.txt"
+          (async () => {
           const release = require("./website/releases.json");
           if (release.published !== true) {
             throw new Error("Companion release is not marked public");
@@ -87,6 +139,45 @@ jobs:
           const channel = channels[release.channel];
           if (!channel) {
             throw new Error(`Unsupported release channel: ${release.channel}`);
+          }
+          const apiResponse = await fetch(
+            `https://api.github.com/repos/StayCurious-Xuan/wayfinder/releases/tags/${channel.tag}`,
+            {
+              headers: {
+                Accept: "application/vnd.github+json",
+                Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+                "X-GitHub-Api-Version": "2022-11-28"
+              }
+            }
+          );
+          if (!apiResponse.ok) {
+            throw new Error(
+              `Unable to inspect GitHub release: ${apiResponse.status}`
+            );
+          }
+          const githubRelease = await apiResponse.json();
+          const assets = new Map(
+            githubRelease.assets.map((asset) => [asset.name, asset])
+          );
+          const checksumAsset = assets.get("SHA256SUMS");
+          if (!checksumAsset) {
+            throw new Error("Published release is missing SHA256SUMS");
+          }
+          const checksumResponse = await fetch(
+            checksumAsset.browser_download_url,
+            { redirect: "follow" }
+          );
+          if (!checksumResponse.ok) {
+            throw new Error(
+              `Unable to download SHA256SUMS: ${checksumResponse.status}`
+            );
+          }
+          const checksums = new Map();
+          for (const line of (await checksumResponse.text()).split(/\r?\n/)) {
+            const match = /^([a-f0-9]{64})\s+\*?(.+)$/.exec(line.trim());
+            if (match) {
+              checksums.set(match[2], match[1].toLowerCase());
+            }
           }
           const downloads = [
             [
@@ -117,8 +208,23 @@ jobs:
             ) {
               throw new Error(`Invalid ${architecture} download URL`);
             }
+            const asset = assets.get(assetName);
+            const digest = String(asset?.digest || "");
+            if (!asset || !/^sha256:[a-f0-9]{64}$/i.test(digest)) {
+              throw new Error(`GitHub is missing a SHA-256 digest for ${assetName}`);
+            }
+            if (
+              checksums.get(assetName) !==
+              digest.slice("sha256:".length).toLowerCase()
+            ) {
+              throw new Error(`SHA256SUMS does not match ${assetName}`);
+            }
             process.stdout.write(`${url.href}\n`);
           }
+          })().catch((error) => {
+            console.error(error);
+            process.exitCode = 1;
+          });
           NODE
           while IFS= read -r url; do
             curl \

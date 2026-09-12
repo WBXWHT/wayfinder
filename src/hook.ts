@@ -14,6 +14,7 @@ import { ShadowRepo } from "./shadowRepo";
 import {
   clip,
   clipText,
+  commitTempFile,
   createId,
   latestNodeOnBranch,
   mutateProjectState,
@@ -66,14 +67,18 @@ async function onSessionLifecycle(
   const file = path.join(home, "activity.json");
   const temp = `${file}.${process.pid}.${createId("activity")}.tmp`;
   await fs.promises.mkdir(home, { recursive: true });
-  await fs.promises.writeFile(temp, `${JSON.stringify({
-    status,
-    root,
-    sourceHost: hostFor(payload),
-    sessionId: payload.session_id || "unknown",
-    updatedAt: new Date().toISOString()
-  }, null, 2)}\n`, "utf8");
-  await fs.promises.rename(temp, file);
+  try {
+    await fs.promises.writeFile(temp, `${JSON.stringify({
+      status,
+      root,
+      sourceHost: hostFor(payload),
+      sessionId: payload.session_id || "unknown",
+      updatedAt: new Date().toISOString()
+    }, null, 2)}\n`, "utf8");
+    await commitTempFile(temp, file);
+  } finally {
+    await fs.promises.rm(temp, { force: true }).catch(() => undefined);
+  }
 }
 
 function openCompanion(): void {
@@ -161,6 +166,7 @@ async function onPrompt(root: string, payload: HookPayload): Promise<void> {
 
     const pending: PendingTurn = {
       sessionId,
+      turnId: payload.turn_id,
       sourceHost: host,
       branchId: state.activeBranchId,
       parentId: parent?.id,
@@ -205,7 +211,7 @@ async function onStop(root: string, payload: HookPayload): Promise<void> {
   );
   const config = await ensureValidationConfig(root);
   const shadow = new ShadowRepo(root, config.maxFileSizeMB);
-  const nodeId = createId("turn");
+  let nodeId = createId("turn");
   let foundPending = false;
   let captureError: unknown;
   let files: TimelineNode["files"] = [];
@@ -216,6 +222,16 @@ async function onStop(root: string, payload: HookPayload): Promise<void> {
       return;
     }
     foundPending = true;
+    const existing = pending.turnId
+      ? state.nodes.find((node) =>
+          node.turnId === pending.turnId &&
+          node.sourceHost === host &&
+          node.sessionId === sessionId
+        )
+      : undefined;
+    if (existing) {
+      nodeId = existing.id;
+    }
     try {
       const snapshot = await shadow.capture(
         nodeId,
@@ -226,51 +242,87 @@ async function onStop(root: string, payload: HookPayload): Promise<void> {
         pending.snapshotBefore,
         snapshot.commit
       );
-      const node: TimelineNode = {
-        id: nodeId,
-        kind: "turn",
-        sessionId,
-        sourceHost: host,
-        branchId: pending.branchId,
-        parentId: pending.parentId,
-        prompt: pending.prompt,
-        response,
-        startedAt: pending.startedAt,
-        completedAt: new Date().toISOString(),
-        snapshotBefore: pending.snapshotBefore,
-        snapshotAfter: snapshot.commit,
-        files,
-        actions: pending.actions,
-        validation: files.length > 0
+      const completedAt = new Date().toISOString();
+      if (existing) {
+        existing.response = response || existing.response;
+        existing.startedAt =
+          pending.startedAt < existing.startedAt
+            ? pending.startedAt
+            : existing.startedAt;
+        existing.completedAt =
+          completedAt > existing.completedAt
+            ? completedAt
+            : existing.completedAt;
+        existing.snapshotBefore = pending.snapshotBefore;
+        existing.snapshotAfter = snapshot.commit;
+        existing.files = files.length > 0 ? files : existing.files;
+        existing.actions = mergeToolActions(
+          existing.actions,
+          pending.actions
+        );
+        existing.validation = existing.files.length > 0
           ? { command: config.validationCommand, status: "running" }
-          : { command: config.validationCommand, status: "skipped" }
-      };
-      state.nodes.push(node);
+          : { command: config.validationCommand, status: "skipped" };
+        files = existing.files;
+      } else {
+        const node: TimelineNode = {
+          id: nodeId,
+          kind: "turn",
+          sessionId,
+          turnId: pending.turnId,
+          sourceHost: host,
+          branchId: pending.branchId,
+          parentId: pending.parentId,
+          prompt: pending.prompt,
+          response,
+          startedAt: pending.startedAt,
+          completedAt,
+          snapshotBefore: pending.snapshotBefore,
+          snapshotAfter: snapshot.commit,
+          files,
+          actions: pending.actions,
+          validation: files.length > 0
+            ? { command: config.validationCommand, status: "running" }
+            : { command: config.validationCommand, status: "skipped" }
+        };
+        state.nodes.push(node);
+      }
       delete state.pending[sessionId];
       recorded = true;
     } catch (error) {
       captureError = error;
-      state.nodes.push({
-        id: nodeId,
-        kind: "turn",
-        sessionId,
-        sourceHost: host,
-        branchId: pending.branchId,
-        parentId: pending.parentId,
-        prompt: pending.prompt,
-        response,
-        startedAt: pending.startedAt,
-        completedAt: new Date().toISOString(),
-        snapshotBefore: pending.snapshotBefore,
-        snapshotAfter: pending.snapshotBefore,
-        files: [],
-        actions: pending.actions,
-        validation: {
-          command: config.validationCommand,
-          status: "failed",
-          summary: `本轮记录失败，文件变化未归档：${String(error)}`
-        }
-      });
+      const failedValidation = {
+        command: config.validationCommand,
+        status: "failed" as const,
+        summary: `本轮记录失败，文件变化未归档：${String(error)}`
+      };
+      if (existing) {
+        existing.response = response || existing.response;
+        existing.actions = mergeToolActions(
+          existing.actions,
+          pending.actions
+        );
+        existing.validation = failedValidation;
+      } else {
+        state.nodes.push({
+          id: nodeId,
+          kind: "turn",
+          sessionId,
+          turnId: pending.turnId,
+          sourceHost: host,
+          branchId: pending.branchId,
+          parentId: pending.parentId,
+          prompt: pending.prompt,
+          response,
+          startedAt: pending.startedAt,
+          completedAt: new Date().toISOString(),
+          snapshotBefore: pending.snapshotBefore,
+          snapshotAfter: pending.snapshotBefore,
+          files: [],
+          actions: pending.actions,
+          validation: failedValidation
+        });
+      }
       delete state.pending[sessionId];
     }
   });
@@ -304,6 +356,41 @@ async function onStop(root: string, payload: HookPayload): Promise<void> {
     }
     throw error;
   }
+}
+
+function mergeToolActions(
+  existing: ToolAction[],
+  incoming: ToolAction[]
+): ToolAction[] {
+  const merged = existing.map((action) => ({ ...action }));
+  const matched = new Set<number>();
+  for (const action of incoming) {
+    const currentIndex = merged.findIndex((candidate, index) =>
+      !matched.has(index) &&
+      (
+        (
+          action.id &&
+          candidate.id &&
+          action.id === candidate.id
+        ) ||
+        (
+          action.tool === candidate.tool &&
+          action.kind === candidate.kind &&
+          action.path === candidate.path &&
+          action.detail === candidate.detail
+        )
+      )
+    );
+    if (currentIndex >= 0) {
+      matched.add(currentIndex);
+      const current = merged[currentIndex];
+      if (action.id) current.id = action.id;
+      if (action.ok !== undefined) current.ok = action.ok;
+      continue;
+    }
+    merged.push({ ...action });
+  }
+  return merged;
 }
 
 async function ensureValidationConfig(root: string): Promise<ProjectConfig> {
@@ -418,7 +505,6 @@ function toAction(
       : typeof input.cmd === "string"
         ? input.cmd
         : undefined;
-  const responseText = JSON.stringify(payload.tool_response || "");
 
   return {
     id: payload.tool_use_id,
@@ -433,9 +519,46 @@ function toAction(
     tool,
     path: candidatePath ? clip(candidatePath, 300) : undefined,
     detail: command ? clip(command, 300) : undefined,
-    ok: !failedByEvent &&
-      !/"error"|"failed"|exception/i.test(responseText)
+    ok: !failedByEvent && !toolResponseFailed(payload.tool_response)
   };
+}
+
+function toolResponseFailed(value: unknown): boolean {
+  if (typeof value === "string") {
+    try {
+      return toolResponseFailed(JSON.parse(value));
+    } catch {
+      return false;
+    }
+  }
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const response = value as Record<string, unknown>;
+  if (typeof response.success === "boolean") {
+    return !response.success;
+  }
+  if (typeof response.ok === "boolean") {
+    return !response.ok;
+  }
+  if (typeof response.is_error === "boolean") {
+    return response.is_error;
+  }
+  const exitCode = [response.exit_code, response.exitCode, response.code]
+    .find((candidate) => typeof candidate === "number");
+  if (typeof exitCode === "number") {
+    return exitCode !== 0;
+  }
+  if (
+    typeof response.status === "string" &&
+    ["error", "failed", "failure"].includes(response.status.toLowerCase())
+  ) {
+    return true;
+  }
+  return response.error !== undefined &&
+    response.error !== null &&
+    response.error !== false &&
+    response.error !== "";
 }
 
 function hostFor(payload: HookPayload): AgentHost {
@@ -460,13 +583,12 @@ function resolveRoot(payload: HookPayload): string | undefined {
   const roots = (payload.workspace_roots || [])
     .filter((root) => fs.existsSync(root))
     .map(normalizeRoot);
-  const candidate =
-    roots.find(
-      (root) =>
-        cwd === root || Boolean(cwd?.startsWith(`${root}${path.sep}`))
-    ) ||
-    roots[0] ||
-    cwd;
+  const matchingRoot = roots.find(
+    (root) =>
+      cwd === root || Boolean(cwd?.startsWith(`${root}${path.sep}`))
+  );
+  const candidate = matchingRoot ||
+    (cwd && fs.existsSync(cwd) ? cwd : roots[0]);
   if (!candidate || !fs.existsSync(candidate)) {
     return undefined;
   }

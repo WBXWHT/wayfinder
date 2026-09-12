@@ -23,6 +23,7 @@ export interface TimelineHandlers {
 
 export class TimelineViewProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
+  private refreshGeneration = 0;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -32,6 +33,12 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
 
   resolveWebviewView(view: vscode.WebviewView): void {
     this.view = view;
+    view.onDidDispose(() => {
+      if (this.view === view) {
+        this.view = undefined;
+        this.refreshGeneration += 1;
+      }
+    });
     view.webview.options = {
       enableScripts: true,
       localResourceRoots: [
@@ -107,9 +114,11 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
   }
 
   async refresh(): Promise<void> {
-    if (!this.view) {
+    const view = this.view;
+    if (!view) {
       return;
     }
+    const generation = ++this.refreshGeneration;
     const [state, connections, config, hookError] = await Promise.all([
       readProjectState(this.root),
       Promise.all(
@@ -121,11 +130,17 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
       readProjectConfig(this.root),
       readLastHookError(this.root)
     ]);
+    if (
+      this.view !== view ||
+      generation !== this.refreshGeneration
+    ) {
+      return;
+    }
     const connectedHosts = connections
       .filter((connection) => connection.connected)
       .map((connection) => connection.host);
     const resolved = state || emptyState(this.root);
-    await this.view.webview.postMessage({
+    await view.webview.postMessage({
       type: "render",
       state: resolved,
       forest: buildConversationForest(resolved),
@@ -1181,6 +1196,17 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
       });
       requestAnimationFrame(() => {
         if (selectedSessionId) {
+          if (focusKey) {
+            const target = [
+              ...document.querySelectorAll(
+                '.lineage-detail-sheet [data-focus-key]'
+              )
+            ].find((element) => element.dataset.focusKey === focusKey);
+            if (target) {
+              target.focus();
+              return;
+            }
+          }
           document.querySelector('.sheet-title')?.focus();
           return;
         }
@@ -1353,7 +1379,7 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
         stage.style.transform =
           'translate(' + transform.x + 'px,' + transform.y + 'px) scale(' +
           transform.k + ')';
-        lineageViewports.set(tree.id, {
+        lineageViewports.set(tree.id + '\\u0000' + query, {
           x: transform.x,
           y: transform.y,
           k: transform.k
@@ -1383,7 +1409,7 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
         const viewportRoom = Math.floor(
           window.innerHeight - chart.getBoundingClientRect().top - 24
         );
-        const saved = lineageViewports.get(tree.id);
+        const saved = lineageViewports.get(tree.id + '\\u0000' + query);
         if (saved) {
           chart.style.height =
             Math.max(
@@ -1493,9 +1519,9 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
         .filter((session) => session.verdict !== 'failure')
         .sort((a, b) =>
           a.completedAt.localeCompare(b.completedAt)
-        ).at(-1) || [...lineageSessions].sort((a, b) =>
-        a.completedAt.localeCompare(b.completedAt)
-      ).at(-1);
+        ).slice(-1)[0] || [...lineageSessions].sort((a, b) =>
+          a.completedAt.localeCompare(b.completedAt)
+        ).slice(-1)[0];
       const mainPath = new Set();
       let cursor = current;
       while (cursor && !mainPath.has(cursor.id)) {
@@ -2607,7 +2633,7 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
       const last = shortTime(session.completedAt);
       if (first === last) return first;
       return shortDate(session.startedAt) === shortDate(session.completedAt)
-        ? first + '–' + last.split(' ').at(-1)
+        ? first + '–' + last.split(' ').slice(-1)[0]
         : first + '–' + last;
     }
     function shortDate(value) {
@@ -2665,7 +2691,7 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
               )
           : [];
         const first = focusable[0];
-        const last = focusable.at(-1);
+        const last = focusable[focusable.length - 1];
         if (first && last) {
           if (!sheet.contains(document.activeElement)) {
             event.preventDefault();
@@ -2729,7 +2755,8 @@ async function readLastHookError(root: string): Promise<string | undefined> {
         .readFile(path.join(dir, "hook-success.log"), "utf8")
         .catch(() => "")
     ]);
-    const latestError = errors.trim().split(/\r?\n/).at(-1);
+    const errorLines = errors.trim().split(/\r?\n/);
+    const latestError = errorLines[errorLines.length - 1];
     if (!latestError) {
       return undefined;
     }

@@ -45,6 +45,7 @@ export interface TimelineNode {
   id: string;
   kind: NodeKind;
   sessionId: string;
+  turnId?: string;
   sourceHost?: AgentHost;
   branchId: string;
   parentId?: string;
@@ -79,6 +80,7 @@ export interface TimelineNode {
         rolloutPath: string;
         sessionId: string;
         turnIndex: number;
+        turnId?: string;
         collectedAt: string;
       }
     | {
@@ -104,6 +106,7 @@ export interface TimelineBranch {
 
 export interface PendingTurn {
   sessionId: string;
+  turnId?: string;
   sourceHost?: AgentHost;
   branchId: string;
   parentId?: string;

@@ -232,16 +232,39 @@ function hasSourceTestCounterpart(
   );
 }
 
-function hasConflictingEnglishThemes(
-  previous: { tokens: string[] },
-  next: { tokens: string[] }
+function hasConflictingThemes(
+  previous: { tokens: string[]; genericHandoff?: boolean },
+  next: { tokens: string[]; genericHandoff?: boolean }
 ): boolean {
-  const previousTerms = distinctiveEnglishTerms(previous.tokens);
-  const nextTerms = distinctiveEnglishTerms(next.tokens);
-  return (
+  if (previous.genericHandoff || next.genericHandoff) {
+    return false;
+  }
+  const conflicts = (
+    previousTerms: Set<string>,
+    nextTerms: Set<string>
+  ): boolean =>
     previousTerms.size >= 2 &&
     nextTerms.size >= 2 &&
-    [...previousTerms].every((term) => !nextTerms.has(term))
+    [...previousTerms].every((term) => !nextTerms.has(term));
+  return conflicts(
+    distinctiveThemeTerms(previous.tokens, true),
+    distinctiveThemeTerms(next.tokens, true)
+  ) || conflicts(
+    distinctiveThemeTerms(previous.tokens, false),
+    distinctiveThemeTerms(next.tokens, false)
+  );
+}
+
+function distinctiveThemeTerms(
+  tokens: string[],
+  english: boolean
+): Set<string> {
+  return new Set(
+    tokens.filter((token) =>
+      token.startsWith("en:") === english &&
+      !CROSS_CONVERSATION_STOPWORDS.has(token) &&
+      !GENERIC_HANDOFF_TOKENS.has(token)
+    )
   );
 }
 
@@ -255,12 +278,20 @@ function distinctiveEnglishTerms(tokens: string[]): Set<string> {
 }
 
 function hasSourceTestBridge(
-  previous: { files: Set<string>; tokens: string[] },
-  next: { files: Set<string>; tokens: string[] }
+  previous: {
+    files: Set<string>;
+    tokens: string[];
+    genericHandoff?: boolean;
+  },
+  next: {
+    files: Set<string>;
+    tokens: string[];
+    genericHandoff?: boolean;
+  }
 ): boolean {
   return (
     hasSourceTestCounterpart(previous.files, next.files) &&
-    !hasConflictingEnglishThemes(previous, next)
+    !hasConflictingThemes(previous, next)
   );
 }
 
@@ -504,7 +535,7 @@ export function aggregateWaypoints(
   );
   const waypoints: Waypoint[] = [];
   for (const signal of ordered) {
-    const current = waypoints.at(-1);
+    const current = waypoints[waypoints.length - 1];
     const previousNode = current ? lastNodeSignal(current) : undefined;
     const idle =
       previousNode &&
@@ -764,6 +795,8 @@ export function classifyRelations(
   const fileSetIndex = new Map<string, number[]>();
   const pathSetIndex = new Map<string, number[]>();
   const structuralSetIndex = new Map<string, number[]>();
+  const structuralSemanticIndex = new Map<string, number[]>();
+  const filePathPairIndex = new Map<string, number[]>();
   const fileSubsetIndex = new Map<string, Map<number, number[]>>();
   const pathSubsetIndex = new Map<string, Map<number, number[]>>();
   const semanticSetIndex = new Map<string, number[]>();
@@ -793,7 +826,7 @@ export function classifyRelations(
   ): void => {
     for (const value of new Set(values)) {
       const candidates = target.get(value) || [];
-      candidates.push(waypointIndex);
+      indexByCompletion(candidates, waypointIndex);
       target.set(value, candidates);
     }
   };
@@ -977,12 +1010,15 @@ export function classifyRelations(
   const includePostings = (
     source: Map<string, number[]>,
     values: Iterable<string>,
+    startedAt: number,
     candidates: Set<number>
   ): void => {
     for (const value of new Set(values)) {
-      for (const candidate of source.get(value) || []) {
-        candidates.add(candidate);
-      }
+      includeCompletionCandidates(
+        source.get(value),
+        startedAt,
+        candidates
+      );
     }
   };
 
@@ -1029,6 +1065,7 @@ export function classifyRelations(
     exactSignature: string
   ): void => {
     const semanticTokens = semanticIndexTokens(waypoint);
+    const semanticSet = distinctiveSetSignature(waypoint);
     addIndex(pathTextBridgeIndex, referencedPathTerms(waypoint), index);
     for (const sessionId of waypoint.sessionIds) {
       rememberRecent(sessionRecent, sessionId, index);
@@ -1180,6 +1217,27 @@ export function classifyRelations(
         structuralSignature(waypoint),
         index
       );
+      if (semanticSet) {
+        indexCompletionCandidate(
+          structuralSemanticIndex,
+          `${structuralSignature(waypoint)}\u0006${semanticSet}`,
+          index
+        );
+      }
+      if (
+        waypoint.files.size <= MAX_STRUCTURAL_SUBSET_ITEMS &&
+        waypoint.pathTerms.size <= MAX_STRUCTURAL_SUBSET_ITEMS
+      ) {
+        for (const file of waypoint.files) {
+          for (const term of waypoint.pathTerms) {
+            indexCompletionCandidate(
+              filePathPairIndex,
+              `${file}\u0006${term}`,
+              index
+            );
+          }
+        }
+      }
     }
     indexSubsets(
       pathSubsetIndex,
@@ -1188,7 +1246,6 @@ export function classifyRelations(
       index,
       1
     );
-    const semanticSet = distinctiveSetSignature(waypoint);
     if (semanticSet) {
       indexCompletionCandidate(semanticSetIndex, semanticSet, index);
     }
@@ -1244,6 +1301,7 @@ export function classifyRelations(
     includePostings(
       pathTextBridgeIndex,
       referencedPathTerms(waypoint),
+      waypoint.startedAt,
       candidates
     );
     const exactFiles = fileSetIndex.get(
@@ -1254,22 +1312,35 @@ export function classifyRelations(
       waypoint.startedAt,
       candidates
     );
-    if (
-      waypoint.hasFileSignal &&
-      (
-        waypoint.genericHandoff ??
-          isGenericHandoff(waypoint.promptTokens || waypoint.tokens)
-      )
-    ) {
-      for (const candidate of exactFiles || []) {
-        candidates.add(candidate);
-      }
-    }
     includeCompletionCandidates(
       structuralSetIndex.get(structuralSignature(waypoint)),
       waypoint.startedAt,
       candidates
     );
+    const semanticSet = distinctiveSetSignature(waypoint);
+    if (waypoint.hasFileSignal && semanticSet) {
+      includeCompletionCandidates(
+        structuralSemanticIndex.get(
+          `${structuralSignature(waypoint)}\u0006${semanticSet}`
+        ),
+        waypoint.startedAt,
+        candidates
+      );
+    }
+    if (
+      waypoint.files.size <= MAX_STRUCTURAL_SUBSET_ITEMS &&
+      waypoint.pathTerms.size <= MAX_STRUCTURAL_SUBSET_ITEMS
+    ) {
+      for (const file of waypoint.files) {
+        for (const term of waypoint.pathTerms) {
+          includeCompletionCandidates(
+            filePathPairIndex.get(`${file}\u0006${term}`),
+            waypoint.startedAt,
+            candidates
+          );
+        }
+      }
+    }
     for (const sessionId of waypoint.sessionIds) {
       if (waypoint.sourceHosts.size === 0) {
         includeCompletionCandidates(
@@ -1340,11 +1411,13 @@ export function classifyRelations(
           includePostings(
             sessionFileIndex,
             contextualSignals(sessionId, waypoint.files),
+            waypoint.startedAt,
             candidates
           );
           includePostings(
             sessionPathIndex,
             contextualSignals(sessionId, waypoint.pathTerms),
+            waypoint.startedAt,
             candidates
           );
           includeCompletionCandidates(
@@ -1366,11 +1439,13 @@ export function classifyRelations(
           includePostings(
             contextFileIndex,
             contextualSignals(unknownHostContext, waypoint.files),
+            waypoint.startedAt,
             candidates
           );
           includePostings(
             contextPathIndex,
             contextualSignals(unknownHostContext, waypoint.pathTerms),
+            waypoint.startedAt,
             candidates
           );
           includeCompletionCandidates(
@@ -1383,11 +1458,13 @@ export function classifyRelations(
             includePostings(
               contextFileIndex,
               contextualSignals(context, waypoint.files),
+              waypoint.startedAt,
               candidates
             );
             includePostings(
               contextPathIndex,
               contextualSignals(context, waypoint.pathTerms),
+              waypoint.startedAt,
               candidates
             );
             includeCompletionCandidates(

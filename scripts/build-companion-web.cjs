@@ -249,6 +249,7 @@ const desktopStyles = `
   }
   .project-item:hover { background: var(--hover); }
   .project-item[aria-current="true"] {
+    background: var(--selected);
     background: color-mix(
       in srgb,
       var(--project-accent) 13%,

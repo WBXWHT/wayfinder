@@ -6,7 +6,7 @@ on:
       tag:
         description: Published release tag to verify
         required: true
-        default: alpha-v0.3.10
+        default: alpha-v0.3.11
 
 permissions:
   contents: read
@@ -77,6 +77,42 @@ jobs:
             Select-Object -First 1
           if (-not $app) {
             throw "Installed Wayfinder executable was not found"
+          }
+
+          $sidecar = Get-ChildItem -Path $installDir -Filter "wayfinder.exe" -Recurse |
+            Where-Object { $_.FullName -ne $app.FullName } |
+            Select-Object -First 1
+          if (-not $sidecar) {
+            throw "Installed Wayfinder collector sidecar was not found"
+          }
+          $stream = [System.IO.File]::OpenRead($sidecar.FullName)
+          try {
+            $reader = [System.IO.BinaryReader]::new($stream)
+            $stream.Position = 0x3c
+            $peOffset = $reader.ReadInt32()
+            $stream.Position = $peOffset + 4
+            $machine = $reader.ReadUInt16()
+          } finally {
+            $stream.Dispose()
+          }
+          if ($machine -ne 0x8664) {
+            throw "Installed collector sidecar is not AMD64"
+          }
+          $sidecarVersion = (& $sidecar.FullName --version | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $sidecarVersion -ne $version) {
+            throw "Installed collector sidecar version is invalid: $sidecarVersion"
+          }
+          $env:WAYFINDER_HOME = Join-Path $env:RUNNER_TEMP "WayfinderSmokeData"
+          $env:CODEX_HOME = Join-Path $env:RUNNER_TEMP "NoCodexSessions"
+          $env:CLAUDE_CONFIG_DIR = Join-Path $env:RUNNER_TEMP "NoClaudeSessions"
+          $collect = (& $sidecar.FullName collect | Out-String) |
+            ConvertFrom-Json
+          if (
+            $LASTEXITCODE -ne 0 -or
+            $null -eq $collect.scannedFiles -or
+            $null -eq $collect.newTurns
+          ) {
+            throw "Installed collector sidecar could not complete collection"
           }
 
           $process = Start-Process -FilePath $app.FullName -PassThru

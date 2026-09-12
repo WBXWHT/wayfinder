@@ -382,6 +382,27 @@ test("validation timeout remains failure evidence instead of a recovery", () => 
   ));
 });
 
+test("a final successful outcome overrides an intermediate tool failure", () => {
+  const recoveredInTurn = node({
+    id: "recovered-in-turn",
+    host: "codex",
+    prompt: "Fix token refresh and verify it",
+    completedAt: "2026-09-09T10:00:00.000Z",
+    validation: { status: "passed" },
+    verdict: "success",
+    actions: [{
+      kind: "run",
+      tool: "Bash",
+      detail: "npm test",
+      ok: false
+    }]
+  });
+  const state = projectState([recoveredInTurn]);
+
+  assert.deepEqual(buildLocalTopicAssessments(state), []);
+  assert.deepEqual(extractFailureEvidence(state), []);
+});
+
 test("resolved failures from every host do not leave a stale conflict", () => {
   const attempts = [
     node({
@@ -542,7 +563,8 @@ function node({
   completedAt,
   validation = { status: "not-configured" },
   verdict,
-  note
+  note,
+  actions = []
 }) {
   return {
     id,
@@ -557,7 +579,7 @@ function node({
     snapshotBefore: `${id}-before`,
     snapshotAfter: `${id}-after`,
     files: [{ path: "src/auth.ts", status: "M", additions: 1, deletions: 0 }],
-    actions: [],
+    actions,
     validation,
     verdict,
     note

@@ -454,7 +454,7 @@ function liveSessionFor(
     .map((id) => nodeById.get(id))
     .filter((node): node is TimelineNode => Boolean(node));
   const first = waypointNodes[0];
-  const latest = waypointNodes.at(-1) || first;
+  const latest = waypointNodes[waypointNodes.length - 1] || first;
   const isAbandonedRoute = waypointNodes.some((node) =>
     abandoned.has(node.id)
   );
@@ -620,8 +620,8 @@ function splitIntoSessions(nodes: TimelineNode[]): TimelineNode[][] {
   );
   const sessions: TimelineNode[][] = [];
   for (const node of ordered) {
-    const current = sessions.at(-1);
-    const previous = current?.at(-1);
+    const current = sessions[sessions.length - 1];
+    const previous = current?.[current.length - 1];
     const changedSession =
       previous &&
       previous.sessionId !== node.sessionId &&
@@ -648,7 +648,7 @@ function sessionFor(
   treeKey: string
 ): ForestSession {
   const first = nodes[0];
-  const latest = nodes.at(-1) || first;
+  const latest = nodes[nodes.length - 1] || first;
   const verdict = lastVerdict(nodes);
   return {
     id: `forest-session:${first.id}`,
@@ -718,7 +718,7 @@ function connectSessions(sessions: ForestSession[]): void {
           compareSessions(candidate, session) < 0
       )
       .sort(compareSessions);
-    const parent = candidates.at(-1);
+    const parent = candidates[candidates.length - 1];
     if (parent) {
       session.parentId = parent.id;
     }
@@ -756,7 +756,7 @@ function lastVerdict(
   if (nodes.some((node) => node.verdict === "failure")) {
     return "failure";
   }
-  return nodes.at(-1)?.verdict || "neutral";
+  return nodes[nodes.length - 1]?.verdict || "neutral";
 }
 
 /**

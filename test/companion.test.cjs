@@ -54,11 +54,19 @@ test("companion web bundle reuses the final map and project navigation", () => {
   );
   assert.match(html, /setInterval\(\(\) => \{[\s\S]*refreshIfChanged/);
   assert.ok(
-    html.indexOf("setInterval(() =>") < html.indexOf("await loadProjects()")
+    html.indexOf("setInterval(() =>") > html.indexOf("await loadProjects()")
   );
+  assert.doesNotMatch(html, /\.at\(-1\)/);
   assert.match(html, /wayfinder:\/\/collector-status/);
   assert.match(main, /let loadedProjectId = ""/);
   assert.match(main, /loadedProjectId = requestedProjectId/);
+  assert.match(main, /outcome === "error"/);
+  assert.match(main, /activeProjectId !== project\.id/);
+  assert.match(main, /loadedProjectId !== project\.id/);
+  assert.match(
+    builder,
+    /\.project-item\[aria-current="true"\] \{[\s\S]*?background: var\(--selected\);[\s\S]*?color-mix/
+  );
   assert.match(builder, /await lockfile\.lock\(companionRoot/);
   assert.match(builder, /await fs\.promises\.rename\(output, finalOutput\)/);
   assert.match(builder, /await fs\.promises\.rename\(backupOutput, finalOutput\)/);
@@ -167,6 +175,12 @@ test("local macOS builds receive a valid ad-hoc bundle signature", () => {
   assert.match(buildScript, /environment\.APPLE_SIGNING_IDENTITY = "-"/);
   assert.match(buildScript, /process\.env\.npm_execpath/);
   assert.match(buildScript, /@tauri-apps\/cli\/tauri\.js/);
+  assert.match(buildScript, /process\.platform === "win32"/);
+  assert.match(buildScript, /process\.arch !== "x64"/);
+  assert.match(buildScript, /requires an x64 Node\.js runtime/);
+  assert.match(buildScript, /"x86_64-pc-windows-msvc"/);
+  assert.match(buildScript, /"--bundles"/);
+  assert.match(buildScript, /"nsis"/);
   assert.doesNotMatch(buildScript, /npm\.cmd|tauri\.cmd/);
 });
 
@@ -245,6 +259,8 @@ test("release workflow requires signing and notarization credentials", () => {
   assert.match(workflow, /releaseId: \$\{\{ needs\.prepare\.outputs\.release_id \}\}/);
   assert.match(workflow, /verify-companion-version\.cjs --prefix companion-v/);
   assert.match(workflow, /group: release-macos-companion\b/);
+  assert.match(workflow, /Require the latest main commit/);
+  assert.match(workflow, /test "\$\(git rev-parse HEAD\)" = "\$latest"/);
   assert.match(workflow, /Release tag points to/);
   assert.match(workflow, /SHA256SUMS/);
   assert.match(workflow, /releaseDraft: true/);
@@ -294,6 +310,12 @@ test("zero-cost alpha workflow uses ad-hoc signing and a prerelease tag", () => 
   assert.match(workflow, /verify-companion-version\.cjs --prefix alpha-v/);
   assert.match(workflow, /RELEASE_ID: \$\{\{ needs\.prepare\.outputs\.release_id \}\}/);
   assert.match(workflow, /group: release-desktop-alpha\b/);
+  assert.match(workflow, /permissions:\s+contents: read/);
+  assert.match(workflow, /prepare:[\s\S]*?permissions:\s+contents: write/);
+  assert.match(workflow, /checksums:[\s\S]*?permissions:\s+contents: write/);
+  assert.match(workflow, /Require the latest main commit/);
+  assert.match(workflow, /test "\$GITHUB_REF" = "refs\/heads\/main"/);
+  assert.match(workflow, /test "\$latest" = "\$GITHUB_SHA"/);
   assert.match(workflow, /Release tag points to/);
   assert.match(workflow, /github\.rest\.repos\.getReleaseByTag/);
   assert.match(workflow, /if \(!release\?\.draft\)/);
@@ -326,6 +348,11 @@ test("zero-cost alpha workflow uses ad-hoc signing and a prerelease tag", () => 
   assert.match(workflow, /Windows-x86_64\.exe/);
   assert.match(workflow, /find artifacts\/windows -name '\*\.exe'/);
   assert.match(workflow, /WAYFINDER_NODE_LICENSE_PATH/);
+  assert.match(workflow, /WayfinderReleaseInstall/);
+  assert.match(workflow, /Installed Windows collector sidecar was not found/);
+  assert.match(workflow, /\$machine -ne 0x8664/);
+  assert.match(workflow, /& \$installedSidecar\.FullName --version/);
+  assert.match(workflow, /& \$installedSidecar\.FullName collect/);
   assert.ok(
     workflow.indexOf("npm run build:companion:sidecar") <
       workflow.indexOf("cargo test --manifest-path"),

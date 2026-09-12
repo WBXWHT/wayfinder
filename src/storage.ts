@@ -107,8 +107,16 @@ export async function writeProjectState(
   await fs.promises.mkdir(path.dirname(file), { recursive: true });
   state.updatedAt = new Date().toISOString();
   const temp = `${file}.${process.pid}.${randomUUID()}.tmp`;
-  await fs.promises.writeFile(temp, `${JSON.stringify(state, null, 2)}\n`, "utf8");
-  await commitTempFile(temp, file);
+  try {
+    await fs.promises.writeFile(
+      temp,
+      `${JSON.stringify(state, null, 2)}\n`,
+      "utf8"
+    );
+    await commitTempFile(temp, file);
+  } finally {
+    await fs.promises.rm(temp, { force: true }).catch(() => undefined);
+  }
 }
 
 export async function mutateProjectState<T>(
@@ -150,8 +158,16 @@ export async function writeProjectConfig(
   const file = configPathFor(root);
   await fs.promises.mkdir(path.dirname(file), { recursive: true });
   const temp = `${file}.${process.pid}.${randomUUID()}.tmp`;
-  await fs.promises.writeFile(temp, `${JSON.stringify(config, null, 2)}\n`, "utf8");
-  await commitTempFile(temp, file);
+  try {
+    await fs.promises.writeFile(
+      temp,
+      `${JSON.stringify(config, null, 2)}\n`,
+      "utf8"
+    );
+    await commitTempFile(temp, file);
+  } finally {
+    await fs.promises.rm(temp, { force: true }).catch(() => undefined);
+  }
 }
 
 export function latestNodeOnBranch(
@@ -200,7 +216,10 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-async function commitTempFile(temp: string, target: string): Promise<void> {
+export async function commitTempFile(
+  temp: string,
+  target: string
+): Promise<void> {
   const retryableCodes = new Set(["EACCES", "EBUSY", "EPERM"]);
   for (let attempt = 0; ; attempt += 1) {
     try {

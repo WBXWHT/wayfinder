@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -5,6 +6,8 @@ import * as lockfile from "proper-lockfile";
 import { AgentHost, FileChange, TimelineNode, ToolAction } from "./models";
 import { ShadowRepo } from "./shadowRepo";
 import {
+  clipText,
+  commitTempFile,
   createId,
   latestNodeOnBranch,
   mutateProjectState,
@@ -30,6 +33,7 @@ import {
 export interface CollectedTurn {
   host: AgentHost;
   sessionId: string;
+  turnId?: string;
   rolloutPath: string;
   turnIndex: number;
   cwd?: string;
@@ -49,7 +53,8 @@ export interface CollectedSession {
   turns: CollectedTurn[];
 }
 
-const ENV_CONTEXT = /^\s*<(environment_context|app-context|user_instructions|system_instructions|developer_instructions)/i;
+const ENV_CONTEXT = /^\s*<(environment_context|app-context|user_instructions|system_instructions|developer_instructions|system-reminder|system_reminder)(?:\s|>)/i;
+const CURSOR_PREFIX_BYTES = 64 * 1024;
 
 export function codexSessionsRoot(): string {
   if (process.env.CODEX_SESSIONS_ROOT) {
@@ -141,8 +146,7 @@ function textFromContent(content: unknown): string {
 }
 
 function isEnvelope(text: string): boolean {
-  return ENV_CONTEXT.test(text.trimStart().slice(0, 40)) ||
-    text.trimStart().startsWith("<");
+  return ENV_CONTEXT.test(text.trimStart().slice(0, 80));
 }
 
 interface PendingFileOperation {
@@ -185,7 +189,10 @@ export function parseCodexRollout(file: string): CollectedSession | undefined {
   }
 
   const turns: CollectedTurn[] = [];
-  let pendingPrompt: { text: string; at: string } | undefined;
+  let pendingPrompt:
+    | { text: string; at: string; turnId?: string }
+    | undefined;
+  let activeTurnId: string | undefined;
   let pendingResponseParts: string[] = [];
   let pendingActions: ToolAction[] = [];
   let pendingOperations: PendingFileOperation[] = [];
@@ -202,6 +209,7 @@ export function parseCodexRollout(file: string): CollectedSession | undefined {
     turns.push({
       host: "codex",
       sessionId,
+      turnId: pendingPrompt.turnId,
       rolloutPath: file,
       turnIndex: turns.length,
       cwd,
@@ -225,6 +233,19 @@ export function parseCodexRollout(file: string): CollectedSession | undefined {
       : new Date().toISOString();
     const payload = asRecord(record.payload) || {};
     const payloadType = payload.type;
+    const recordTurnId = turnIdFrom(payload);
+    if (
+      recordTurnId &&
+      (
+        record.type === "turn_context" ||
+        (
+          record.type === "event_msg" &&
+          payloadType === "task_started"
+        )
+      )
+    ) {
+      activeTurnId = recordTurnId;
+    }
 
     if (record.type === "response_item" && payloadType === "message") {
       const role = payload.role;
@@ -236,14 +257,27 @@ export function parseCodexRollout(file: string): CollectedSession | undefined {
         if (isEnvelope(text)) {
           continue;
         }
+        const turnId = recordTurnId || activeTurnId;
         // A fresh user prompt closes any previous unanswered turn — unless it
         // is an identical replay (e.g. a mid-turn model switch re-sends the
         // same prompt). In that case keep one turn, don't invent two.
-        if (pendingPrompt && pendingPrompt.text !== text) {
+        if (
+          pendingPrompt &&
+          (
+            pendingPrompt.text !== text ||
+            (
+              turnId &&
+              pendingPrompt.turnId &&
+              turnId !== pendingPrompt.turnId
+            )
+          )
+        ) {
           flush(undefined, pendingPrompt.at);
         }
         if (!pendingPrompt || pendingPrompt.text !== text) {
-          pendingPrompt = { text, at: timestamp };
+          pendingPrompt = { text, at: timestamp, turnId };
+        } else if (turnId && !pendingPrompt.turnId) {
+          pendingPrompt.turnId = turnId;
         }
       } else if (role === "assistant") {
         if (payload.phase === "commentary" && pendingPrompt) {
@@ -290,7 +324,7 @@ export function parseCodexRollout(file: string): CollectedSession | undefined {
       const ok = !outputLooksFailed(payload.output ?? payload);
       const operation = callId
         ? calls.get(callId)
-        : pendingOperations.at(-1);
+        : pendingOperations[pendingOperations.length - 1];
       if (operation) {
         operation.action.ok = ok;
         operation.status = ok ? "succeeded" : "failed";
@@ -303,13 +337,44 @@ export function parseCodexRollout(file: string): CollectedSession | undefined {
       (payloadType === "task_complete" || payloadType === "turn_aborted") &&
       pendingPrompt
     ) {
-      const response = [payload.last_agent_message, payload.error, payload.reason]
-        .find((value) => typeof value === "string") as string | undefined;
+      pendingPrompt.turnId ||= recordTurnId;
+      const response = [
+        taskEventText(payload.last_agent_message),
+        taskEventText(payload.error),
+        taskEventText(payload.reason)
+      ].find(Boolean);
       flush(response, timestamp);
     }
   }
 
   return { host: "codex", sessionId, rolloutPath: file, cwd, turns };
+}
+
+function taskEventText(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    return value.trim() || undefined;
+  }
+  const record = asRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  for (const key of ["message", "codex_error_info", "reason", "detail"]) {
+    const candidate = record[key];
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim();
+    }
+  }
+  return undefined;
+}
+
+function turnIdFrom(payload: Record<string, unknown>): string | undefined {
+  if (typeof payload.turn_id === "string") {
+    return payload.turn_id;
+  }
+  const metadata = asRecord(payload.internal_chat_message_metadata_passthrough);
+  return typeof metadata?.turn_id === "string"
+    ? metadata.turn_id
+    : undefined;
 }
 
 /** Parse a single Claude Code JSONL transcript into an ordered list of turns. */
@@ -322,7 +387,9 @@ export function parseClaudeTranscript(file: string): CollectedSession | undefine
   let sessionId = path.basename(file, ".jsonl");
   let cwd: string | undefined;
   const turns: CollectedTurn[] = [];
-  let pendingPrompt: { text: string; at: string } | undefined;
+  let pendingPrompt:
+    | { text: string; at: string; turnId?: string }
+    | undefined;
   let pendingActions: ToolAction[] = [];
   let pendingOperations: PendingFileOperation[] = [];
   const calls = new Map<string, PendingFileOperation>();
@@ -337,6 +404,7 @@ export function parseClaudeTranscript(file: string): CollectedSession | undefine
     turns.push({
       host: "claude",
       sessionId,
+      turnId: pendingPrompt.turnId,
       rolloutPath: file,
       turnIndex: turns.length,
       cwd,
@@ -383,7 +451,16 @@ export function parseClaudeTranscript(file: string): CollectedSession | undefine
       }
       // A new prompt finalizes the previous turn (with everything it gathered).
       flush();
-      pendingPrompt = { text, at: timestamp };
+      pendingPrompt = {
+        text,
+        at: timestamp,
+        turnId:
+          typeof record.uuid === "string"
+            ? record.uuid
+            : typeof record.turn_id === "string"
+              ? record.turn_id
+              : undefined
+      };
       lastAt = timestamp;
     } else if (record.type === "assistant" || role === "assistant") {
       // Assistant text + tool_use all belong to the current turn; accumulate
@@ -880,7 +957,11 @@ export function parseApplyPatch(patch: string, cwd?: string): FileChange[] {
   return changes;
 }
 
-function outputLooksFailed(output: unknown): boolean {
+function outputLooksFailed(output: unknown, depth = 0): boolean {
+  if (Array.isArray(output)) {
+    return depth < 4 &&
+      output.some((item) => outputLooksFailed(item, depth + 1));
+  }
   const record = typeof output === "string"
     ? safeJson(output) || undefined
     : asRecord(output);
@@ -892,6 +973,24 @@ function outputLooksFailed(output: unknown): boolean {
       .find((value) => typeof value === "number");
     if (typeof exitCode === "number") {
       return exitCode !== 0;
+    }
+    if (
+      record.error !== undefined &&
+      record.error !== null &&
+      record.error !== false &&
+      record.error !== ""
+    ) {
+      return true;
+    }
+    if (depth < 4) {
+      for (const key of ["metadata", "result", "response", "data"]) {
+        if (
+          record[key] !== undefined &&
+          outputLooksFailed(record[key], depth + 1)
+        ) {
+          return true;
+        }
+      }
     }
   }
   const text = typeof output === "string" ? output : JSON.stringify(output || "");
@@ -939,17 +1038,23 @@ function clipInline(text: string, max: number): string {
 
 // --- Persistence orchestration ---------------------------------------------
 
+interface CollectorFileCursor {
+  size: number;
+  collectedTurns: number;
+  identity?: string;
+  prefixBytes?: number;
+  prefixHash?: string;
+  suffixBytes?: number;
+  suffixHash?: string;
+  mtimeMs?: number;
+  ctimeMs?: number;
+  deferred?: boolean;
+  cwd?: string;
+}
+
 interface CollectorCursor {
   version: 1;
-  files: Record<
-    string,
-    {
-      size: number;
-      collectedTurns: number;
-      deferred?: boolean;
-      cwd?: string;
-    }
-  >;
+  files: Record<string, CollectorFileCursor>;
 }
 
 export interface CollectRunResult {
@@ -976,12 +1081,160 @@ function readCursor(): CollectorCursor {
   return { version: 1, files: {} };
 }
 
+function transcriptIdentity(stat: fs.Stats): string | undefined {
+  if (
+    !Number.isSafeInteger(stat.dev) ||
+    !Number.isSafeInteger(stat.ino) ||
+    (stat.dev === 0 && stat.ino === 0)
+  ) {
+    return undefined;
+  }
+  return `${stat.dev}:${stat.ino}`;
+}
+
+function hashFileSegment(
+  file: string,
+  start: number,
+  bytes: number
+): string | undefined {
+  const buffer = Buffer.alloc(bytes);
+  let handle: number | undefined;
+  let offset = 0;
+  try {
+    handle = fs.openSync(file, "r");
+    while (offset < bytes) {
+      const read = fs.readSync(
+        handle,
+        buffer,
+        offset,
+        bytes - offset,
+        start + offset
+      );
+      if (read === 0) {
+        break;
+      }
+      offset += read;
+    }
+  } catch {
+    return undefined;
+  } finally {
+    if (handle !== undefined) {
+      fs.closeSync(handle);
+    }
+  }
+  if (offset !== bytes) {
+    return undefined;
+  }
+  return createHash("sha256").update(buffer).digest("hex");
+}
+
+function cursorMetadata(
+  file: string,
+  stat: fs.Stats
+): Pick<
+  CollectorFileCursor,
+  | "size"
+  | "identity"
+  | "prefixBytes"
+  | "prefixHash"
+  | "suffixBytes"
+  | "suffixHash"
+  | "mtimeMs"
+  | "ctimeMs"
+> {
+  const prefixBytes = Math.min(stat.size, CURSOR_PREFIX_BYTES);
+  const suffixBytes = Math.min(stat.size, CURSOR_PREFIX_BYTES);
+  return {
+    size: stat.size,
+    identity: transcriptIdentity(stat),
+    prefixBytes,
+    prefixHash: hashFileSegment(file, 0, prefixBytes),
+    suffixBytes,
+    suffixHash: hashFileSegment(
+      file,
+      Math.max(0, stat.size - suffixBytes),
+      suffixBytes
+    ),
+    mtimeMs: stat.mtimeMs,
+    ctimeMs: stat.ctimeMs
+  };
+}
+
+function continuesPreviousFile(
+  file: string,
+  stat: fs.Stats,
+  current: ReturnType<typeof cursorMetadata>,
+  previous: CollectorFileCursor
+): boolean {
+  if (stat.size < previous.size) {
+    return false;
+  }
+  if (
+    previous.identity &&
+    current.identity &&
+    previous.identity !== current.identity
+  ) {
+    return false;
+  }
+  if (
+    previous.prefixBytes === undefined ||
+    previous.prefixHash === undefined ||
+    stat.size < previous.prefixBytes
+  ) {
+    return false;
+  }
+  const currentPrefix = previous.prefixBytes === current.prefixBytes
+    ? current.prefixHash
+    : hashFileSegment(file, 0, previous.prefixBytes);
+  if (currentPrefix !== previous.prefixHash) {
+    return false;
+  }
+  if (
+    previous.suffixBytes === undefined ||
+    previous.suffixHash === undefined ||
+    previous.size < previous.suffixBytes
+  ) {
+    return false;
+  }
+  const previousTail = hashFileSegment(
+    file,
+    previous.size - previous.suffixBytes,
+    previous.suffixBytes
+  );
+  if (previousTail !== previous.suffixHash) {
+    return false;
+  }
+  if (stat.size === previous.size) {
+    if (
+      previous.mtimeMs !== undefined &&
+      previous.mtimeMs !== current.mtimeMs
+    ) {
+      return false;
+    }
+    if (
+      previous.ctimeMs !== undefined &&
+      previous.ctimeMs !== current.ctimeMs
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 async function writeCursor(cursor: CollectorCursor): Promise<void> {
   const file = collectorStatePath();
   await fs.promises.mkdir(path.dirname(file), { recursive: true });
   const temp = `${file}.${process.pid}.${createId("cursor")}.tmp`;
-  await fs.promises.writeFile(temp, `${JSON.stringify(cursor, null, 2)}\n`, "utf8");
-  await fs.promises.rename(temp, file);
+  try {
+    await fs.promises.writeFile(
+      temp,
+      `${JSON.stringify(cursor, null, 2)}\n`,
+      "utf8"
+    );
+    await commitTempFile(temp, file);
+  } finally {
+    await fs.promises.rm(temp, { force: true }).catch(() => undefined);
+  }
 }
 
 /** Resolve a transcript cwd to an existing project root, or undefined. */
@@ -1001,9 +1254,9 @@ function resolveProjectRoot(cwd: string | undefined): string | undefined {
  *
  * Idempotent: a per-file cursor tracks how many turns were already persisted,
  * so re-running only appends genuinely new turns. Turns are also deduped
- * against existing nodes (including hook-produced ones) by rollout provenance
- * and by (sessionId, prompt, response) so a session captured by both a hook
- * and this collector is never double-recorded.
+ * by stable host turn ids or exact rollout provenance. Older hook records
+ * without a turn id use a one-to-one, time-bounded content match so genuine
+ * repeated prompts remain distinct.
  */
 export async function collectSessions(): Promise<CollectRunResult> {
   const cursorFile = collectorStatePath();
@@ -1049,30 +1302,36 @@ async function collectSessionsUnlocked(): Promise<CollectRunResult> {
       return;
     }
     const previous = cursor.files[file];
+    const metadata = cursorMetadata(file, stat);
+    const continues = previous
+      ? continuesPreviousFile(file, stat, metadata, previous)
+      : false;
+    const unchanged = Boolean(
+      previous && continues && previous.size === stat.size
+    );
     if (
       previous?.deferred &&
-      previous.size === stat.size &&
+      unchanged &&
       (!previous.cwd || !resolveProjectRoot(previous.cwd))
     ) {
       return;
     }
-    // Skip files that haven't grown since last run.
-    if (previous && previous.size === stat.size && !previous.deferred) {
+    if (unchanged && !previous?.deferred) {
       return;
     }
     result.scannedFiles += 1;
     const session = parse(file);
     if (!session || session.turns.length === 0) {
       cursor.files[file] = {
-        size: stat.size,
-        collectedTurns: previous?.collectedTurns || 0
+        ...metadata,
+        collectedTurns: continues ? previous?.collectedTurns || 0 : 0
       };
       return;
     }
-    const alreadyCollected = previous?.collectedTurns || 0;
+    const alreadyCollected = continues ? previous?.collectedTurns || 0 : 0;
     const fresh = session.turns.filter((turn) => turn.turnIndex >= alreadyCollected);
     if (fresh.length === 0) {
-      cursor.files[file] = { size: stat.size, collectedTurns: alreadyCollected };
+      cursor.files[file] = { ...metadata, collectedTurns: alreadyCollected };
       return;
     }
 
@@ -1083,7 +1342,7 @@ async function collectSessionsUnlocked(): Promise<CollectRunResult> {
       // remain eligible for a future retry.
       result.skippedNoProject += fresh.length;
       cursor.files[file] = {
-        size: stat.size,
+        ...metadata,
         collectedTurns: alreadyCollected,
         deferred: true,
         cwd: session.cwd
@@ -1094,7 +1353,10 @@ async function collectSessionsUnlocked(): Promise<CollectRunResult> {
     const persisted = await persistTurns(root, session.host, fresh);
     result.newTurns += persisted;
     touchedProjects.add(root);
-    cursor.files[file] = { size: stat.size, collectedTurns: session.turns.length };
+    cursor.files[file] = {
+      ...metadata,
+      collectedTurns: session.turns.length
+    };
   };
 
   for (const file of codexFiles) {
@@ -1122,26 +1384,83 @@ async function persistTurns(
     const shadow = new ShadowRepo(root, config.maxFileSizeMB);
     let baseline: string | undefined;
     let added = 0;
+    const matchedHookNodeIds = new Set<string>();
 
     for (const turn of turns) {
       const scopedSession = `${host}:${turn.sessionId}`;
-      const nodeId = `collected-${host}-${safeId(turn.sessionId)}-${turn.turnIndex}`;
+      const provenance = turn.turnId
+        ? [host, turn.sessionId, turn.turnId].join("\0")
+        : [
+            host,
+            turn.rolloutPath,
+            turn.sessionId,
+            String(turn.turnIndex)
+          ].join("\0");
+      const provenanceId = createHash("sha256")
+        .update(provenance)
+        .digest("hex")
+        .slice(0, 20);
+      const nodeId = `collected-${host}-${provenanceId}`;
+      const source = {
+        type: "rollout" as const,
+        host,
+        rolloutPath: turn.rolloutPath,
+        sessionId: turn.sessionId,
+        turnIndex: turn.turnIndex,
+        turnId: turn.turnId,
+        collectedAt: new Date().toISOString()
+      };
 
-      // Dedup: exact node id, or a hook-produced node with the same session +
-      // prompt (+ response when known).
-      const duplicate = state.nodes.some((node) => {
+      const duplicate = state.nodes.find((node) => {
         if (node.id === nodeId) {
           return true;
         }
-        if (node.sessionId !== scopedSession) {
+        if (node.source?.type !== "rollout" || node.source.host !== host) {
           return false;
         }
-        if (node.prompt !== turn.prompt) {
-          return false;
+        if (turn.turnId) {
+          return (
+            node.source.sessionId === turn.sessionId &&
+            (
+              node.turnId === turn.turnId ||
+              node.source.turnId === turn.turnId
+            )
+          );
         }
-        return !turn.response || !node.response || node.response === turn.response;
+        return node.source.rolloutPath === turn.rolloutPath &&
+          node.source.sessionId === turn.sessionId &&
+          node.source.turnIndex === turn.turnIndex;
       });
       if (duplicate) {
+        if (turn.turnId) {
+          mergeCollectedTurn(duplicate, turn, source);
+        }
+        continue;
+      }
+      const hookMatch = state.nodes
+        .filter((node) =>
+          node.kind === "turn" &&
+          node.source?.type !== "rollout" &&
+          !matchedHookNodeIds.has(node.id) &&
+          node.sourceHost === host &&
+          node.sessionId === scopedSession &&
+          (
+            Boolean(turn.turnId && node.turnId === turn.turnId) ||
+            (
+              node.prompt === clipText(turn.prompt, 4_000) &&
+              (node.response || "") === clipText(turn.response, 4_000) &&
+              sameTurnWindow(node, turn)
+            )
+          )
+        )
+        .sort((left, right) =>
+          turnDistance(left, turn) - turnDistance(right, turn) ||
+          left.id.localeCompare(right.id)
+        )[0];
+      if (hookMatch) {
+        hookMatch.turnId ||= turn.turnId;
+        hookMatch.source = source;
+        matchedHookNodeIds.add(hookMatch.id);
         continue;
       }
 
@@ -1155,6 +1474,7 @@ async function persistTurns(
         id: nodeId,
         kind: "collected",
         sessionId: scopedSession,
+        turnId: turn.turnId,
         sourceHost: host,
         branchId: state.activeBranchId,
         parentId: parent?.id,
@@ -1167,14 +1487,7 @@ async function persistTurns(
         files: turn.files,
         actions: turn.actions,
         validation: { status: "skipped" },
-        source: {
-          type: "rollout",
-          host,
-          rolloutPath: turn.rolloutPath,
-          sessionId: turn.sessionId,
-          turnIndex: turn.turnIndex,
-          collectedAt: new Date().toISOString()
-        }
+        source
       };
       state.nodes.push(node);
       added += 1;
@@ -1183,6 +1496,92 @@ async function persistTurns(
   });
 }
 
-function safeId(value: string): string {
-  return value.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 60);
+function mergeCollectedTurn(
+  node: TimelineNode,
+  turn: CollectedTurn,
+  source: Extract<NonNullable<TimelineNode["source"]>, { type: "rollout" }>
+): void {
+  const previousCompletedAt = node.completedAt;
+  node.turnId ||= turn.turnId;
+  node.startedAt =
+    turn.startedAt < node.startedAt ? turn.startedAt : node.startedAt;
+  node.completedAt =
+    turn.completedAt > node.completedAt ? turn.completedAt : node.completedAt;
+  if (
+    turn.response &&
+    (
+      !node.response ||
+      turn.completedAt >= previousCompletedAt ||
+      turn.response.length > node.response.length
+    )
+  ) {
+    node.response = turn.response;
+  }
+  node.actions = mergeCollectedActions(node.actions, turn.actions);
+  const files = new Map(
+    node.files.map((file) => [
+      `${file.previousPath || ""}\0${file.path}`,
+      file
+    ])
+  );
+  for (const file of turn.files) {
+    files.set(`${file.previousPath || ""}\0${file.path}`, file);
+  }
+  node.files = [...files.values()];
+  node.source = source;
+}
+
+function mergeCollectedActions(
+  existing: ToolAction[],
+  incoming: ToolAction[]
+): ToolAction[] {
+  const merged = existing.map((action) => ({ ...action }));
+  const matched = new Set<number>();
+  for (const action of incoming) {
+    const index = merged.findIndex((candidate, candidateIndex) =>
+      !matched.has(candidateIndex) &&
+      (
+        (
+          action.id &&
+          candidate.id &&
+          action.id === candidate.id
+        ) ||
+        (
+          action.kind === candidate.kind &&
+          action.tool === candidate.tool &&
+          action.path === candidate.path &&
+          action.detail === candidate.detail
+        )
+      )
+    );
+    if (index >= 0) {
+      matched.add(index);
+      if (action.id) merged[index].id = action.id;
+      if (action.ok !== undefined) merged[index].ok = action.ok;
+    } else {
+      merged.push({ ...action });
+    }
+  }
+  return merged;
+}
+
+function sameTurnWindow(node: TimelineNode, turn: CollectedTurn): boolean {
+  return (
+    Math.abs(Date.parse(node.startedAt) - Date.parse(turn.startedAt)) <=
+      2 * 60_000 &&
+    Math.abs(Date.parse(node.completedAt) - Date.parse(turn.completedAt)) <=
+      2 * 60_000
+  );
+}
+
+function turnDistance(node: TimelineNode, turn: CollectedTurn): number {
+  const started = Math.abs(
+    Date.parse(node.startedAt) - Date.parse(turn.startedAt)
+  );
+  const completed = Math.abs(
+    Date.parse(node.completedAt) - Date.parse(turn.completedAt)
+  );
+  return Number.isFinite(started) && Number.isFinite(completed)
+    ? started + completed
+    : Number.POSITIVE_INFINITY;
 }

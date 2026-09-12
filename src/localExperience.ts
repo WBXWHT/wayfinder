@@ -97,13 +97,21 @@ function isFailureNode(
   node: TimelineNode,
   abandoned: Set<string>
 ): boolean {
-  return (
+  if (
     node.verdict === "failure" ||
     node.validation?.status === "failed" ||
     node.validation?.status === "timeout" ||
-    (node.actions || []).some((action) => action.ok === false) ||
     abandoned.has(node.id)
-  );
+  ) {
+    return true;
+  }
+  if (
+    node.verdict === "success" ||
+    node.validation?.status === "passed"
+  ) {
+    return false;
+  }
+  return (node.actions || []).some((action) => action.ok === false);
 }
 
 function isResolvedAttempt(node: TimelineNode): boolean {

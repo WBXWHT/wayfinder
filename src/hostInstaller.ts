@@ -22,6 +22,7 @@ type HookFile = {
 const TURN_EVENTS = ["UserPromptSubmit", "PostToolUse", "Stop"] as const;
 const HOOK_MARKER = "--wayfinder-hook";
 const CONFIG_LOCK_STALE_MS = 10_000;
+const TRANSIENT_FILE_ERRORS = new Set(["EACCES", "EBUSY", "EPERM"]);
 
 export async function uninstallHostHooks(
   root: string,
@@ -267,13 +268,9 @@ async function updateHookFile(
         if (!await publishHookSnapshot(
           file,
           temp,
-          serialized,
           snapshot.raw
         )) {
           continue;
-        }
-        if (process.platform !== "win32") {
-          await fs.promises.chmod(file, snapshot.mode);
         }
         return;
       } finally {
@@ -291,34 +288,35 @@ async function updateHookFile(
 async function publishHookSnapshot(
   file: string,
   temp: string,
-  serialized: string,
   snapshotRaw: string | undefined
 ): Promise<boolean> {
   if (snapshotRaw === undefined) {
     return linkIfAbsent(temp, file);
   }
   const backup = `${file}.${process.pid}.${randomUUID()}.previous`;
+  let backupPresent = false;
+  let removeBackup = false;
   try {
     try {
-      await fs.promises.rename(file, backup);
+      await retryTransientFileOperation(() =>
+        fs.promises.rename(file, backup)
+      );
+      backupPresent = true;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
       throw error;
     }
     if (await readRaw(backup) !== snapshotRaw) {
-      await linkIfAbsent(backup, file);
+      if (await restoreBackupIfAbsent(backup, file)) {
+        backupPresent = false;
+      }
       return false;
     }
     if (!await linkIfAbsent(temp, file)) {
+      removeBackup = true;
       return false;
     }
     if (await readRaw(backup) !== snapshotRaw) {
-      const current = await readRaw(file);
-      if (current === serialized) {
-        await fs.promises.rm(file, { force: true });
-        await linkIfAbsent(backup, file);
-        return false;
-      }
       const conflict = `${file}.wayfinder-conflict-${randomUUID()}`;
       await fs.promises.copyFile(
         backup,
@@ -329,10 +327,35 @@ async function publishHookSnapshot(
         `Concurrent hook configuration updates were preserved at: ${conflict}`
       );
     }
+    removeBackup = true;
     return true;
+  } catch (error) {
+    if (backupPresent && await readRaw(file) === undefined) {
+      if (await restoreBackupIfAbsent(backup, file)) {
+        backupPresent = false;
+      }
+    }
+    throw error;
   } finally {
-    await fs.promises.rm(backup, { force: true }).catch(() => undefined);
+    if (removeBackup && backupPresent) {
+      await retryTransientFileOperation(() =>
+        fs.promises.rm(backup, { force: true })
+      ).catch(() => undefined);
+    }
   }
+}
+
+async function restoreBackupIfAbsent(
+  backup: string,
+  file: string
+): Promise<boolean> {
+  if (!await linkIfAbsent(backup, file)) {
+    return false;
+  }
+  await retryTransientFileOperation(() =>
+    fs.promises.rm(backup, { force: true })
+  );
+  return true;
 }
 
 async function linkIfAbsent(
@@ -340,11 +363,31 @@ async function linkIfAbsent(
   destination: string
 ): Promise<boolean> {
   try {
-    await fs.promises.link(source, destination);
+    await retryTransientFileOperation(() =>
+      fs.promises.link(source, destination)
+    );
     return true;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
     throw error;
+  }
+}
+
+async function retryTransientFileOperation<T>(
+  operation: () => Promise<T>
+): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code || "";
+      if (!TRANSIENT_FILE_ERRORS.has(code) || attempt >= 7) {
+        throw error;
+      }
+      await new Promise((resolve) =>
+        setTimeout(resolve, Math.min(10 * (2 ** attempt), 160))
+      );
+    }
   }
 }
 

@@ -3,6 +3,28 @@
 Notable public changes to Wayfinder are recorded here. Release notes describe
 user-visible behavior; implementation detail remains in the linked commits.
 
+## [0.3.12] - 2026-09-12
+
+### Fixed
+
+- Connected installed host hooks to the bundled CLI and preserved existing
+  host configuration if an atomic publish fails.
+- Kept repeated turns, rotated transcripts, structured tool failures, and
+  Hook/collector races truthful without duplicate or phantom file facts.
+- Preserved case-only renames on macOS and Windows file systems.
+- Kept final successful outcomes out of failure analysis while retaining
+  conclusive validation failures.
+- Restored macOS 12 WebKit compatibility, keyboard focus, narrow-window
+  actions, search framing, and stale project-request handling.
+- Required successful CI, verified checksums, latest-main release refs, and an
+  installed Windows x64 sidecar before public deployment.
+
+### Verification
+
+- 186 JavaScript and Chromium checks.
+- 9 Rust checks, plus Clippy, npm audit, and cargo audit.
+- Apple Silicon, Intel macOS, and Windows x64 release gates.
+
 ## [0.3.11] - 2026-09-12
 
 ### Fixed
@@ -49,3 +71,4 @@ user-visible behavior; implementation detail remains in the linked commits.
 
 [0.3.10]: https://github.com/StayCurious-Xuan/wayfinder/releases/tag/alpha-v0.3.10
 [0.3.11]: https://github.com/StayCurious-Xuan/wayfinder/releases/tag/alpha-v0.3.11
+[0.3.12]: https://github.com/StayCurious-Xuan/wayfinder/releases/tag/alpha-v0.3.12

@@ -1,6 +1,9 @@
 const assert = require("node:assert/strict");
+const childProcess = require("node:child_process");
 const fs = require("node:fs");
 const Module = require("node:module");
+const os = require("node:os");
+const path = require("node:path");
 const test = require("node:test");
 
 const originalLoad = Module._load;
@@ -62,8 +65,11 @@ test("sidebar renders one active project with accessible voyage paging", () => {
   assert.match(html, /renderCleanups\.splice\(0\)\.forEach/);
   assert.match(html, /resizeObserver\?\.disconnect\(\)/);
   assert.match(html, /window\.removeEventListener\('resize', fitStage\)/);
-  assert.match(html, /lineageViewports\.set\(tree\.id/);
-  assert.match(html, /const saved = lineageViewports\.get\(tree\.id\)/);
+  assert.match(html, /lineageViewports\.set\(tree\.id \+ '\\u0000' \+ query/);
+  assert.match(
+    html,
+    /const saved = lineageViewports\.get\(tree\.id \+ '\\u0000' \+ query\)/
+  );
   assert.match(html, /const minimumReadableScale = 0\.7935/);
   assert.match(html, /Math\.max\(minimumReadableScale, fitScale\)/);
   assert.match(html, /Math\.max\(scaledHeight, viewportRoom, 240\)/);
@@ -151,6 +157,11 @@ test("full map keeps one project canvas with expandable voyages", () => {
   assert.match(html, /function appendResponse/);
   assert.match(html, /file\.lineCountsKnown === false/);
   assert.match(html, /count\.textContent = '行数未知'/);
+  assert.match(html, /\.detail-actions \{[^}]*flex-wrap: wrap/);
+  assert.match(html, /\.forest-card:focus \.node-card-bg/);
+  assert.doesNotMatch(html, /forest-card:focus-visible/);
+  assert.match(html, /@supports not \(color: color-mix/);
+  assert.doesNotMatch(html, /\.at\(-1\)/);
   assert.match(html, /--project-accent/);
   assert.match(html, /routeIndexesFor\(tree\)/);
   assert.match(html, /\.forest-edge\.route-0/);
@@ -242,4 +253,55 @@ test("sidebar preview resolves D3 from the repository media directory", () => {
   );
 
   assert.match(source, /\? "\.\.\/media\/d3\.min\.js"/);
+});
+
+test("sidebar preview escapes persisted UI state inside inline scripts", (t) => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wayfinder-preview-"));
+  const statePath = path.join(sandbox, "timeline.json");
+  const outputPath = path.join(sandbox, "preview.html");
+  const marker =
+    "</script><script>globalThis.previewInjected=true</script>\u2028\u2029";
+  const now = "2026-09-12T00:00:00.000Z";
+  fs.writeFileSync(statePath, JSON.stringify({
+    version: 1,
+    projectId: "preview-project",
+    root: sandbox,
+    activeBranchId: "main",
+    branches: [{ id: "main", name: "main", createdAt: now }],
+    nodes: [{
+      id: marker,
+      kind: "collected",
+      sessionId: "codex:preview",
+      sourceHost: "codex",
+      branchId: "main",
+      prompt: "Preview",
+      startedAt: now,
+      completedAt: now,
+      snapshotBefore: "same",
+      snapshotAfter: "same",
+      files: [],
+      actions: [],
+      validation: { status: "skipped" }
+    }],
+    pending: {},
+    updatedAt: now
+  }));
+  t.after(() => fs.rmSync(sandbox, { recursive: true, force: true }));
+
+  childProcess.execFileSync(
+    process.execPath,
+    [require.resolve("../scripts/generate-preview.cjs"), statePath, outputPath],
+    {
+      env: {
+        ...process.env,
+        WAYFINDER_PREVIEW_EXPAND_SESSION: "1"
+      },
+      stdio: "pipe"
+    }
+  );
+  const html = fs.readFileSync(outputPath, "utf8");
+  assert.doesNotMatch(html, /<script>globalThis\.previewInjected=true/);
+  assert.match(html, /\\u003c\/script>/);
+  assert.equal(html.includes("\u2028"), false);
+  assert.equal(html.includes("\u2029"), false);
 });

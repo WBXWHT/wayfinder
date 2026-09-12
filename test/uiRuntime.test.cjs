@@ -567,6 +567,34 @@ test(
           })()`
       );
       assert.equal(trappedFocus.trapped, true, JSON.stringify(trappedFocus));
+
+      await cdp.send("Runtime.evaluate", {
+        expression: "document.querySelector('.turn-main')?.click()"
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelector('.turn.selected .actions [data-focus-key]')"
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression: `(() => {
+          const action = document.querySelector(
+            '.turn.selected .actions [data-focus-key]'
+          );
+          action?.focus();
+          window.dispatchEvent(new MessageEvent('message', {
+            data: latestPayload
+          }));
+        })()`
+      });
+      await delay(120);
+      assert.equal(
+        await evaluate(
+          cdp,
+          "document.activeElement?.closest('.actions') !== null"
+        ),
+        true
+      );
+
       await cdp.send("Runtime.evaluate", {
         expression:
           "document.dispatchEvent(new KeyboardEvent('keydown'," +
@@ -602,7 +630,15 @@ test(
       await cdp.send("Runtime.evaluate", {
         expression: `(() => {
           const input = document.querySelector('.search input');
-          input.value = 'API';
+          input.focus();
+          const active = latestPayload.forest.trees.find(
+            (tree) => tree.id === activeTreeId
+          );
+          input.value =
+            latestPayload.state.nodes.find(
+              (node) => active?.sessions[0]?.nodeIds.includes(node.id)
+            )?.prompt ||
+            '';
           input.dispatchEvent(new InputEvent('input', { bubbles: true }));
           window.dispatchEvent(new MessageEvent('message', {
             data: Object.assign({}, latestPayload, {
@@ -612,6 +648,28 @@ test(
         })()`
       });
       await delay(250);
+      const filteredViewport = await evaluateJson(
+        cdp,
+        `({
+          transform:
+            document.querySelector('.lineage-stage')?.style.transform || '',
+          cards: document.querySelectorAll('.lineage-node-button').length,
+          query,
+          input: document.querySelector('.search input')?.value || '',
+          activeTreeId,
+          titles: latestPayload.forest.trees
+            .find((tree) => tree.id === activeTreeId)
+            ?.sessions.map((session) => session.shortTitle || session.title)
+        })`
+      );
+      assert.ok(
+        filteredViewport.cards > 0,
+        JSON.stringify(filteredViewport)
+      );
+      assert.notEqual(
+        filteredViewport.transform,
+        sidebarViewportBeforeSheet.after
+      );
       // The validation-command footer was removed as dead product surface;
       // configuring validation now lives only in the title-bar menu.
       assert.equal(
@@ -1700,6 +1758,40 @@ test(
 
       await cdp.send("Runtime.evaluate", {
         expression: `(() => {
+          const target = document.querySelectorAll('.project-item')[1];
+          const id = target.dataset.projectId;
+          globalThis.__WAYFINDER_PREVIEW_READ_DELAYS__[id] = [900, 0];
+          target.click();
+          void loadActiveProject();
+        })()`
+      });
+      await waitForExpression(
+        cdp,
+        "document.querySelector('#currentProjectLabel')?.textContent === 'ui-test 2'"
+      );
+      await delay(1_000);
+      assert.equal(
+        await evaluate(
+          cdp,
+          "document.body.classList.contains('projects-open')"
+        ),
+        false
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression: "document.querySelector('#toggleProjects')?.click()"
+      });
+      await waitForExpression(
+        cdp,
+        "document.body.classList.contains('projects-open')"
+      );
+      const activeBeforeRacedFailure = await evaluate(
+        cdp,
+        "document.querySelector('.project-item[aria-current=\"true\"]')" +
+          "?.dataset.projectId"
+      );
+
+      await cdp.send("Runtime.evaluate", {
+        expression: `(() => {
           const original = globalThis.__WAYFINDER_PREVIEW_PROJECTS__[0];
           const raceId = original.id + '-race';
           globalThis.__WAYFINDER_PREVIEW_PROJECTS__.push({
@@ -1736,7 +1828,7 @@ test(
       await waitForExpression(
         cdp,
         "document.querySelector('#toast')?.textContent.includes('读取失败') && " +
-          "document.querySelector('#currentProjectLabel')?.textContent === 'ui-test'"
+          "document.querySelector('#currentProjectLabel')?.textContent === 'ui-test 2'"
       );
       assert.equal(
         await evaluate(
@@ -1744,12 +1836,12 @@ test(
           "document.querySelector('.project-item[aria-current=\"true\"]')" +
             "?.dataset.projectId"
         ),
-        activeBeforeFailedSwitch
+        activeBeforeRacedFailure
       );
       await delay(1_000);
       assert.equal(
         await evaluate(cdp, "document.querySelector('#currentProjectLabel')?.textContent"),
-        "ui-test"
+        "ui-test 2"
       );
       await cdp.send("Runtime.evaluate", {
         expression: `(() => {
@@ -2243,6 +2335,34 @@ test(
       assert.equal(openDrawer.sidebarInert, false);
       assert.equal(openDrawer.toggleExpanded, "true");
       assert.equal(openDrawer.activeProject, true);
+
+      await cdp.send("Runtime.evaluate", {
+        expression: `(() => {
+          const items = document.querySelectorAll('.project-item');
+          const firstId = items[0].dataset.projectId;
+          const secondId = items[1].dataset.projectId;
+          globalThis.__WAYFINDER_PREVIEW_READ_DELAYS__[secondId] = [900];
+          globalThis.__WAYFINDER_PREVIEW_READ_DELAYS__[firstId] = [1900, 0];
+          globalThis.__WAYFINDER_PREVIEW_READ_FAILURE__ = firstId;
+          items[1].click();
+          document.querySelectorAll('.project-item')[0].click();
+        })()`
+      });
+      await delay(1_100);
+      assert.equal(
+        await evaluate(
+          cdp,
+          "document.body.classList.contains('projects-open')"
+        ),
+        true
+      );
+      await waitForExpression(
+        cdp,
+        "document.querySelector('#toast')?.textContent.includes('读取失败')"
+      );
+      await cdp.send("Runtime.evaluate", {
+        expression: "globalThis.__WAYFINDER_PREVIEW_READ_FAILURE__ = ''"
+      });
 
       await cdp.send("Runtime.evaluate", {
         expression:

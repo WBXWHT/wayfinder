@@ -155,6 +155,105 @@ test("Claude PostToolUseFailure is recorded as failed action evidence", async ()
   assert.equal(pending.actions[0].ok, false);
 });
 
+test("successful tool responses may contain a null error field", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wayfinder-tool-ok-"));
+  const root = path.join(sandbox, "project");
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  fs.mkdirSync(root, { recursive: true });
+  fs.writeFileSync(path.join(root, "app.js"), "one\n");
+  await writeProjectConfig(root, {
+    validationCommand: "",
+    validationTimeoutSeconds: 10,
+    maxFileSizeMB: 20
+  });
+
+  await processHookEvent({
+    wayfinder_host: "claude",
+    hook_event_name: "UserPromptSubmit",
+    session_id: "successful-tool",
+    cwd: root,
+    prompt: "Run a successful command"
+  });
+  await processHookEvent({
+    wayfinder_host: "claude",
+    hook_event_name: "PostToolUse",
+    session_id: "successful-tool",
+    tool_use_id: "successful-bash-1",
+    cwd: root,
+    tool_name: "Bash",
+    tool_input: { command: "printf ok" },
+    tool_response: { error: null, success: true }
+  });
+
+  const pending = (await readProjectState(root)).pending[
+    "claude:successful-tool"
+  ];
+  assert.equal(pending.actions.length, 1);
+  assert.equal(pending.actions[0].ok, true);
+});
+
+test("structured PostToolUse failures remain failed without a failure event", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wayfinder-tool-result-"));
+  const root = path.join(sandbox, "project");
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  fs.mkdirSync(root, { recursive: true });
+  fs.writeFileSync(path.join(root, "app.js"), "one\n");
+  await writeProjectConfig(root, {
+    validationCommand: "",
+    validationTimeoutSeconds: 10,
+    maxFileSizeMB: 20
+  });
+
+  await processHookEvent({
+    hook_event_name: "UserPromptSubmit",
+    session_id: "structured-failure",
+    cwd: root,
+    prompt: "Run a command"
+  });
+  await processHookEvent({
+    hook_event_name: "PostToolUse",
+    session_id: "structured-failure",
+    tool_use_id: "failed-command",
+    cwd: root,
+    tool_name: "RunCommand",
+    tool_input: { command: "exit 2" },
+    tool_response: {
+      success: false,
+      error: "command failed",
+      exit_code: 2
+    }
+  });
+
+  const pending = (await readProjectState(root)).pending[
+    "structured-failure"
+  ];
+  assert.equal(pending.actions.length, 1);
+  assert.equal(pending.actions[0].ok, false);
+});
+
+test("a cwd outside advertised workspace roots stays with its own project", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wayfinder-hook-root-"));
+  const root = path.join(sandbox, "actual-project");
+  const unrelated = path.join(sandbox, "other-project");
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  fs.mkdirSync(root, { recursive: true });
+  fs.mkdirSync(unrelated, { recursive: true });
+
+  await processHookEvent({
+    wayfinder_host: "codex",
+    hook_event_name: "SessionStart",
+    session_id: "root-selection",
+    cwd: root,
+    workspace_roots: [unrelated]
+  });
+
+  const activity = JSON.parse(fs.readFileSync(
+    path.join(process.env.WAYFINDER_HOME, "activity.json"),
+    "utf8"
+  ));
+  assert.equal(activity.root, normalizeRoot(root));
+});
+
 test("session lifecycle writes only local companion activity", async () => {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wayfinder-lifecycle-"));
   const root = path.join(sandbox, "project");

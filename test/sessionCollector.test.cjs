@@ -1,4 +1,5 @@
 const assert = require("node:assert/strict");
+const { Buffer } = require("node:buffer");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -10,7 +11,11 @@ const {
   parseApplyPatch,
   collectSessions
 } = require("../out/sessionCollector.js");
-const { readProjectState } = require("../out/storage.js");
+const { processHookEvent } = require("../out/hook.js");
+const {
+  readProjectState,
+  writeProjectConfig
+} = require("../out/storage.js");
 
 // The real desktop-app "讲个冷笑话" rollout: a mid-turn model switch
 // (gpt-5.2 -> gpt-5.5) replays the same user prompt, and no lifecycle hook
@@ -48,6 +53,34 @@ function writeCodexRollout(codexHome, cwd) {
   return file;
 }
 
+function codexConversationRollout(cwd, sessionId, prompt, response) {
+  return [
+    {
+      type: "session_meta",
+      timestamp: "2026-09-10T09:00:00.000Z",
+      payload: { id: sessionId, cwd }
+    },
+    {
+      type: "response_item",
+      timestamp: "2026-09-10T09:00:01.000Z",
+      payload: {
+        type: "message",
+        role: "user",
+        content: [{ type: "text", text: prompt }]
+      }
+    },
+    {
+      type: "response_item",
+      timestamp: "2026-09-10T09:00:02.000Z",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "text", text: response }]
+      }
+    }
+  ].map((line) => JSON.stringify(line)).join("\n") + "\n";
+}
+
 test("parses cold-joke rollout into a single deduped turn", () => {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-collect-parse-"));
   const cwd = path.join(sandbox, "project");
@@ -66,6 +99,74 @@ test("parses cold-joke rollout into a single deduped turn", () => {
   );
   // Envelope/system messages must never become prompts.
   assert.ok(!session.turns.some((turn) => turn.prompt.includes("environment_context")));
+});
+
+test("HTML and XML-looking user prompts are not discarded as envelopes", () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-html-prompt-"));
+  const cwd = path.join(sandbox, "project");
+  const file = path.join(sandbox, "html.jsonl");
+  fs.mkdirSync(cwd, { recursive: true });
+  fs.writeFileSync(
+    file,
+    codexConversationRollout(
+      cwd,
+      "html-prompt",
+      "<template><div>Keep this component</div></template>",
+      "Kept."
+    )
+  );
+
+  const session = parseCodexRollout(file);
+  assert.equal(session.turns.length, 1);
+  assert.equal(
+    session.turns[0].prompt,
+    "<template><div>Keep this component</div></template>"
+  );
+});
+
+test("Codex task errors preserve structured failure messages", () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-task-error-"));
+  const cwd = path.join(sandbox, "project");
+  const file = path.join(sandbox, "task-error.jsonl");
+  fs.mkdirSync(cwd, { recursive: true });
+  const lines = [
+    {
+      type: "session_meta",
+      timestamp: "2026-09-10T09:00:00.000Z",
+      payload: { id: "task-error", cwd }
+    },
+    {
+      type: "response_item",
+      timestamp: "2026-09-10T09:00:01.000Z",
+      payload: {
+        type: "message",
+        role: "user",
+        content: [{ type: "text", text: "Finish the task" }]
+      }
+    },
+    {
+      type: "event_msg",
+      timestamp: "2026-09-10T09:00:02.000Z",
+      payload: {
+        type: "task_complete",
+        error: {
+          message: "The provider rejected the request.",
+          codex_error_info: "rate_limit"
+        }
+      }
+    }
+  ];
+  fs.writeFileSync(
+    file,
+    lines.map((line) => JSON.stringify(line)).join("\n") + "\n"
+  );
+
+  const session = parseCodexRollout(file);
+  assert.equal(session.turns.length, 1);
+  assert.equal(
+    session.turns[0].response,
+    "The provider rejected the request."
+  );
 });
 
 test("collects desktop chat into the right project without hooks", async () => {
@@ -292,6 +393,496 @@ test("appends only new turns when a session grows", async () => {
   assert.deepEqual(prompts, ["第一个问题", "第二个问题"]);
 });
 
+test("preserves genuinely repeated prompt and response turns", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-repeat-turn-"));
+  const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "wf-project-")));
+  const codexHome = path.join(sandbox, "codex");
+  const dir = path.join(codexHome, "sessions", "2026", "09", "10");
+  const file = path.join(dir, "repeated.jsonl");
+  fs.mkdirSync(dir, { recursive: true });
+  const lines = [
+    {
+      type: "session_meta",
+      timestamp: "2026-09-10T10:00:00.000Z",
+      payload: { id: "repeated", cwd }
+    },
+    {
+      type: "response_item",
+      timestamp: "2026-09-10T10:00:01.000Z",
+      payload: {
+        type: "message",
+        role: "user",
+        content: [{ type: "text", text: "continue" }]
+      }
+    },
+    {
+      type: "response_item",
+      timestamp: "2026-09-10T10:00:02.000Z",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "text", text: "done" }]
+      }
+    },
+    {
+      type: "response_item",
+      timestamp: "2026-09-10T10:05:01.000Z",
+      payload: {
+        type: "message",
+        role: "user",
+        content: [{ type: "text", text: "continue" }]
+      }
+    },
+    {
+      type: "response_item",
+      timestamp: "2026-09-10T10:05:02.000Z",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "text", text: "done" }]
+      }
+    }
+  ];
+  fs.writeFileSync(
+    file,
+    lines.map((line) => JSON.stringify(line)).join("\n") + "\n"
+  );
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  process.env.CODEX_HOME = codexHome;
+  process.env.CLAUDE_CONFIG_DIR = path.join(sandbox, "no-claude");
+
+  const result = await collectSessions();
+  assert.equal(result.newTurns, 2);
+  const state = await readProjectState(cwd);
+  assert.equal(
+    state.nodes.filter((node) => node.prompt === "continue").length,
+    2
+  );
+});
+
+test("hook and rollout capture of one stable turn remain one node", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-hook-rollout-"));
+  const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "wf-project-")));
+  const codexHome = path.join(sandbox, "codex");
+  const dir = path.join(codexHome, "sessions", "2026", "09", "12");
+  const file = path.join(dir, "hooked.jsonl");
+  const turnId = "turn-stable-1";
+  fs.mkdirSync(dir, { recursive: true });
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  process.env.CODEX_HOME = codexHome;
+  process.env.CLAUDE_CONFIG_DIR = path.join(sandbox, "no-claude");
+  await writeProjectConfig(cwd, {
+    validationCommand: "",
+    validationTimeoutSeconds: 10,
+    maxFileSizeMB: 20
+  });
+
+  await processHookEvent({
+    wayfinder_host: "codex",
+    hook_event_name: "UserPromptSubmit",
+    session_id: "hooked",
+    turn_id: turnId,
+    cwd,
+    prompt: "Capture this once"
+  });
+  await processHookEvent({
+    wayfinder_host: "codex",
+    hook_event_name: "Stop",
+    session_id: "hooked",
+    turn_id: turnId,
+    cwd,
+    last_assistant_message: "Captured once."
+  });
+  const lines = [
+    {
+      type: "session_meta",
+      timestamp: "2026-09-12T00:00:00.000Z",
+      payload: { id: "hooked", cwd }
+    },
+    {
+      type: "event_msg",
+      timestamp: "2026-09-12T00:00:01.000Z",
+      payload: { type: "task_started", turn_id: turnId }
+    },
+    {
+      type: "response_item",
+      timestamp: "2026-09-12T00:00:02.000Z",
+      payload: {
+        type: "message",
+        role: "user",
+        content: [{ type: "text", text: "Capture this once" }]
+      }
+    },
+    {
+      type: "response_item",
+      timestamp: "2026-09-12T00:00:03.000Z",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "text", text: "Captured once." }]
+      }
+    }
+  ];
+  fs.writeFileSync(
+    file,
+    lines.map((line) => JSON.stringify(line)).join("\n") + "\n"
+  );
+
+  assert.equal((await collectSessions()).newTurns, 0);
+  const state = await readProjectState(cwd);
+  const matching = state.nodes.filter(
+    (node) => node.prompt === "Capture this once"
+  );
+  assert.equal(matching.length, 1);
+  assert.equal(matching[0].turnId, turnId);
+  assert.equal(matching[0].source.type, "rollout");
+  assert.equal(matching[0].source.turnId, turnId);
+});
+
+test("a Stop event upgrades a turn already persisted by the collector", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-collect-stop-"));
+  const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "wf-project-")));
+  const codexHome = path.join(sandbox, "codex");
+  const dir = path.join(codexHome, "sessions", "2026", "09", "12");
+  const file = path.join(dir, "collect-before-stop.jsonl");
+  const turnId = "collect-before-stop-turn";
+  fs.mkdirSync(dir, { recursive: true });
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  process.env.CODEX_HOME = codexHome;
+  process.env.CLAUDE_CONFIG_DIR = path.join(sandbox, "no-claude");
+  await writeProjectConfig(cwd, {
+    validationCommand: "",
+    validationTimeoutSeconds: 10,
+    maxFileSizeMB: 20
+  });
+  await processHookEvent({
+    wayfinder_host: "codex",
+    hook_event_name: "UserPromptSubmit",
+    session_id: "collect-before-stop",
+    turn_id: turnId,
+    cwd,
+    prompt: "Collector wins the race"
+  });
+  const lines = [
+    {
+      type: "session_meta",
+      timestamp: "2026-09-12T00:00:00.000Z",
+      payload: { id: "collect-before-stop", cwd }
+    },
+    {
+      type: "event_msg",
+      timestamp: "2026-09-12T00:00:01.000Z",
+      payload: { type: "task_started", turn_id: turnId }
+    },
+    {
+      type: "response_item",
+      timestamp: "2026-09-12T00:00:02.000Z",
+      payload: {
+        type: "message",
+        role: "user",
+        content: [{ type: "text", text: "Collector wins the race" }]
+      }
+    },
+    {
+      type: "response_item",
+      timestamp: "2026-09-12T00:00:03.000Z",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "text", text: "Collected response" }]
+      }
+    }
+  ];
+  fs.writeFileSync(
+    file,
+    lines.map((line) => JSON.stringify(line)).join("\n") + "\n"
+  );
+
+  assert.equal((await collectSessions()).newTurns, 1);
+  await processHookEvent({
+    wayfinder_host: "codex",
+    hook_event_name: "Stop",
+    session_id: "collect-before-stop",
+    turn_id: turnId,
+    cwd,
+    last_assistant_message: "Hook response"
+  });
+
+  const state = await readProjectState(cwd);
+  const matching = state.nodes.filter((node) => node.turnId === turnId);
+  assert.equal(matching.length, 1);
+  assert.equal(matching[0].kind, "collected");
+  assert.equal(matching[0].response, "Hook response");
+  assert.equal(state.pending["codex:collect-before-stop"], undefined);
+});
+
+test("the same stable turn copied across rollover files is collected once", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-rollover-dedup-"));
+  const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "wf-project-")));
+  const codexHome = path.join(sandbox, "codex");
+  const dir = path.join(codexHome, "sessions", "2026", "09", "12");
+  fs.mkdirSync(dir, { recursive: true });
+  const lines = [
+    {
+      type: "session_meta",
+      timestamp: "2026-09-12T00:00:00.000Z",
+      payload: { id: "rollover-session", cwd }
+    },
+    {
+      type: "event_msg",
+      timestamp: "2026-09-12T00:00:01.000Z",
+      payload: { type: "task_started", turn_id: "rollover-turn" }
+    },
+    {
+      type: "response_item",
+      timestamp: "2026-09-12T00:00:02.000Z",
+      payload: {
+        type: "message",
+        role: "user",
+        content: [{ type: "text", text: "One logical turn" }]
+      }
+    },
+    {
+      type: "response_item",
+      timestamp: "2026-09-12T00:00:03.000Z",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "text", text: "One answer" }]
+      }
+    }
+  ];
+  const raw = lines.map((line) => JSON.stringify(line)).join("\n") + "\n";
+  fs.writeFileSync(path.join(dir, "part-a.jsonl"), raw);
+  fs.writeFileSync(path.join(dir, "part-b.jsonl"), raw);
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  process.env.CODEX_HOME = codexHome;
+  process.env.CLAUDE_CONFIG_DIR = path.join(sandbox, "no-claude");
+
+  assert.equal((await collectSessions()).newTurns, 1);
+  const state = await readProjectState(cwd);
+  assert.equal(
+    state.nodes.filter((node) => node.turnId === "rollover-turn").length,
+    1
+  );
+});
+
+test("a complete rollover copy upgrades an earlier partial turn", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-rollover-upgrade-"));
+  const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "wf-project-")));
+  const codexHome = path.join(sandbox, "codex");
+  const dir = path.join(codexHome, "sessions", "2026", "09", "12");
+  fs.mkdirSync(dir, { recursive: true });
+  const turnId = "rollover-upgrade-turn";
+  const base = [
+    {
+      type: "session_meta",
+      timestamp: "2026-09-12T00:00:00.000Z",
+      payload: { id: "rollover-upgrade", cwd }
+    },
+    {
+      type: "event_msg",
+      timestamp: "2026-09-12T00:00:01.000Z",
+      payload: { type: "task_started", turn_id: turnId }
+    },
+    {
+      type: "response_item",
+      timestamp: "2026-09-12T00:00:02.000Z",
+      payload: {
+        type: "message",
+        role: "user",
+        content: [{ type: "text", text: "Apply the complete patch" }]
+      }
+    }
+  ];
+  const partial = [...base, {
+    type: "response_item",
+    timestamp: "2026-09-12T00:00:03.000Z",
+    payload: {
+      type: "message",
+      role: "assistant",
+      content: [{ type: "text", text: "Starting." }]
+    }
+  }];
+  const patch = [
+    "*** Begin Patch",
+    "*** Add File: complete.txt",
+    "+complete",
+    "*** End Patch"
+  ].join("\n");
+  const complete = [
+    ...base,
+    {
+      type: "response_item",
+      timestamp: "2026-09-12T00:00:03.000Z",
+      payload: {
+        type: "custom_tool_call",
+        name: "apply_patch",
+        call_id: "rollover-patch",
+        input: patch
+      }
+    },
+    {
+      type: "response_item",
+      timestamp: "2026-09-12T00:00:04.000Z",
+      payload: {
+        type: "custom_tool_call_output",
+        call_id: "rollover-patch",
+        output: JSON.stringify({ exit_code: 0 })
+      }
+    },
+    {
+      type: "response_item",
+      timestamp: "2026-09-12T00:00:05.000Z",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "text", text: "The complete patch was applied." }]
+      }
+    }
+  ];
+  fs.writeFileSync(
+    path.join(dir, "part-a.jsonl"),
+    partial.map((line) => JSON.stringify(line)).join("\n") + "\n"
+  );
+  fs.writeFileSync(
+    path.join(dir, "part-b.jsonl"),
+    complete.map((line) => JSON.stringify(line)).join("\n") + "\n"
+  );
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  process.env.CODEX_HOME = codexHome;
+  process.env.CLAUDE_CONFIG_DIR = path.join(sandbox, "no-claude");
+
+  assert.equal((await collectSessions()).newTurns, 1);
+  const matching = (await readProjectState(cwd)).nodes.filter(
+    (node) => node.turnId === turnId
+  );
+  assert.equal(matching.length, 1);
+  assert.equal(matching[0].response, "The complete patch was applied.");
+  assert.equal(matching[0].actions[0].ok, true);
+  assert.equal(matching[0].files[0].path, "complete.txt");
+  assert.match(matching[0].source.rolloutPath, /part-b\.jsonl$/);
+});
+
+test("same-size tail rewrites beyond the prefix reset the cursor", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-tail-rewrite-"));
+  const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "wf-project-")));
+  const codexHome = path.join(sandbox, "codex");
+  const dir = path.join(codexHome, "sessions", "2026", "09", "12");
+  const file = path.join(dir, "tail.jsonl");
+  fs.mkdirSync(dir, { recursive: true });
+  const padding = {
+    type: "response_item",
+    timestamp: "2026-09-12T00:00:00.500Z",
+    payload: {
+      type: "message",
+      role: "developer",
+      content: [{ type: "text", text: "x".repeat(70_000) }]
+    }
+  };
+  const rollout = (turnId, prompt, response) => [
+    {
+      type: "session_meta",
+      timestamp: "2026-09-12T00:00:00.000Z",
+      payload: { id: "tail-session", cwd }
+    },
+    padding,
+    {
+      type: "event_msg",
+      timestamp: "2026-09-12T00:00:01.000Z",
+      payload: { type: "task_started", turn_id: turnId }
+    },
+    {
+      type: "response_item",
+      timestamp: "2026-09-12T00:00:02.000Z",
+      payload: {
+        type: "message",
+        role: "user",
+        content: [{ type: "text", text: prompt }]
+      }
+    },
+    {
+      type: "response_item",
+      timestamp: "2026-09-12T00:00:03.000Z",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "text", text: response }]
+      }
+    }
+  ].map((line) => JSON.stringify(line)).join("\n") + "\n";
+  const first = rollout("tail-turn-a", "first", "doneA");
+  const second = rollout("tail-turn-b", "other", "doneB");
+  assert.equal(Buffer.byteLength(first), Buffer.byteLength(second));
+  fs.writeFileSync(file, first);
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  process.env.CODEX_HOME = codexHome;
+  process.env.CLAUDE_CONFIG_DIR = path.join(sandbox, "no-claude");
+
+  assert.equal((await collectSessions()).newTurns, 1);
+  fs.writeFileSync(file, second);
+  assert.equal((await collectSessions()).newTurns, 1);
+  assert.deepEqual(
+    (await readProjectState(cwd)).nodes
+      .filter((node) => node.kind === "collected")
+      .map((node) => node.prompt),
+    ["first", "other"]
+  );
+});
+
+test("resets the cursor after same-size replacement and truncation", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-cursor-reset-"));
+  const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "wf-project-")));
+  const codexHome = path.join(sandbox, "codex");
+  const dir = path.join(codexHome, "sessions", "2026", "09", "10");
+  const file = path.join(dir, "rotating.jsonl");
+  fs.mkdirSync(dir, { recursive: true });
+  const first = codexConversationRollout(cwd, "rotate-a", "first", "doneA");
+  const replacement = codexConversationRollout(
+    cwd,
+    "rotate-b",
+    "other",
+    "doneB"
+  );
+  assert.equal(Buffer.byteLength(first), Buffer.byteLength(replacement));
+  fs.writeFileSync(file, first);
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  process.env.CODEX_HOME = codexHome;
+  process.env.CLAUDE_CONFIG_DIR = path.join(sandbox, "no-claude");
+
+  assert.equal((await collectSessions()).newTurns, 1);
+
+  const replacementFile = `${file}.replacement`;
+  fs.writeFileSync(replacementFile, replacement);
+  fs.rmSync(file);
+  fs.renameSync(replacementFile, file);
+  assert.equal((await collectSessions()).newTurns, 1);
+
+  const inPlaceReplacement = codexConversationRollout(
+    cwd,
+    "rotate-c",
+    "again",
+    "doneC"
+  );
+  assert.equal(
+    Buffer.byteLength(replacement),
+    Buffer.byteLength(inPlaceReplacement)
+  );
+  fs.writeFileSync(file, inPlaceReplacement);
+  assert.equal((await collectSessions()).newTurns, 1);
+
+  fs.writeFileSync(
+    file,
+    codexConversationRollout(cwd, "trim-d", "new", "short")
+  );
+  assert.equal((await collectSessions()).newTurns, 1);
+
+  const prompts = (await readProjectState(cwd)).nodes
+    .filter((node) => node.kind === "collected")
+    .map((node) => node.prompt);
+  assert.deepEqual(prompts, ["first", "other", "again", "new"]);
+});
+
 test("parses Claude transcript turns and skips tool-result envelopes", () => {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-collect-claude-"));
   const cwd = path.join(sandbox, "proj");
@@ -516,6 +1107,13 @@ test("failed Codex custom tool calls never retain file facts", () => {
   const failures = [
     JSON.stringify({ exit_code: 1 }),
     JSON.stringify({ success: false }),
+    JSON.stringify({
+      metadata: { exit_code: 1 },
+      output: "patch rejected"
+    }),
+    JSON.stringify({
+      result: [{ exit_code: 1, output: "patch rejected" }]
+    }),
     "Error: patch failed"
   ];
   const lines = [{

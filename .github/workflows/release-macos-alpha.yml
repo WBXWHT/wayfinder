@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-desktop-alpha
@@ -12,12 +12,20 @@ concurrency:
 jobs:
   prepare:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       release_id: ${{ steps.release.outputs.result }}
       tag: ${{ steps.version.outputs.tag }}
       version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - name: Require the latest main commit
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/main"
+          latest="$(git ls-remote origin refs/heads/main | cut -f1)"
+          test "$latest" = "$GITHUB_SHA"
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
           node-version: "22.13.1"
@@ -268,10 +276,68 @@ jobs:
           if ((Get-Item $app).VersionInfo.ProductVersion -notlike "$env:RELEASE_VERSION*") {
             throw "Windows application version does not match $env:RELEASE_VERSION"
           }
+          $installDir = Join-Path $env:RUNNER_TEMP "WayfinderReleaseInstall"
+          $install = Start-Process -FilePath $installer.FullName -Wait -PassThru `
+            -ArgumentList @("/S", "/D=$installDir")
+          if ($install.ExitCode -ne 0) {
+            throw "Windows installer exited with code $($install.ExitCode)"
+          }
+          $installedApp = Get-ChildItem -Path $installDir -Filter "*.exe" -Recurse |
+            Where-Object {
+              $_.Name -notmatch "uninstall" -and
+              $_.VersionInfo.ProductVersion -like "$env:RELEASE_VERSION*"
+            } |
+            Select-Object -First 1
+          if (-not $installedApp) {
+            throw "Installed Windows application was not found"
+          }
+          $installedSidecar = Get-ChildItem `
+            -Path $installDir `
+            -Filter "wayfinder.exe" `
+            -Recurse |
+            Where-Object { $_.FullName -ne $installedApp.FullName } |
+            Select-Object -First 1
+          if (-not $installedSidecar) {
+            throw "Installed Windows collector sidecar was not found"
+          }
+          $stream = [System.IO.File]::OpenRead($installedSidecar.FullName)
+          try {
+            $reader = [System.IO.BinaryReader]::new($stream)
+            $stream.Position = 0x3c
+            $peOffset = $reader.ReadInt32()
+            $stream.Position = $peOffset + 4
+            $machine = $reader.ReadUInt16()
+          } finally {
+            $stream.Dispose()
+          }
+          if ($machine -ne 0x8664) {
+            throw "Installed Windows collector sidecar is not AMD64"
+          }
+          $sidecarVersion = (
+            & $installedSidecar.FullName --version | Out-String
+          ).Trim()
+          if ($LASTEXITCODE -ne 0 -or $sidecarVersion -ne $env:RELEASE_VERSION) {
+            throw "Installed Windows collector sidecar version is invalid"
+          }
+          $env:WAYFINDER_HOME = Join-Path $env:RUNNER_TEMP "WayfinderReleaseData"
+          $env:CODEX_HOME = Join-Path $env:RUNNER_TEMP "NoCodexSessions"
+          $env:CLAUDE_CONFIG_DIR = Join-Path $env:RUNNER_TEMP "NoClaudeSessions"
+          $collection = (
+            & $installedSidecar.FullName collect | Out-String
+          ) | ConvertFrom-Json
+          if (
+            $LASTEXITCODE -ne 0 -or
+            $null -eq $collection.scannedFiles -or
+            $null -eq $collection.newTurns
+          ) {
+            throw "Installed Windows collector sidecar could not run collect"
+          }
 
   checksums:
     needs: [prepare, build_macos, build_windows]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
         with:

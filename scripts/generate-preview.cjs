@@ -63,12 +63,17 @@ const previewWidth = Number.parseInt(
   process.env.WAYFINDER_PREVIEW_WIDTH || "",
   10
 );
+const inlineJson = (value) =>
+  JSON.stringify(value)
+    .replaceAll("<", "\\u003c")
+    .replaceAll("\u2028", "\\u2028")
+    .replaceAll("\u2029", "\\u2029");
 html = html.replace(
   "const wayfinderApi = acquireVsCodeApi();",
   `const wayfinderApi = {
     postMessage() {},
     getState() {
-      return ${JSON.stringify({
+      return ${inlineJson({
         expandedSessions: previewSessionId ? [previewSessionId] : [],
         selectedSessionId: previewSessionId || "",
         activeTreeId: previewTreeId || ""
@@ -108,13 +113,13 @@ if (Number.isFinite(previewWidth) || darkTheme) {
     </style></head>`
   );
 }
-const payload = JSON.stringify({
+const payload = inlineJson({
   type: "render",
   state,
   forest,
   connected: true,
   validationCommand: "npm test"
-}).replace(/</g, "\\u003c");
+});
 html = html.replace(
   "send('ready');",
   `send('ready'); setTimeout(() => render(${payload}), 0);`

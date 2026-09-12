@@ -131,6 +131,35 @@ test("renames preserve both source and destination paths", async () => {
   );
 });
 
+test("case-only renames remain visible on case-insensitive filesystems", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wayfinder-case-rename-"));
+  const root = path.join(sandbox, "project");
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  fs.mkdirSync(root, { recursive: true });
+  fs.writeFileSync(path.join(root, "name.txt"), "stable content\n");
+
+  const shadow = new ShadowRepo(root);
+  const first = await shadow.capture("case-before", "Before case rename");
+  fs.renameSync(
+    path.join(root, "name.txt"),
+    path.join(root, "NAME.txt")
+  );
+  const second = await shadow.capture(
+    "case-after",
+    "After case rename",
+    first.commit
+  );
+
+  assert.deepEqual(await shadow.diffFiles(first.commit, second.commit), [{
+    path: "NAME.txt",
+    previousPath: "name.txt",
+    status: "R",
+    additions: 0,
+    deletions: 0,
+    binary: false
+  }]);
+});
+
 test("restore refuses to overwrite a modified file excluded by the size limit", async () => {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wayfinder-large-"));
   const root = path.join(sandbox, "project");

@@ -14,6 +14,7 @@ export interface ExperienceMapHandlers {
 export class ExperienceMapPanel implements vscode.Disposable {
   private panel?: vscode.WebviewPanel;
   private focusTreeId?: string;
+  private refreshGeneration = 0;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -46,7 +47,10 @@ export class ExperienceMapPanel implements vscode.Disposable {
     this.panel = panel;
     panel.webview.html = this.html(panel.webview);
     panel.onDidDispose(() => {
-      this.panel = undefined;
+      if (this.panel === panel) {
+        this.panel = undefined;
+        this.refreshGeneration += 1;
+      }
     });
     let operationInFlight = false;
     panel.webview.onDidReceiveMessage(async (message: any) => {
@@ -106,16 +110,22 @@ export class ExperienceMapPanel implements vscode.Disposable {
   }
 
   async refresh(): Promise<void> {
-    if (!this.panel) {
+    const panel = this.panel;
+    if (!panel) {
       return;
     }
+    const generation = ++this.refreshGeneration;
     const state = await readProjectState(this.root);
-    if (!state) {
+    if (
+      !state ||
+      this.panel !== panel ||
+      generation !== this.refreshGeneration
+    ) {
       return;
     }
     const focusTreeId = this.focusTreeId;
     this.focusTreeId = undefined;
-    await this.panel.webview.postMessage({
+    await panel.webview.postMessage({
       type: "render",
       projectName: path.basename(this.root),
       focusTreeId,
@@ -125,7 +135,10 @@ export class ExperienceMapPanel implements vscode.Disposable {
   }
 
   dispose(): void {
-    this.panel?.dispose();
+    const panel = this.panel;
+    this.panel = undefined;
+    this.refreshGeneration += 1;
+    panel?.dispose();
   }
 
   private html(webview: vscode.Webview): string {
@@ -428,7 +441,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
         white
       );
     }
-    .forest-card:focus-visible .node-card-bg {
+    .forest-card:focus .node-card-bg {
       stroke: var(--vscode-focusBorder, var(--accent));
       stroke-width: 3;
     }
@@ -676,7 +689,8 @@ export class ExperienceMapPanel implements vscode.Disposable {
     .detail-file-count { font-variant-numeric: tabular-nums; white-space: nowrap; }
     .detail-file-add { color: var(--good); }
     .detail-file-delete { color: var(--bad); }
-    .detail-actions { display: flex; justify-content: flex-end; gap: 2px; margin-top: 7px; }
+    .detail-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; margin-top: 7px; }
+    .detail-actions .icon-button { flex: 0 0 30px; }
     @keyframes inspector-dock-in { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: translateX(0); } }
     @keyframes channel-reveal { from { opacity: 0; } to { opacity: 1; } }
     @keyframes bud-breathe {
@@ -717,6 +731,47 @@ export class ExperienceMapPanel implements vscode.Disposable {
       .detail-list,
       .detail-files { margin-left: 8px; }
       .detail-note { margin-left: 8px; }
+    }
+    @supports not (color: color-mix(in srgb, white 50%, black)) {
+      .brand-mark { background: var(--surface); box-shadow: inset 0 0 0 1px var(--sun); }
+      .forest-path-bed { stroke: var(--wake); }
+      .forest-edge { stroke: var(--route-accent, var(--route)); }
+      .forest-edge.good { stroke: var(--good); }
+      .forest-edge.bad { stroke: var(--coral); }
+      .channel-decoration circle { stroke: var(--route-dark); }
+      .node-card-bg { fill: var(--paper); }
+      .node-card-accent { fill: var(--node-accent, var(--route-accent, var(--route))); }
+      .session-card.selected .node-card-bg {
+        fill: var(--paper);
+        stroke: var(--route-accent, var(--route));
+      }
+      .node-card-meta { fill: var(--sticker-muted); }
+      .journey-disc { fill: var(--surface); }
+      .session-node.good .journey-disc { stroke: var(--good); }
+      .session-node.bad .journey-disc { stroke: var(--coral); }
+      .journey-status { fill: var(--muted); }
+      .journey-current-ring,
+      .journey-selected-ring { stroke: var(--route-accent, var(--route)); }
+      .ocean-current { stroke: var(--ocean-line); }
+      .trail-start-flag { stroke: var(--shore); }
+      .sailboat-sail { fill: var(--sun); }
+      .sailboat-wake { stroke: var(--ocean-line); }
+      .tree-card.collapsed .node-card-bg {
+        fill: var(--paper);
+        stroke: var(--voyage-accent, var(--project-accent));
+      }
+      .inspector {
+        border-color: var(--inspector-accent);
+        background: var(--paper);
+      }
+      .inspector-head {
+        border-bottom-color: var(--inspector-accent);
+        background: var(--paper);
+      }
+      .inspector-close { border-color: var(--inspector-accent); }
+      .detail-kicker { color: var(--inspector-accent); }
+      .detail-turn { border-bottom-color: var(--line); }
+      .detail-note { background: var(--surface); }
     }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after {
@@ -1871,7 +1926,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
       );
       return [...ordered].reverse().find(
         (session) => session.verdict !== 'failure'
-      ) || ordered.at(-1);
+      ) || ordered[ordered.length - 1];
     }
 
     function mainPathFor(tree) {
@@ -2403,7 +2458,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
       const nodes = session.nodeIds
         .map((id) => nodeById.get(id))
         .filter(Boolean);
-      const latest = nodes.at(-1);
+      const latest = nodes[nodes.length - 1];
       const folderImport = latest?.source?.type === 'folder-import';
       const summary = compactCardSummary(
         latest?.response ||
@@ -2417,7 +2472,7 @@ export class ExperienceMapPanel implements vscode.Disposable {
         );
         const fileLabel = latest.source.relativePath === '.'
           ? (latest.files?.length || 0) + ' 个 SKILL.md'
-          : latest.source.relativePath.split('/').at(-1) || 'SKILL.md';
+          : latest.source.relativePath.split('/').slice(-1)[0] || 'SKILL.md';
         return {
           title: session.title,
           summary,

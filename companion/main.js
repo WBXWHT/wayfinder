@@ -39,6 +39,11 @@ async function start() {
   queued.forEach(handleMapMessage);
 
   syncProjectsAccessibility();
+  try {
+    await loadProjects();
+  } catch (error) {
+    showToast(`启动读取失败，正在重试：${String(error)}`);
+  }
   setInterval(() => {
     void refreshIfChanged().catch(() => undefined);
   }, 1_500);
@@ -56,11 +61,6 @@ async function start() {
     ).catch((error) => {
       showToast(`无法监听采集状态：${String(error)}`);
     });
-  }
-  try {
-    await loadProjects();
-  } catch (error) {
-    showToast(`启动读取失败，正在重试：${String(error)}`);
   }
 }
 
@@ -167,7 +167,11 @@ function renderProjectList() {
       activeProjectId = project.id;
       renderProjectList();
       const outcome = await loadActiveProject();
-      if (outcome === "error") {
+      if (
+        outcome === "error" ||
+        activeProjectId !== project.id ||
+        loadedProjectId !== project.id
+      ) {
         return;
       }
       closeProjects();
@@ -402,7 +406,7 @@ globalThis.addEventListener("keydown", (event) => {
     openDataButton
   ].filter((element) => !element.disabled);
   const first = focusable[0];
-  const last = focusable.at(-1);
+  const last = focusable[focusable.length - 1];
   if (!projectSidebar.contains(document.activeElement)) {
     event.preventDefault();
     (event.shiftKey ? last : first)?.focus();

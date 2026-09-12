@@ -55,6 +55,7 @@ export class ShadowRepo {
     await this.run(["config", "user.email", "wayfinder@localhost"]);
     await this.run(["config", "commit.gpgsign", "false"]);
     await this.run(["config", "core.autocrlf", "false"]);
+    await this.run(["config", "core.ignorecase", "false"]);
     await this.run(["config", "core.hooksPath", path.join(this.gitDir, "no-hooks")]);
 
     const info = path.join(this.gitDir, "info");
@@ -86,6 +87,7 @@ export class ShadowRepo {
       }
 
       await this.run(["add", "-A"], env);
+      await this.removeCaseAliases(env);
       await this.unstageLargeFiles(parent, env);
       const tree = (await this.run(["write-tree"], env)).trim();
       const parentTree = parent
@@ -319,6 +321,34 @@ export class ShadowRepo {
     }
   }
 
+  private async removeCaseAliases(env: NodeJS.ProcessEnv): Promise<void> {
+    const tracked = (await this.run(["ls-files", "-z"], env, true))
+      .split("\0")
+      .filter(Boolean);
+    const folded = new Map<string, string[]>();
+    for (const relPath of tracked) {
+      const key = relPath.toLowerCase();
+      const group = folded.get(key) || [];
+      group.push(relPath);
+      folded.set(key, group);
+    }
+    const directoryEntries = new Map<string, Set<string>>();
+    for (const group of folded.values()) {
+      if (group.length < 2) {
+        continue;
+      }
+      for (const relPath of group) {
+        if (hasExactPath(this.root, relPath, directoryEntries)) {
+          continue;
+        }
+        await this.run(
+          ["update-index", "--force-remove", "--", relPath],
+          env
+        );
+      }
+    }
+  }
+
   private async existsAt(commit: string, relPath: string): Promise<boolean> {
     try {
       await this.run(["cat-file", "-e", `${commit}:${toPosix(relPath)}`]);
@@ -367,4 +397,28 @@ function sanitizeRef(value: string): string {
 
 function toPosix(value: string): string {
   return value.replace(/\\/g, "/");
+}
+
+function hasExactPath(
+  root: string,
+  relPath: string,
+  cache: Map<string, Set<string>>
+): boolean {
+  let current = root;
+  for (const segment of toPosix(relPath).split("/").filter(Boolean)) {
+    let entries = cache.get(current);
+    if (!entries) {
+      try {
+        entries = new Set(fs.readdirSync(current));
+      } catch {
+        return false;
+      }
+      cache.set(current, entries);
+    }
+    if (!entries.has(segment)) {
+      return false;
+    }
+    current = path.join(current, segment);
+  }
+  return true;
 }

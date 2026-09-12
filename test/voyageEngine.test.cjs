@@ -359,6 +359,62 @@ test("source-test paths cannot override explicit topic conflict", () => {
   assert.equal(aggregateWaypoints(signals, idf).length, 2);
 });
 
+test("source-test paths cannot override a Chinese topic conflict", () => {
+  const source = turn(
+    "source-login",
+    0,
+    "实现登录回调处理",
+    ["src/auth/callback.ts"]
+  );
+  source.sourceHost = "codex";
+  source.sessionId = "codex-login";
+  const unrelatedTest = turn(
+    "test-invoice-cn",
+    1,
+    "验证发票舍入金额",
+    ["tests/unit/auth/callback.test.ts"]
+  );
+  unrelatedTest.sourceHost = "claude";
+  unrelatedTest.sessionId = "claude-invoice";
+  const idf = buildIdf([source, unrelatedTest].map((node) =>
+    tokenize(node.prompt)
+  ));
+  const signals = [source, unrelatedTest].map((node) =>
+    signalForNode(node, idf)
+  );
+
+  assert.equal(cohesion(signals[0], signals[1]), 0);
+  assert.equal(aggregateWaypoints(signals, idf).length, 2);
+});
+
+test("a Chinese generic handoff keeps a source-test pair together", () => {
+  const source = turn(
+    "source-login-generic",
+    0,
+    "实现登录回调",
+    ["src/auth/callback.ts"]
+  );
+  source.sourceHost = "codex";
+  source.sessionId = "codex-login-generic";
+  const followUp = turn(
+    "test-login-generic",
+    1,
+    "继续处理",
+    ["tests/unit/auth/callback.test.ts"]
+  );
+  followUp.sourceHost = "claude";
+  followUp.sessionId = "claude-login-generic";
+  const idf = buildIdf([source, followUp].map((node) =>
+    tokenize(node.prompt)
+  ));
+  const signals = [source, followUp].map((node) =>
+    signalForNode(node, idf)
+  );
+
+  assert.ok(cohesion(signals[0], signals[1]) >= .34);
+  assert.equal(aggregateWaypoints(signals, idf).length, 1);
+});
+
 test("Chinese generic handoff detection uses the original prompt", () => {
   assert.equal(isGenericHandoffText("继续处理"), true);
   assert.equal(isGenericHandoffText("接着进行"), true);
@@ -714,6 +770,66 @@ test("indexed lookup retains the joint file and path optimum", () => {
   assert.equal(relations.get(returning.id).parentId, "balanced-intended");
 });
 
+test("structural-semantic lookup rejects a newer conflicting blocker", () => {
+  const intended = relationWaypoint({
+    id: "intended",
+    startedAt: 0,
+    files: ["src/alpha.ts", "src/beta.ts"],
+    pathTerms: ["alpha", "beta"],
+    tokens: ["en:alpha"],
+    session: "intended-session",
+    host: "codex"
+  });
+  const history = [
+    intended,
+    relationWaypoint({
+      id: "intended-child",
+      startedAt: 1_000,
+      session: "intended-session",
+      host: "codex"
+    }),
+    relationWaypoint({
+      id: "exact-blocker",
+      startedAt: 2_000,
+      files: ["src/alpha.ts", "src/beta.ts"],
+      pathTerms: ["alpha", "beta"],
+      tokens: ["en:blocker"],
+      session: "blocker-session",
+      host: "claude"
+    }),
+    ...Array.from({ length: 253 }, (_, index) =>
+      relationWaypoint({
+        id: `semantic-noise-${index}`,
+        startedAt: 10_000 + index * 1_000,
+        session: `noise-session-${index}`,
+        host: "claude"
+      })
+    ),
+    relationWaypoint({
+      id: "partial-decoy",
+      startedAt: 900_000,
+      files: ["src/alpha.ts"],
+      pathTerms: ["alpha"],
+      tokens: ["en:alpha"],
+      session: "partial-session",
+      host: "claude"
+    })
+  ];
+  const query = relationWaypoint({
+    id: "semantic-query",
+    startedAt: 1_300_000,
+    files: ["src/alpha.ts", "src/beta.ts"],
+    pathTerms: ["alpha", "beta"],
+    tokens: ["en:alpha"],
+    session: "query-session",
+    host: "codex"
+  });
+
+  const relations = classifyRelations([...history, query]);
+  assert.equal(relations.get(query.id).parentId, intended.id);
+  assert.equal(relations.get(query.id).type, "topic-divergence");
+});
+
 test("known-host lookup retains unknown-host continuity", () => {
   const currentStartedAt = 3_000_000;
   const history = [
@@ -902,5 +1018,50 @@ test("relation ordering is stable and parent lookup remains bounded", () => {
   assert.ok(
     genericDiagnostics.scoredCandidates < 3_000_000,
     `scored ${genericDiagnostics.scoredCandidates} generic candidates`
+  );
+});
+
+test("high-frequency file and path indexes keep parent scoring bounded", () => {
+  const count = 3_000;
+  const sameFile = Array.from({ length: count }, (_, index) => {
+    const waypoint = relationWaypoint({
+      id: `same-file-${String(index).padStart(5, "0")}`,
+      startedAt: index * 1_000,
+      files: ["src/shared/panel.ts"],
+      pathTerms: ["shared", "panel"],
+      tokens: ["en:continue"],
+      session: `same-file-session-${index}`
+    });
+    waypoint.genericHandoff = true;
+    return waypoint;
+  });
+  const fileDiagnostics = { scoredCandidates: 0 };
+  assert.equal(
+    classifyRelations(sameFile, fileDiagnostics).size,
+    sameFile.length
+  );
+  assert.ok(
+    fileDiagnostics.scoredCandidates < count * 12,
+    `scored ${fileDiagnostics.scoredCandidates} same-file candidates`
+  );
+
+  const sharedPath = Array.from({ length: count }, (_, index) =>
+    relationWaypoint({
+      id: `shared-path-${String(index).padStart(5, "0")}`,
+      startedAt: index * 1_000,
+      files: [`src/shared/file-${index}.ts`],
+      pathTerms: ["shared"],
+      tokens: ["en:shared", `en:topic-${index}`],
+      session: `shared-path-session-${index}`
+    })
+  );
+  const pathDiagnostics = { scoredCandidates: 0 };
+  assert.equal(
+    classifyRelations(sharedPath, pathDiagnostics).size,
+    sharedPath.length
+  );
+  assert.ok(
+    pathDiagnostics.scoredCandidates < count * 50,
+    `scored ${pathDiagnostics.scoredCandidates} shared-path candidates`
   );
 });

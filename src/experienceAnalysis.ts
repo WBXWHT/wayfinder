@@ -189,9 +189,16 @@ export function extractFailureEvidence(
         node.validation.summary
       ));
     }
-    const failedTools = (node.actions || []).filter(
-      (action) => action.ok === false
-    );
+    const finalSuccess =
+      node.validation?.status === "passed" ||
+      (
+        node.verdict === "success" &&
+        node.validation?.status !== "failed" &&
+        node.validation?.status !== "timeout"
+      );
+    const failedTools = finalSuccess
+      ? []
+      : (node.actions || []).filter((action) => action.ok === false);
     if (failedTools.length > 0) {
       evidence.push(evidenceFor(
         node,
@@ -339,7 +346,7 @@ function evidenceFor(
       : undefined,
     fileTypes: [...new Set(
       (node.files || [])
-        .map((file) => file.path.split(".").at(-1)?.toLowerCase())
+        .map((file) => file.path.split(".").slice(-1)[0]?.toLowerCase())
         .filter((extension): extension is string =>
           Boolean(extension && extension.length <= 12)
         )
