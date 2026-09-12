@@ -47,8 +47,8 @@ test("download website exposes architecture-specific release links", () => {
   assert.doesNotMatch(html, /<animateMotion/);
   assert.doesNotMatch(html, /hero-waypoint|data-waypoint/);
   assert.match(html, /src="\.\/wayfinder-icon\.svg"/);
-  assert.match(html, /href="\.\/styles\.css\?v=0\.3\.14-mobile-font"/);
-  assert.match(html, /src="\.\/app\.js\?v=0\.3\.14-mobile"/);
+  assert.match(html, /href="\.\/styles\.css\?v=0\.3\.14-mobile-scene"/);
+  assert.match(html, /src="\.\/app\.js\?v=0\.3\.14-mobile-scene"/);
   assert.match(html, /src="\.\/login-voyage-focus-4k\.png\?v=map-0\.3\.14"/);
   assert.match(html, /<figure class="product-visual">/);
   assert.doesNotMatch(html, /class="product-image-link"/);
@@ -115,7 +115,8 @@ test("website scripts parse and visual CSS avoids decorative gradients", () => {
   assert.match(script, /function voyageFrame\(elapsed\)/);
   assert.match(script, /getPointAtLength/);
   assert.match(styles, /animation: final-route-move 2\.667s linear infinite/);
-  assert.match(script, /width <= 540[\s\S]*?width \* \.93/);
+  assert.match(script, /compactPhone[\s\S]*?width \* \.72/);
+  assert.match(script, /height \* \.86[\s\S]*?width \+ 32/);
   assert.match(script, /width <= 900[\s\S]*?width \* \.86/);
   assert.match(styles, /@media \(max-width: 900px\)/);
   assert.match(styles, /@media \(max-width: 540px\)/);

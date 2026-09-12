@@ -2904,6 +2904,12 @@ test(
               heroStatusDisplay: getComputedStyle(
                 document.querySelector('.hero-status')
               ).display,
+              heroMapBottom: document.querySelector(
+                '#voyageCanvas'
+              ).getBoundingClientRect().bottom,
+              heroCopyTop: document.querySelector(
+                '.hero-copy'
+              ).getBoundingClientRect().top,
               bodyFontFamily: getComputedStyle(document.body).fontFamily,
               mobileFontLoaded: document.fonts.check(
                 '16px "Wayfinder Sans"'
@@ -3029,12 +3035,9 @@ test(
           assert.equal(layout.heroStatusDisplay, "none");
           assert.match(layout.bodyFontFamily, /^"Wayfinder Sans"/);
           assert.equal(layout.mobileFontLoaded, true);
-          assert.ok(layout.headerLinkRight <= layout.width - 60);
+          assert.ok(layout.heroMapBottom <= layout.heroCopyTop + .5);
+          assert.ok(layout.headerLinkRight <= layout.width + .5);
           assert.match(layout.evidenceColumns, /^56px /);
-          assert.ok(
-            Math.max(...layout.downloads.map((download) => download.right)) <=
-              layout.width - 60
-          );
         }
         if (viewport.width >= 1000) {
           assert.ok(

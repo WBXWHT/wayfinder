@@ -173,13 +173,21 @@ function draw(time) {
 }
 
 function drawMapSurface(time) {
-  const coastBase = width <= 540
-    ? width * .93
+  const compactPhone = width <= 540;
+  const coastBase = compactPhone
+    ? width * .72
     : width <= 900
       ? width * .86
       : width * .5;
-  const coastX = (y) =>
-    coastBase + Math.sin(y / 142) * 10 + Math.sin(y / 57) * 4;
+  const coastX = (y) => {
+    let x = coastBase + Math.sin(y / 142) * 10 + Math.sin(y / 57) * 4;
+    if (compactPhone) {
+      const exit = clamp01((y - height * .86) / (height * .14));
+      const easedExit = exit * exit * (3 - 2 * exit);
+      x += (width + 32 - x) * easedExit;
+    }
+    return x;
+  };
   context.fillStyle = "#e8f6fa";
   context.fillRect(0, 0, width, height);
   context.strokeStyle = "#d3eaf0";

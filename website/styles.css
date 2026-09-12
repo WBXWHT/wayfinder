@@ -1395,7 +1395,15 @@ footer a {
   }
 
   .site-header {
-    padding-right: 68px;
+    padding-right: 20px;
+  }
+
+  #voyageCanvas {
+    top: 0;
+    right: 0;
+    bottom: auto;
+    left: 0;
+    height: 356px;
   }
 
   .hero {
@@ -1404,11 +1412,12 @@ footer a {
     min-height: 0;
     padding: 76px 20px 32px;
     align-items: stretch;
+    background: #f5f7f9;
     flex-direction: column;
   }
 
   .hero-copy {
-    width: calc(100% - 42px);
+    width: 100%;
     min-width: 0;
   }
 
@@ -1465,6 +1474,10 @@ footer a {
 }
 
 @media (max-width: 420px) {
+  #voyageCanvas {
+    height: 294px;
+  }
+
   .hero {
     padding-top: 68px;
     padding-bottom: 24px;
