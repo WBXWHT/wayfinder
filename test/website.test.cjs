@@ -159,6 +159,10 @@ test("Cloudflare deployment cannot silently claim the occupied project name", ()
   assert.match(workflow, /SHA256SUMS does not match \$\{assetName\}/);
   assert.match(workflow, /--head/);
   assert.match(workflow, /--retry-all-errors/);
+  assert.match(workflow, /--branch=main/);
+  assert.match(workflow, /--commit-hash=\$\{\{/);
+  assert.match(workflow, /Verify the production website/);
+  assert.match(workflow, /assert\.deepStrictEqual\(await response\.json\(\), expected\)/);
 });
 
 test("public website ships restrictive security headers", () => {

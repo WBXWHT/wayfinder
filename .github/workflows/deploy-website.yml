@@ -237,8 +237,50 @@ jobs:
               --retry-all-errors \
               "$url" > /dev/null
           done < "$RUNNER_TEMP/wayfinder-downloads.txt"
-      - uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
+      - name: Deploy the production website
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy website --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME }}
+          command: >-
+            pages deploy website
+            --project-name=${{ vars.CLOUDFLARE_PROJECT_NAME }}
+            --branch=main
+            --commit-hash=${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Verify the production website
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const assert = require("node:assert/strict");
+          const expected = require("./website/releases.json");
+          const sleep = (milliseconds) =>
+            new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+          (async () => {
+            let lastError;
+            for (let attempt = 1; attempt <= 20; attempt += 1) {
+              try {
+                const response = await fetch(
+                  `https://wayfinder-ai.pages.dev/releases.json?deployment=${Date.now()}`,
+                  { cache: "no-store", redirect: "follow" }
+                );
+                if (!response.ok) {
+                  throw new Error(`Production metadata returned ${response.status}`);
+                }
+                assert.deepStrictEqual(await response.json(), expected);
+                return;
+              } catch (error) {
+                lastError = error;
+                if (attempt < 20) {
+                  await sleep(3_000);
+                }
+              }
+            }
+            throw new Error(
+              `Production deployment did not become current: ${lastError}`
+            );
+          })().catch((error) => {
+            console.error(error);
+            process.exitCode = 1;
+          });
+          NODE
