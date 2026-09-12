@@ -6,16 +6,29 @@ const path = require("node:path");
 const test = require("node:test");
 
 const {
+  claudeCoworkSessionRoots,
+  claudeCoworkSessionsRoot,
+  codexArchivedSessionsRoot,
   parseCodexRollout,
+  parseClaudeCoworkTranscript,
   parseClaudeTranscript,
   parseApplyPatch,
-  collectSessions
+  collectSessions,
+  listCoworkAuditFiles,
+  resolveClaudeCoworkSessionRoots,
+  unfiledConversationsRoot
 } = require("../out/sessionCollector.js");
 const { processHookEvent } = require("../out/hook.js");
 const {
   readProjectState,
   writeProjectConfig
 } = require("../out/storage.js");
+
+const missingCoworkRoot = path.join(
+  os.tmpdir(),
+  `wayfinder-test-no-cowork-${process.pid}`
+);
+process.env.CLAUDE_COWORK_ROOT = missingCoworkRoot;
 
 // The real desktop-app "讲个冷笑话" rollout: a mid-turn model switch
 // (gpt-5.2 -> gpt-5.5) replays the same user prompt, and no lifecycle hook
@@ -81,6 +94,56 @@ function codexConversationRollout(cwd, sessionId, prompt, response) {
   ].map((line) => JSON.stringify(line)).join("\n") + "\n";
 }
 
+function writeCoworkTranscript(
+  coworkRoot,
+  cwd,
+  sessionId = "cowork-session",
+  prompt = "整理这份研究",
+  response = "已经整理完成"
+) {
+  const profile = path.join(coworkRoot, "account", "organization");
+  const sessionDir = path.join(profile, `local_${sessionId}`);
+  const file = path.join(sessionDir, "audit.jsonl");
+  fs.mkdirSync(sessionDir, { recursive: true });
+  fs.writeFileSync(
+    `${sessionDir}.json`,
+    JSON.stringify({
+      sessionId: `local_${sessionId}`,
+      title: "研究整理",
+      userSelectedFolders: cwd ? [cwd] : [],
+      cwd: "/sessions/cowork-sandbox"
+    })
+  );
+  const lines = [
+    {
+      type: "user",
+      uuid: `${sessionId}-user`,
+      session_id: sessionId,
+      _audit_timestamp: "2026-09-10T14:00:00.000Z",
+      _audit_hmac: "must-not-leak",
+      message: { role: "user", content: prompt }
+    },
+    {
+      type: "assistant",
+      uuid: `${sessionId}-assistant`,
+      session_id: sessionId,
+      _audit_timestamp: "2026-09-10T14:00:01.000Z",
+      _audit_hmac: "must-not-leak",
+      message: {
+        id: `${sessionId}-message`,
+        role: "assistant",
+        stop_reason: "end_turn",
+        content: [{ type: "text", text: response }]
+      }
+    }
+  ];
+  fs.writeFileSync(
+    file,
+    `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`
+  );
+  return file;
+}
+
 test("parses cold-joke rollout into a single deduped turn", () => {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-collect-parse-"));
   const cwd = path.join(sandbox, "project");
@@ -99,6 +162,394 @@ test("parses cold-joke rollout into a single deduped turn", () => {
   );
   // Envelope/system messages must never become prompts.
   assert.ok(!session.turns.some((turn) => turn.prompt.includes("environment_context")));
+});
+
+test("discovers archived Codex and Claude Cowork transcript roots", () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-source-roots-"));
+  const codexHome = path.join(sandbox, "codex");
+  const coworkRoot = path.join(sandbox, "cowork");
+  process.env.CODEX_HOME = codexHome;
+  delete process.env.CODEX_SESSIONS_ROOT;
+  delete process.env.CODEX_ARCHIVED_SESSIONS_ROOT;
+  process.env.CLAUDE_COWORK_ROOT = coworkRoot;
+
+  assert.equal(
+    codexArchivedSessionsRoot(),
+    path.join(codexHome, "archived_sessions")
+  );
+  assert.equal(claudeCoworkSessionsRoot(), coworkRoot);
+  assert.deepEqual(claudeCoworkSessionRoots(), [coworkRoot]);
+
+  const audit = writeCoworkTranscript(coworkRoot, undefined);
+  const nested = path.join(path.dirname(audit), ".claude", "nested.jsonl");
+  fs.mkdirSync(path.dirname(nested), { recursive: true });
+  fs.writeFileSync(nested, "{}\n");
+  const deeperAudit = writeCoworkTranscript(
+    path.join(coworkRoot, "account"),
+    undefined,
+    "deeper-cowork"
+  );
+  assert.deepEqual(
+    listCoworkAuditFiles(coworkRoot),
+    [deeperAudit, audit].sort()
+  );
+
+  process.env.CLAUDE_COWORK_ROOT = missingCoworkRoot;
+});
+
+test("discovers roaming, local, and Store Cowork roots on Windows", () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-win-cowork-"));
+  const appData = path.join(sandbox, "Roaming");
+  const localAppData = path.join(sandbox, "Local");
+  const storePackage = path.join(localAppData, "Packages", "Claude_test");
+  fs.mkdirSync(storePackage, { recursive: true });
+
+  const roots = resolveClaudeCoworkSessionRoots({
+    platform: "win32",
+    home: sandbox,
+    appData,
+    localAppData
+  });
+  assert.deepEqual(roots, [
+    path.join(appData, "Claude", "local-agent-mode-sessions"),
+    path.join(localAppData, "Claude", "local-agent-mode-sessions"),
+    path.join(
+      storePackage,
+      "LocalCache",
+      "Roaming",
+      "Claude",
+      "local-agent-mode-sessions"
+    )
+  ]);
+});
+
+test("parses Claude Cowork messages with their selected project", () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-cowork-parse-"));
+  const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "wf-project-")));
+  const file = writeCoworkTranscript(
+    path.join(sandbox, "cowork"),
+    cwd,
+    "cowork-parse"
+  );
+
+  const session = parseClaudeCoworkTranscript(file);
+  assert.equal(session.host, "claude");
+  assert.equal(session.sessionId, "cowork-parse");
+  assert.equal(session.cwd, cwd);
+  assert.equal(session.turns.length, 1);
+  assert.equal(session.turns[0].turnId, "cowork-parse-user");
+  assert.equal(session.turns[0].prompt, "整理这份研究");
+  assert.equal(session.turns[0].response, "已经整理完成");
+  assert.equal(session.turns[0].startedAt, "2026-09-10T14:00:00.000Z");
+  assert.equal(session.turns[0].surface, "claude-cowork");
+});
+
+test("Cowork keeps its outer identity when nested agents use other ids", () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-cowork-identity-"));
+  const file = writeCoworkTranscript(
+    path.join(sandbox, "cowork"),
+    undefined,
+    "outer-session"
+  );
+  const records = fs.readFileSync(file, "utf8")
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  records[0].session_id = "inner-agent-a";
+  records[1].session_id = "inner-agent-b";
+  fs.writeFileSync(
+    file,
+    `${records.map((record) => JSON.stringify(record)).join("\n")}\n`
+  );
+
+  const session = parseClaudeCoworkTranscript(file);
+  assert.equal(session.sessionId, "outer-session");
+  assert.equal(session.turns[0].sessionId, "outer-session");
+});
+
+test("Cowork parsing tolerates a missing sidecar and partial trailing line", () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-cowork-partial-"));
+  const file = writeCoworkTranscript(
+    path.join(sandbox, "cowork"),
+    undefined,
+    "cowork-partial"
+  );
+  fs.rmSync(`${path.dirname(file)}.json`);
+  fs.appendFileSync(file, '{"type":"assistant","message":');
+
+  const session = parseClaudeCoworkTranscript(file);
+  assert.equal(session.sessionId, "cowork-partial");
+  assert.equal(session.cwd, undefined);
+  assert.equal(session.turns.length, 1);
+  assert.equal(session.turns[0].response, "已经整理完成");
+});
+
+test("Cowork keeps successful tools but does not invent Write diffs", () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-cowork-tool-"));
+  const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "wf-project-")));
+  const coworkRoot = path.join(sandbox, "cowork");
+  const file = writeCoworkTranscript(coworkRoot, cwd, "cowork-tool");
+  const records = fs.readFileSync(file, "utf8")
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  records.splice(1, 1,
+    {
+      type: "assistant",
+      session_id: "cowork-tool",
+      _audit_timestamp: "2026-09-10T14:00:01.000Z",
+      message: {
+        id: "cowork-tool-call-message",
+        role: "assistant",
+        stop_reason: "tool_use",
+        content: [{
+          type: "tool_use",
+          id: "cowork-write",
+          name: "Write",
+          input: {
+            file_path: path.join(cwd, "report.md"),
+            content: "done"
+          }
+        }]
+      }
+    },
+    {
+      type: "user",
+      session_id: "cowork-tool",
+      _audit_timestamp: "2026-09-10T14:00:02.000Z",
+      message: {
+        role: "user",
+        content: [{
+          type: "tool_result",
+          tool_use_id: "cowork-write",
+          is_error: false,
+          content: "created"
+        }]
+      }
+    },
+    {
+      type: "assistant",
+      session_id: "cowork-tool",
+      _audit_timestamp: "2026-09-10T14:00:03.000Z",
+      message: {
+        id: "cowork-tool-final",
+        role: "assistant",
+        stop_reason: "end_turn",
+        content: [{ type: "text", text: "文件已经创建" }]
+      }
+    }
+  );
+  fs.writeFileSync(
+    file,
+    `${records.map((record) => JSON.stringify(record)).join("\n")}\n`
+  );
+
+  const turn = parseClaudeCoworkTranscript(file).turns[0];
+  assert.equal(turn.actions.length, 1);
+  assert.equal(turn.actions[0].tool, "Write");
+  assert.equal(turn.actions[0].ok, true);
+  assert.deepEqual(turn.files, []);
+});
+
+test("first collection backfills active, archived, and Cowork history", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-history-backfill-"));
+  const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "wf-project-")));
+  const codexHome = path.join(sandbox, "codex");
+  const activeDir = path.join(codexHome, "sessions", "2026", "09", "10");
+  const archivedDir = path.join(codexHome, "archived_sessions");
+  const coworkRoot = path.join(sandbox, "cowork");
+  fs.mkdirSync(activeDir, { recursive: true });
+  fs.mkdirSync(archivedDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(activeDir, "active.jsonl"),
+    codexConversationRollout(cwd, "active-history", "active", "done")
+  );
+  fs.writeFileSync(
+    path.join(archivedDir, "archived.jsonl"),
+    codexConversationRollout(cwd, "archived-history", "archived", "done")
+  );
+  writeCoworkTranscript(coworkRoot, cwd, "cowork-history");
+
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  process.env.CODEX_HOME = codexHome;
+  delete process.env.CODEX_SESSIONS_ROOT;
+  delete process.env.CODEX_ARCHIVED_SESSIONS_ROOT;
+  process.env.CLAUDE_CONFIG_DIR = path.join(sandbox, "no-claude");
+  process.env.CLAUDE_COWORK_ROOT = coworkRoot;
+
+  const first = await collectSessions();
+  assert.equal(first.newTurns, 3);
+  const state = await readProjectState(cwd);
+  assert.deepEqual(
+    state.nodes.map((node) => node.prompt).sort(),
+    ["active", "archived", "整理这份研究"]
+  );
+  assert.equal((await collectSessions()).newTurns, 0);
+
+  process.env.CLAUDE_COWORK_ROOT = missingCoworkRoot;
+});
+
+test("Cowork without a selected folder is retained in the shared project", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-cowork-unfiled-"));
+  const coworkRoot = path.join(sandbox, "cowork");
+  writeCoworkTranscript(coworkRoot, undefined, "cowork-unfiled");
+
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  process.env.CODEX_HOME = path.join(sandbox, "no-codex");
+  process.env.CLAUDE_CONFIG_DIR = path.join(sandbox, "no-claude");
+  process.env.CLAUDE_COWORK_ROOT = coworkRoot;
+
+  const result = await collectSessions();
+  assert.equal(result.newTurns, 1);
+  assert.equal(result.skippedNoProject, 0);
+  const state = await readProjectState(unfiledConversationsRoot());
+  assert.equal(state.nodes.length, 1);
+  assert.equal(state.nodes[0].sourceHost, "claude");
+  assert.equal(state.nodes[0].prompt, "整理这份研究");
+
+  process.env.CLAUDE_COWORK_ROOT = missingCoworkRoot;
+});
+
+test("Cowork history stays current through incremental collection", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-cowork-grow-"));
+  const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "wf-project-")));
+  const coworkRoot = path.join(sandbox, "cowork");
+  const file = writeCoworkTranscript(coworkRoot, cwd, "cowork-grow");
+
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  process.env.CODEX_HOME = path.join(sandbox, "no-codex");
+  process.env.CLAUDE_CONFIG_DIR = path.join(sandbox, "no-claude");
+  process.env.CLAUDE_COWORK_ROOT = coworkRoot;
+
+  assert.equal((await collectSessions()).newTurns, 1);
+  const additional = [
+    {
+      type: "user",
+      uuid: "cowork-grow-user-2",
+      session_id: "cowork-grow",
+      _audit_timestamp: "2026-09-10T14:05:00.000Z",
+      message: { role: "user", content: "继续补充结论" }
+    },
+    {
+      type: "assistant",
+      uuid: "cowork-grow-assistant-2",
+      session_id: "cowork-grow",
+      _audit_timestamp: "2026-09-10T14:05:01.000Z",
+      message: {
+        id: "cowork-grow-message-2",
+        role: "assistant",
+        stop_reason: "end_turn",
+        content: [{ type: "text", text: "补充完成" }]
+      }
+    }
+  ];
+  fs.appendFileSync(
+    file,
+    `${additional.map((record) => JSON.stringify(record)).join("\n")}\n`
+  );
+
+  assert.equal((await collectSessions()).newTurns, 1);
+  assert.deepEqual(
+    (await readProjectState(cwd)).nodes.map((node) => node.prompt),
+    ["整理这份研究", "继续补充结论"]
+  );
+
+  process.env.CLAUDE_COWORK_ROOT = missingCoworkRoot;
+});
+
+test("Cowork sidecar changes move history out of the shared project", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-cowork-route-"));
+  const coworkRoot = path.join(sandbox, "cowork");
+  const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "wf-project-")));
+  const file = writeCoworkTranscript(coworkRoot, undefined, "cowork-route");
+
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  process.env.CODEX_HOME = path.join(sandbox, "no-codex");
+  process.env.CLAUDE_CONFIG_DIR = path.join(sandbox, "no-claude");
+  process.env.CLAUDE_COWORK_ROOT = coworkRoot;
+
+  assert.equal((await collectSessions()).newTurns, 1);
+  const sidecar = `${path.dirname(file)}.json`;
+  const metadata = JSON.parse(fs.readFileSync(sidecar, "utf8"));
+  metadata.userSelectedFolders = [cwd];
+  fs.writeFileSync(sidecar, JSON.stringify(metadata));
+
+  assert.equal((await collectSessions()).newTurns, 1);
+  assert.equal((await readProjectState(cwd)).nodes.length, 1);
+  assert.equal(
+    (await readProjectState(unfiledConversationsRoot())).nodes.length,
+    0
+  );
+  assert.equal(
+    (await readProjectState(cwd)).nodes[0].source.surface,
+    "claude-cowork"
+  );
+
+  process.env.CLAUDE_COWORK_ROOT = missingCoworkRoot;
+});
+
+test("version-one cursors are rescanned so prior no-cwd history is recovered", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-cursor-upgrade-"));
+  const codexHome = path.join(sandbox, "codex");
+  const file = writeCodexRollout(codexHome, undefined);
+  const wayfinderHome = path.join(sandbox, "data");
+  fs.mkdirSync(wayfinderHome, { recursive: true });
+  fs.writeFileSync(
+    path.join(wayfinderHome, "collector-state.json"),
+    JSON.stringify({
+      version: 1,
+      files: {
+        [file]: {
+          size: fs.statSync(file).size,
+          collectedTurns: 0,
+          deferred: true
+        }
+      }
+    })
+  );
+
+  process.env.WAYFINDER_HOME = wayfinderHome;
+  process.env.CODEX_HOME = codexHome;
+  process.env.CLAUDE_CONFIG_DIR = path.join(sandbox, "no-claude");
+  process.env.CLAUDE_COWORK_ROOT = missingCoworkRoot;
+
+  assert.equal((await collectSessions()).newTurns, 1);
+  assert.equal(
+    (await readProjectState(unfiledConversationsRoot())).nodes.length,
+    1
+  );
+  const cursor = JSON.parse(
+    fs.readFileSync(path.join(wayfinderHome, "collector-state.json"), "utf8")
+  );
+  assert.equal(cursor.version, 2);
+});
+
+test("active and archived copies of one Codex turn remain deduplicated", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-archive-dedup-"));
+  const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "wf-project-")));
+  const codexHome = path.join(sandbox, "codex");
+  const activeDir = path.join(codexHome, "sessions", "2026", "09", "10");
+  const archivedDir = path.join(codexHome, "archived_sessions");
+  const content = codexConversationRollout(
+    cwd,
+    "moved-history",
+    "same turn",
+    "same answer"
+  );
+  fs.mkdirSync(activeDir, { recursive: true });
+  fs.mkdirSync(archivedDir, { recursive: true });
+  fs.writeFileSync(path.join(activeDir, "active.jsonl"), content);
+  fs.writeFileSync(path.join(archivedDir, "archived.jsonl"), content);
+
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  process.env.CODEX_HOME = codexHome;
+  delete process.env.CODEX_SESSIONS_ROOT;
+  delete process.env.CODEX_ARCHIVED_SESSIONS_ROOT;
+  process.env.CLAUDE_CONFIG_DIR = path.join(sandbox, "no-claude");
+  process.env.CLAUDE_COWORK_ROOT = missingCoworkRoot;
+
+  assert.equal((await collectSessions()).newTurns, 1);
+  assert.equal((await readProjectState(cwd)).nodes.length, 1);
 });
 
 test("HTML and XML-looking user prompts are not discarded as envelopes", () => {
@@ -213,9 +664,13 @@ test("retries an unchanged transcript after its project becomes available", asyn
   process.env.CODEX_HOME = codexHome;
   process.env.CLAUDE_CONFIG_DIR = path.join(sandbox, "no-claude");
 
-  const skipped = await collectSessions();
-  assert.equal(skipped.newTurns, 0);
-  assert.equal(skipped.skippedNoProject, 1);
+  const first = await collectSessions();
+  assert.equal(first.newTurns, 1);
+  assert.equal(first.skippedNoProject, 0);
+  assert.equal(
+    (await readProjectState(unfiledConversationsRoot())).nodes.length,
+    1
+  );
 
   const unchanged = await collectSessions();
   assert.equal(unchanged.scannedFiles, 0);
@@ -226,9 +681,13 @@ test("retries an unchanged transcript after its project becomes available", asyn
   assert.equal(retried.newTurns, 1);
   assert.equal(retried.skippedNoProject, 0);
   assert.equal((await readProjectState(cwd)).nodes.length, 1);
+  assert.equal(
+    (await readProjectState(unfiledConversationsRoot())).nodes.length,
+    0
+  );
 });
 
-test("does not reparse an unchanged deferred transcript with no cwd", async () => {
+test("collects a transcript with no cwd into the shared unfiled project", async () => {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-collect-no-cwd-"));
   const codexHome = path.join(sandbox, "codex");
   writeCodexRollout(codexHome, undefined);
@@ -237,8 +696,13 @@ test("does not reparse an unchanged deferred transcript with no cwd", async () =
   process.env.CODEX_HOME = codexHome;
   process.env.CLAUDE_CONFIG_DIR = path.join(sandbox, "no-claude");
 
-  const skipped = await collectSessions();
-  assert.equal(skipped.skippedNoProject, 1);
+  const collected = await collectSessions();
+  assert.equal(collected.skippedNoProject, 0);
+  assert.equal(collected.newTurns, 1);
+  const state = await readProjectState(unfiledConversationsRoot());
+  assert.equal(state.nodes.length, 1);
+  assert.equal(state.nodes[0].prompt, "讲个冷笑话");
+
   const unchanged = await collectSessions();
   assert.equal(unchanged.scannedFiles, 0);
   assert.equal(unchanged.newTurns, 0);

@@ -682,38 +682,118 @@ async fn run_collect_once(app: &AppHandle, active: &ActiveCollector) -> Result<(
     }
 }
 
-/// Transcript directories every comparable local tool watches: Codex rollouts
-/// and Claude Code project logs. Desktop clients write here even when no
-/// lifecycle hook fires, so watching them is what makes background capture work.
+/// Transcript directories every comparable local tool watches: active and
+/// archived Codex rollouts, Claude Code project logs, and Claude Cowork audits.
 fn transcript_watch_roots() -> Vec<PathBuf> {
-    resolve_transcript_roots(
-        env::var_os("CODEX_SESSIONS_ROOT").map(PathBuf::from),
-        env::var_os("CODEX_HOME").map(PathBuf::from),
-        env::var_os("CLAUDE_CONFIG_DIR").map(PathBuf::from),
-        dirs::home_dir(),
-    )
+    let data_dir = env::var_os("APPDATA")
+        .map(PathBuf::from)
+        .or_else(dirs::data_dir);
+    let local_data_dir = if cfg!(target_os = "windows") {
+        env::var_os("LOCALAPPDATA")
+            .map(PathBuf::from)
+            .or_else(dirs::data_local_dir)
+    } else {
+        None
+    };
+    resolve_transcript_roots(TranscriptRootInputs {
+        codex_sessions_root: env::var_os("CODEX_SESSIONS_ROOT").map(PathBuf::from),
+        codex_archived_sessions_root: env::var_os("CODEX_ARCHIVED_SESSIONS_ROOT")
+            .map(PathBuf::from),
+        codex_home: env::var_os("CODEX_HOME").map(PathBuf::from),
+        claude_config_dir: env::var_os("CLAUDE_CONFIG_DIR").map(PathBuf::from),
+        claude_cowork_root: env::var_os("CLAUDE_COWORK_ROOT").map(PathBuf::from),
+        home: dirs::home_dir(),
+        data_dir,
+        local_data_dir,
+    })
+}
+
+struct TranscriptRootInputs {
+    codex_sessions_root: Option<PathBuf>,
+    codex_archived_sessions_root: Option<PathBuf>,
+    codex_home: Option<PathBuf>,
+    claude_config_dir: Option<PathBuf>,
+    claude_cowork_root: Option<PathBuf>,
+    home: Option<PathBuf>,
+    data_dir: Option<PathBuf>,
+    local_data_dir: Option<PathBuf>,
 }
 
 /// Pure resolver (env passed in) so the precedence rules can be unit-tested
 /// without mutating process-wide environment variables.
-fn resolve_transcript_roots(
-    codex_sessions_root: Option<PathBuf>,
-    codex_home: Option<PathBuf>,
-    claude_config_dir: Option<PathBuf>,
-    home: Option<PathBuf>,
-) -> Vec<PathBuf> {
+fn resolve_transcript_roots(inputs: TranscriptRootInputs) -> Vec<PathBuf> {
+    let TranscriptRootInputs {
+        codex_sessions_root,
+        codex_archived_sessions_root,
+        codex_home,
+        claude_config_dir,
+        claude_cowork_root,
+        home,
+        data_dir,
+        local_data_dir,
+    } = inputs;
     let mut roots = Vec::new();
-    if let Some(root) = codex_sessions_root {
+    let codex_sessions = codex_sessions_root
+        .or_else(|| codex_home.clone().map(|root| root.join("sessions")))
+        .or_else(|| {
+            home.clone()
+                .map(|root| root.join(".codex").join("sessions"))
+        });
+    if let Some(root) = codex_sessions.clone() {
         roots.push(root);
-    } else if let Some(codex_home) = codex_home {
-        roots.push(codex_home.join("sessions"));
-    } else if let Some(home) = home.clone() {
-        roots.push(home.join(".codex").join("sessions"));
+    }
+    if let Some(root) = codex_archived_sessions_root.or_else(|| {
+        codex_sessions
+            .as_ref()
+            .and_then(|root| root.parent())
+            .map(|root| root.join("archived_sessions"))
+    }) {
+        roots.push(root);
     }
     if let Some(claude) = claude_config_dir {
         roots.push(claude.join("projects"));
-    } else if let Some(home) = home {
+    } else if let Some(home) = home.clone() {
         roots.push(home.join(".claude").join("projects"));
+    }
+    if let Some(root) = claude_cowork_root {
+        roots.push(root);
+    } else {
+        if let Some(root) = data_dir {
+            roots.push(root.join("Claude").join("local-agent-mode-sessions"));
+        }
+        if let Some(root) = local_data_dir {
+            let direct = root.join("Claude").join("local-agent-mode-sessions");
+            if !roots.contains(&direct) {
+                roots.push(direct);
+            }
+            let packages = root.join("Packages");
+            let mut store_roots = fs::read_dir(packages)
+                .into_iter()
+                .flatten()
+                .filter_map(Result::ok)
+                .filter(|entry| {
+                    entry
+                        .file_name()
+                        .to_string_lossy()
+                        .to_ascii_lowercase()
+                        .contains("claude")
+                })
+                .map(|entry| {
+                    entry
+                        .path()
+                        .join("LocalCache")
+                        .join("Roaming")
+                        .join("Claude")
+                        .join("local-agent-mode-sessions")
+                })
+                .collect::<Vec<_>>();
+            store_roots.sort();
+            for store_root in store_roots {
+                if !roots.contains(&store_root) {
+                    roots.push(store_root);
+                }
+            }
+        }
     }
     roots
 }
@@ -925,33 +1005,91 @@ mod tests {
 
     #[test]
     fn transcript_roots_follow_env_precedence() {
-        use super::resolve_transcript_roots;
+        use super::{resolve_transcript_roots, TranscriptRootInputs};
         use std::path::PathBuf;
 
         // Defaults from home when no overrides are set.
-        let roots = resolve_transcript_roots(None, None, None, Some(PathBuf::from("/Users/x")));
+        let roots = resolve_transcript_roots(TranscriptRootInputs {
+            codex_sessions_root: None,
+            codex_archived_sessions_root: None,
+            codex_home: None,
+            claude_config_dir: None,
+            claude_cowork_root: None,
+            home: Some(PathBuf::from("/Users/x")),
+            data_dir: Some(PathBuf::from("/Users/x/Library/Application Support")),
+            local_data_dir: None,
+        });
         assert_eq!(
             roots,
             vec![
                 PathBuf::from("/Users/x/.codex/sessions"),
+                PathBuf::from("/Users/x/.codex/archived_sessions"),
                 PathBuf::from("/Users/x/.claude/projects"),
+                PathBuf::from(
+                    "/Users/x/Library/Application Support/Claude/local-agent-mode-sessions"
+                ),
             ]
         );
 
         // Explicit overrides win, and CODEX_SESSIONS_ROOT beats CODEX_HOME.
-        let roots = resolve_transcript_roots(
-            Some(PathBuf::from("/custom/sessions")),
-            Some(PathBuf::from("/ignored/codex")),
-            Some(PathBuf::from("/custom/claude")),
-            Some(PathBuf::from("/Users/x")),
-        );
+        let roots = resolve_transcript_roots(TranscriptRootInputs {
+            codex_sessions_root: Some(PathBuf::from("/custom/sessions")),
+            codex_archived_sessions_root: Some(PathBuf::from("/custom/archived")),
+            codex_home: Some(PathBuf::from("/ignored/codex")),
+            claude_config_dir: Some(PathBuf::from("/custom/claude")),
+            claude_cowork_root: Some(PathBuf::from("/custom/cowork")),
+            home: Some(PathBuf::from("/Users/x")),
+            data_dir: Some(PathBuf::from("/ignored/data")),
+            local_data_dir: Some(PathBuf::from("/ignored/local-data")),
+        });
         assert_eq!(
             roots,
             vec![
                 PathBuf::from("/custom/sessions"),
+                PathBuf::from("/custom/archived"),
                 PathBuf::from("/custom/claude/projects"),
+                PathBuf::from("/custom/cowork"),
             ]
         );
+    }
+
+    #[test]
+    fn transcript_roots_include_windows_store_cowork_locations() {
+        use super::{resolve_transcript_roots, TranscriptRootInputs};
+        use std::path::PathBuf;
+
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock")
+            .as_nanos();
+        let local_data =
+            std::env::temp_dir().join(format!("wayfinder-appdata-{}-{nonce}", std::process::id()));
+        let package = local_data.join("Packages").join("Claude_test");
+        fs::create_dir_all(&package).expect("create Store package");
+
+        let roots = resolve_transcript_roots(TranscriptRootInputs {
+            codex_sessions_root: None,
+            codex_archived_sessions_root: None,
+            codex_home: None,
+            claude_config_dir: None,
+            claude_cowork_root: None,
+            home: Some(PathBuf::from("/Users/x")),
+            data_dir: Some(PathBuf::from("C:/Users/x/AppData/Roaming")),
+            local_data_dir: Some(local_data.clone()),
+        });
+        assert!(roots.contains(&PathBuf::from(
+            "C:/Users/x/AppData/Roaming/Claude/local-agent-mode-sessions"
+        )));
+        assert!(roots.contains(&local_data.join("Claude").join("local-agent-mode-sessions")));
+        assert!(roots.contains(
+            &package
+                .join("LocalCache")
+                .join("Roaming")
+                .join("Claude")
+                .join("local-agent-mode-sessions")
+        ));
+
+        fs::remove_dir_all(local_data).expect("remove Store fixture");
     }
 
     #[test]

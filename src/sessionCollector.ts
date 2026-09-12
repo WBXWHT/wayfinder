@@ -3,7 +3,13 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import * as lockfile from "proper-lockfile";
-import { AgentHost, FileChange, TimelineNode, ToolAction } from "./models";
+import {
+  AgentHost,
+  FileChange,
+  LocalSessionSurface,
+  TimelineNode,
+  ToolAction
+} from "./models";
 import { ShadowRepo } from "./shadowRepo";
 import {
   clipText,
@@ -19,12 +25,10 @@ import {
 /**
  * Session collector.
  *
- * Codex and Claude Code always persist every session to local transcript
- * files, regardless of whether lifecycle hooks are trusted/enabled. Desktop
- * clients (ChatGPT.app, Claude.app) run those same engines but never surface
- * the TUI hook-trust prompt, so hooks never fire there. Reading the transcript
- * files directly is how every comparable local tool captures sessions, and it
- * covers plain chat as well as coding turns.
+ * Codex, Claude Code, and Claude Cowork persist local session transcripts even
+ * when lifecycle hooks are unavailable. Reading those files directly mirrors
+ * established local session viewers and also lets a fresh Wayfinder install
+ * backfill history that still exists on disk.
  *
  * This module only PARSES transcripts into candidate turns. Persisting them
  * into project state (dedup, snapshots, branch linking) is done by the caller.
@@ -32,6 +36,7 @@ import {
 
 export interface CollectedTurn {
   host: AgentHost;
+  surface: LocalSessionSurface;
   sessionId: string;
   turnId?: string;
   rolloutPath: string;
@@ -47,6 +52,7 @@ export interface CollectedTurn {
 
 export interface CollectedSession {
   host: AgentHost;
+  surface: LocalSessionSurface;
   sessionId: string;
   rolloutPath: string;
   cwd?: string;
@@ -64,9 +70,110 @@ export function codexSessionsRoot(): string {
   return path.join(home, "sessions");
 }
 
+export function codexArchivedSessionsRoot(): string {
+  if (process.env.CODEX_ARCHIVED_SESSIONS_ROOT) {
+    return process.env.CODEX_ARCHIVED_SESSIONS_ROOT;
+  }
+  if (process.env.CODEX_SESSIONS_ROOT) {
+    return path.join(path.dirname(process.env.CODEX_SESSIONS_ROOT), "archived_sessions");
+  }
+  const home = process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
+  return path.join(home, "archived_sessions");
+}
+
 export function claudeProjectsRoot(): string {
   const home = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
   return path.join(home, "projects");
+}
+
+interface CoworkRootOptions {
+  platform: NodeJS.Platform;
+  home: string;
+  override?: string;
+  appData?: string;
+  localAppData?: string;
+  configHome?: string;
+}
+
+export function resolveClaudeCoworkSessionRoots({
+  platform,
+  home,
+  override,
+  appData,
+  localAppData,
+  configHome
+}: CoworkRootOptions): string[] {
+  if (override) {
+    return [override];
+  }
+  if (platform === "darwin") {
+    return [path.join(
+      home,
+      "Library",
+      "Application Support",
+      "Claude",
+      "local-agent-mode-sessions"
+    )];
+  }
+  if (platform === "win32") {
+    const roamingRoot = appData || path.join(home, "AppData", "Roaming");
+    const localRoot = localAppData || path.join(home, "AppData", "Local");
+    const roots = [
+      path.join(roamingRoot, "Claude", "local-agent-mode-sessions"),
+      path.join(localRoot, "Claude", "local-agent-mode-sessions")
+    ];
+    const packages = path.join(localRoot, "Packages");
+    try {
+      for (const entry of fs.readdirSync(packages, { withFileTypes: true })) {
+        if (entry.isDirectory() && /claude/i.test(entry.name)) {
+          roots.push(path.join(
+            packages,
+            entry.name,
+            "LocalCache",
+            "Roaming",
+            "Claude",
+            "local-agent-mode-sessions"
+          ));
+        }
+      }
+    } catch {
+      // Non-Store installs do not have a matching Packages directory.
+    }
+    const seen = new Set<string>();
+    return roots.filter((root) => {
+      const key = path.resolve(root).toLowerCase();
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+  }
+  const resolvedConfigHome = configHome || path.join(home, ".config");
+  return [path.join(
+    resolvedConfigHome,
+    "Claude",
+    "local-agent-mode-sessions"
+  )];
+}
+
+export function claudeCoworkSessionRoots(): string[] {
+  return resolveClaudeCoworkSessionRoots({
+    platform: process.platform,
+    home: os.homedir(),
+    override: process.env.CLAUDE_COWORK_ROOT,
+    appData: process.env.APPDATA,
+    localAppData: process.env.LOCALAPPDATA,
+    configHome: process.env.XDG_CONFIG_HOME
+  });
+}
+
+export function claudeCoworkSessionsRoot(): string {
+  return claudeCoworkSessionRoots()[0];
+}
+
+export function unfiledConversationsRoot(): string {
+  return path.join(wayfinderHome(), "unfiled", "通用协作");
 }
 
 /** Recursively list transcript files under a root, newest first. */
@@ -89,6 +196,39 @@ export function listTranscriptFiles(root: string): string[] {
     }
   };
   walk(root);
+  return results.sort();
+}
+
+/** Cowork embeds nested Claude state; only its top-level audit logs are turns. */
+export function listCoworkAuditFiles(root: string): string[] {
+  const results: string[] = [];
+  const walk = (dir: string, depth: number): void => {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+      const full = path.join(dir, entry.name);
+      if (entry.name.startsWith("local_")) {
+        const audit = path.join(full, "audit.jsonl");
+        try {
+          if (fs.statSync(audit).isFile()) {
+            results.push(audit);
+          }
+        } catch {
+          // A session can disappear while Claude rotates account state.
+        }
+      } else if (depth < 3) {
+        walk(full, depth + 1);
+      }
+    }
+  };
+  walk(root, 0);
   return results.sort();
 }
 
@@ -208,6 +348,7 @@ export function parseCodexRollout(file: string): CollectedSession | undefined {
       .trim();
     turns.push({
       host: "codex",
+      surface: "codex",
       sessionId,
       turnId: pendingPrompt.turnId,
       rolloutPath: file,
@@ -347,7 +488,14 @@ export function parseCodexRollout(file: string): CollectedSession | undefined {
     }
   }
 
-  return { host: "codex", sessionId, rolloutPath: file, cwd, turns };
+  return {
+    host: "codex",
+    surface: "codex",
+    sessionId,
+    rolloutPath: file,
+    cwd,
+    turns
+  };
 }
 
 function taskEventText(value: unknown): string | undefined {
@@ -377,15 +525,25 @@ function turnIdFrom(payload: Record<string, unknown>): string | undefined {
     : undefined;
 }
 
-/** Parse a single Claude Code JSONL transcript into an ordered list of turns. */
-export function parseClaudeTranscript(file: string): CollectedSession | undefined {
-  const records = parseJsonl(file);
+interface ClaudeTranscriptDefaults {
+  surface: Extract<LocalSessionSurface, "claude-code" | "claude-cowork">;
+  sessionId: string;
+  cwd?: string;
+  acceptRecordCwd: boolean;
+  acceptRecordSessionId: boolean;
+}
+
+function parseClaudeRecords(
+  file: string,
+  records: Array<Record<string, unknown>>,
+  defaults: ClaudeTranscriptDefaults
+): CollectedSession | undefined {
   if (records.length === 0) {
     return undefined;
   }
 
-  let sessionId = path.basename(file, ".jsonl");
-  let cwd: string | undefined;
+  let sessionId = defaults.sessionId;
+  let cwd = defaults.cwd;
   const turns: CollectedTurn[] = [];
   let pendingPrompt:
     | { text: string; at: string; turnId?: string }
@@ -403,6 +561,7 @@ export function parseClaudeTranscript(file: string): CollectedSession | undefine
     const response = responseParts.join("\n").trim();
     turns.push({
       host: "claude",
+      surface: defaults.surface,
       sessionId,
       turnId: pendingPrompt.turnId,
       rolloutPath: file,
@@ -423,10 +582,17 @@ export function parseClaudeTranscript(file: string): CollectedSession | undefine
   };
 
   for (const record of records) {
-    if (typeof record.cwd === "string" && !cwd) {
+    if (
+      defaults.acceptRecordCwd &&
+      typeof record.cwd === "string" &&
+      !cwd
+    ) {
       cwd = record.cwd;
     }
-    if (typeof record.sessionId === "string") {
+    if (
+      defaults.acceptRecordSessionId &&
+      typeof record.sessionId === "string"
+    ) {
       sessionId = record.sessionId;
     }
     const timestamp = typeof record.timestamp === "string"
@@ -485,7 +651,131 @@ export function parseClaudeTranscript(file: string): CollectedSession | undefine
     }
   }
 
-  return { host: "claude", sessionId, rolloutPath: file, cwd, turns };
+  return {
+    host: "claude",
+    surface: defaults.surface,
+    sessionId,
+    rolloutPath: file,
+    cwd,
+    turns
+  };
+}
+
+/** Parse a single Claude Code JSONL transcript into an ordered list of turns. */
+export function parseClaudeTranscript(file: string): CollectedSession | undefined {
+  return parseClaudeRecords(file, parseJsonl(file), {
+    surface: "claude-code",
+    sessionId: path.basename(file, ".jsonl"),
+    acceptRecordCwd: true,
+    acceptRecordSessionId: true
+  });
+}
+
+/** Parse one Claude Desktop Cowork audit log without exposing its HMAC fields. */
+export function parseClaudeCoworkTranscript(
+  file: string
+): CollectedSession | undefined {
+  const sidecar = readCoworkSidecar(file);
+  const records = parseJsonl(file).map((record) => {
+    const normalized = { ...record };
+    if (
+      typeof normalized.timestamp !== "string" &&
+      typeof normalized._audit_timestamp === "string"
+    ) {
+      normalized.timestamp = normalized._audit_timestamp;
+    }
+    delete normalized._audit_hmac;
+    return normalized;
+  });
+  const rawSessionId =
+    typeof sidecar.sessionId === "string"
+      ? sidecar.sessionId
+      : path.basename(path.dirname(file));
+  return parseClaudeRecords(file, records, {
+    surface: "claude-cowork",
+    sessionId: rawSessionId.replace(/^local_/, ""),
+    cwd: coworkProjectRoot(sidecar, records),
+    acceptRecordCwd: false,
+    acceptRecordSessionId: false
+  });
+}
+
+function readCoworkSidecar(file: string): Record<string, unknown> {
+  const sidecar = coworkSidecarPath(file);
+  try {
+    return asRecord(JSON.parse(fs.readFileSync(sidecar, "utf8"))) || {};
+  } catch {
+    return {};
+  }
+}
+
+function coworkSidecarPath(file: string): string {
+  return `${path.dirname(file)}.json`;
+}
+
+function coworkProjectRoot(
+  sidecar: Record<string, unknown>,
+  records: Array<Record<string, unknown>>
+): string | undefined {
+  const selected: string[] = [];
+  for (const key of ["userSelectedFolders", "userApprovedFileAccessPaths"]) {
+    const values = sidecar[key];
+    if (!Array.isArray(values)) {
+      continue;
+    }
+    for (const value of values) {
+      const candidate = coworkPathValue(value);
+      if (candidate) {
+        selected.push(candidate);
+      }
+    }
+  }
+  for (const candidate of selected) {
+    if (resolveProjectRoot(candidate)) {
+      return candidate;
+    }
+  }
+  if (selected.length > 0) {
+    return selected[0];
+  }
+
+  const candidates = [sidecar.cwd, ...records.map((record) => record.cwd)];
+  for (const value of candidates) {
+    const candidate = coworkPathValue(value);
+    if (candidate && fs.existsSync(candidate)) {
+      try {
+        if (fs.statSync(candidate).isDirectory()) {
+          return candidate;
+        }
+      } catch {
+        // A disconnected or concurrently removed path is handled by fallback.
+      }
+    }
+  }
+  return undefined;
+}
+
+function coworkPathValue(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    const candidate = value.trim();
+    if (!candidate) {
+      return undefined;
+    }
+    return candidate.startsWith("~/")
+      ? path.join(os.homedir(), candidate.slice(2))
+      : candidate;
+  }
+  const record = asRecord(value);
+  if (!record) {
+    return undefined;
+  }
+  for (const key of ["path", "folderPath", "localPath"]) {
+    const candidate = coworkPathValue(record[key]);
+    if (candidate) {
+      return candidate;
+    }
+  }
+  return undefined;
 }
 
 function toolActionFromCall(
@@ -1048,12 +1338,13 @@ interface CollectorFileCursor {
   suffixHash?: string;
   mtimeMs?: number;
   ctimeMs?: number;
-  deferred?: boolean;
+  contextFingerprint?: string;
+  projectRoot?: string;
   cwd?: string;
 }
 
 interface CollectorCursor {
-  version: 1;
+  version: 2;
   files: Record<string, CollectorFileCursor>;
 }
 
@@ -1072,13 +1363,13 @@ function readCursor(): CollectorCursor {
   try {
     const raw = fs.readFileSync(collectorStatePath(), "utf8");
     const parsed = JSON.parse(raw) as CollectorCursor;
-    if (parsed.version === 1 && parsed.files) {
+    if (parsed.version === 2 && parsed.files) {
       return parsed;
     }
   } catch {
     // Fresh cursor.
   }
-  return { version: 1, files: {} };
+  return { version: 2, files: {} };
 }
 
 function transcriptIdentity(stat: fs.Stats): string | undefined {
@@ -1130,7 +1421,8 @@ function hashFileSegment(
 
 function cursorMetadata(
   file: string,
-  stat: fs.Stats
+  stat: fs.Stats,
+  contextFile?: string
 ): Pick<
   CollectorFileCursor,
   | "size"
@@ -1141,6 +1433,7 @@ function cursorMetadata(
   | "suffixHash"
   | "mtimeMs"
   | "ctimeMs"
+  | "contextFingerprint"
 > {
   const prefixBytes = Math.min(stat.size, CURSOR_PREFIX_BYTES);
   const suffixBytes = Math.min(stat.size, CURSOR_PREFIX_BYTES);
@@ -1156,8 +1449,25 @@ function cursorMetadata(
       suffixBytes
     ),
     mtimeMs: stat.mtimeMs,
-    ctimeMs: stat.ctimeMs
+    ctimeMs: stat.ctimeMs,
+    contextFingerprint: contextFile
+      ? fileFingerprint(contextFile)
+      : undefined
   };
+}
+
+function fileFingerprint(file: string): string | undefined {
+  try {
+    const stat = fs.statSync(file);
+    return [
+      transcriptIdentity(stat) || "",
+      stat.size,
+      stat.mtimeMs,
+      stat.ctimeMs
+    ].join(":");
+  } catch {
+    return undefined;
+  }
 }
 
 function continuesPreviousFile(
@@ -1166,6 +1476,9 @@ function continuesPreviousFile(
   current: ReturnType<typeof cursorMetadata>,
   previous: CollectorFileCursor
 ): boolean {
+  if (previous.contextFingerprint !== current.contextFingerprint) {
+    return false;
+  }
   if (stat.size < previous.size) {
     return false;
   }
@@ -1243,7 +1556,7 @@ function resolveProjectRoot(cwd: string | undefined): string | undefined {
     return undefined;
   }
   try {
-    return normalizeRoot(cwd);
+    return fs.statSync(cwd).isDirectory() ? normalizeRoot(cwd) : undefined;
   } catch {
     return undefined;
   }
@@ -1281,8 +1594,14 @@ export async function collectSessions(): Promise<CollectRunResult> {
 
 async function collectSessionsUnlocked(): Promise<CollectRunResult> {
   const cursor = readCursor();
-  const codexFiles = listTranscriptFiles(codexSessionsRoot());
+  const codexFiles = [...new Set([
+    ...listTranscriptFiles(codexSessionsRoot()),
+    ...listTranscriptFiles(codexArchivedSessionsRoot())
+  ])];
   const claudeFiles = listTranscriptFiles(claudeProjectsRoot());
+  const coworkFiles = [...new Set(
+    claudeCoworkSessionRoots().flatMap(listCoworkAuditFiles)
+  )];
   const result: CollectRunResult = {
     scannedFiles: 0,
     newTurns: 0,
@@ -1293,7 +1612,8 @@ async function collectSessionsUnlocked(): Promise<CollectRunResult> {
 
   const process_ = async (
     file: string,
-    parse: (file: string) => CollectedSession | undefined
+    parse: (file: string) => CollectedSession | undefined,
+    contextFile?: (file: string) => string
   ): Promise<void> => {
     let stat: fs.Stats;
     try {
@@ -1302,21 +1622,22 @@ async function collectSessionsUnlocked(): Promise<CollectRunResult> {
       return;
     }
     const previous = cursor.files[file];
-    const metadata = cursorMetadata(file, stat);
+    const metadata = cursorMetadata(file, stat, contextFile?.(file));
     const continues = previous
       ? continuesPreviousFile(file, stat, metadata, previous)
       : false;
     const unchanged = Boolean(
       previous && continues && previous.size === stat.size
     );
-    if (
-      previous?.deferred &&
+    const currentRequestedRoot = resolveProjectRoot(previous?.cwd);
+    const routeBecameAvailable = Boolean(
       unchanged &&
-      (!previous.cwd || !resolveProjectRoot(previous.cwd))
-    ) {
-      return;
-    }
-    if (unchanged && !previous?.deferred) {
+      previous?.projectRoot &&
+      previous.cwd &&
+      currentRequestedRoot &&
+      currentRequestedRoot !== previous.projectRoot
+    );
+    if (unchanged && !routeBecameAvailable) {
       return;
     }
     result.scannedFiles += 1;
@@ -1324,38 +1645,51 @@ async function collectSessionsUnlocked(): Promise<CollectRunResult> {
     if (!session || session.turns.length === 0) {
       cursor.files[file] = {
         ...metadata,
-        collectedTurns: continues ? previous?.collectedTurns || 0 : 0
+        collectedTurns: continues ? previous?.collectedTurns || 0 : 0,
+        projectRoot: previous?.projectRoot,
+        cwd: previous?.cwd
       };
       return;
     }
-    const alreadyCollected = continues ? previous?.collectedTurns || 0 : 0;
+    let root = resolveProjectRoot(session.cwd);
+    if (!root) {
+      const unfiledRoot = unfiledConversationsRoot();
+      await fs.promises.mkdir(unfiledRoot, { recursive: true });
+      root = normalizeRoot(unfiledRoot);
+    }
+    const routeChanged = Boolean(
+      previous?.projectRoot && previous.projectRoot !== root
+    );
+    const alreadyCollected =
+      continues && !routeChanged ? previous?.collectedTurns || 0 : 0;
     const fresh = session.turns.filter((turn) => turn.turnIndex >= alreadyCollected);
     if (fresh.length === 0) {
-      cursor.files[file] = { ...metadata, collectedTurns: alreadyCollected };
-      return;
-    }
-
-    const root = resolveProjectRoot(session.cwd);
-    if (!root) {
-      // Preserve the uncollected turn range. The cwd may be on an external
-      // volume that becomes available later, so an unchanged transcript must
-      // remain eligible for a future retry.
-      result.skippedNoProject += fresh.length;
       cursor.files[file] = {
         ...metadata,
         collectedTurns: alreadyCollected,
-        deferred: true,
+        projectRoot: root,
         cwd: session.cwd
       };
       return;
     }
 
     const persisted = await persistTurns(root, session.host, fresh);
+    if (routeChanged && previous?.projectRoot) {
+      await removeCollectedSession(
+        previous.projectRoot,
+        session.host,
+        session.sessionId,
+        file
+      );
+      touchedProjects.add(previous.projectRoot);
+    }
     result.newTurns += persisted;
     touchedProjects.add(root);
     cursor.files[file] = {
       ...metadata,
-      collectedTurns: session.turns.length
+      collectedTurns: session.turns.length,
+      projectRoot: root,
+      cwd: session.cwd
     };
   };
 
@@ -1365,10 +1699,61 @@ async function collectSessionsUnlocked(): Promise<CollectRunResult> {
   for (const file of claudeFiles) {
     await process_(file, parseClaudeTranscript);
   }
+  for (const file of coworkFiles) {
+    await process_(
+      file,
+      parseClaudeCoworkTranscript,
+      coworkSidecarPath
+    );
+  }
 
   await writeCursor(cursor);
   result.projects = [...touchedProjects];
   return result;
+}
+
+async function removeCollectedSession(
+  root: string,
+  host: AgentHost,
+  sessionId: string,
+  rolloutPath: string
+): Promise<void> {
+  await mutateProjectState(root, (state) => {
+    const removedParents = new Map<string, string | undefined>();
+    for (const node of state.nodes) {
+      if (
+        node.source?.type === "rollout" &&
+        node.source.host === host &&
+        node.source.sessionId === sessionId &&
+        node.source.rolloutPath === rolloutPath
+      ) {
+        removedParents.set(node.id, node.parentId);
+      }
+    }
+    if (removedParents.size === 0) {
+      return;
+    }
+
+    const survivingParent = (parentId: string | undefined): string | undefined => {
+      const seen = new Set<string>();
+      let current = parentId;
+      while (current && removedParents.has(current) && !seen.has(current)) {
+        seen.add(current);
+        current = removedParents.get(current);
+      }
+      return current;
+    };
+    state.nodes = state.nodes
+      .filter((node) => !removedParents.has(node.id))
+      .map((node) => ({
+        ...node,
+        parentId: survivingParent(node.parentId)
+      }));
+    state.branches = state.branches.map((branch) => ({
+      ...branch,
+      parentNodeId: survivingParent(branch.parentNodeId)
+    }));
+  });
 }
 
 async function persistTurns(
@@ -1404,6 +1789,7 @@ async function persistTurns(
       const source = {
         type: "rollout" as const,
         host,
+        surface: turn.surface,
         rolloutPath: turn.rolloutPath,
         sessionId: turn.sessionId,
         turnIndex: turn.turnIndex,
@@ -1427,14 +1813,19 @@ async function persistTurns(
             )
           );
         }
-        return node.source.rolloutPath === turn.rolloutPath &&
+        return (
+          node.source.rolloutPath === turn.rolloutPath &&
           node.source.sessionId === turn.sessionId &&
-          node.source.turnIndex === turn.turnIndex;
+          node.source.turnIndex === turn.turnIndex
+        ) || (
+          node.source.sessionId === turn.sessionId &&
+          node.source.turnIndex === turn.turnIndex &&
+          node.startedAt === turn.startedAt &&
+          node.prompt === clipText(turn.prompt, 4_000)
+        );
       });
       if (duplicate) {
-        if (turn.turnId) {
-          mergeCollectedTurn(duplicate, turn, source);
-        }
+        mergeCollectedTurn(duplicate, turn, source);
         continue;
       }
       const hookMatch = state.nodes

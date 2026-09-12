@@ -1,9 +1,9 @@
 # Wayfinder Companion
 
 Wayfinder Companion is the macOS and Windows desktop surface for local Claude
-Code and Codex work. It watches the hosts' local JSONL session files, stores
-normalized turns under `~/.wayfinder`, and renders the complete visual voyage
-map.
+Code and Codex work. It reads compatible history already stored on the machine,
+watches later session changes, stores normalized turns under `~/.wayfinder`,
+and renders the complete visual voyage map.
 
 The desktop application is the supported Wayfinder product. Its collector runs
 at launch and then reacts to local session changes in the background without
@@ -23,9 +23,10 @@ early access.
 ## Architecture
 
 ```text
-Claude Code / Codex local JSONL transcripts
+Codex active + archived rollouts
+Claude Code transcripts + Cowork audits
                    |
-       filesystem watcher + bundled collector
+       initial backfill + filesystem watcher
                    |
          ~/.wayfinder/projects/*
                    |
@@ -37,9 +38,10 @@ Claude Code / Codex local JSONL transcripts
 - Host identity remains provenance on every turn and waypoint.
 - Related turns may share a topic or waypoint; raw turns are never collapsed
   or overwritten.
-- A recursive filesystem watcher coalesces transcript writes for two seconds,
-  runs an incremental collection pass, and records per-file progress in
-  `~/.wayfinder/collector-state.json`.
+- A first launch scans compatible history under the Codex, Claude Code, and
+  Claude Cowork local stores. A recursive filesystem watcher then coalesces
+  transcript writes for two seconds, runs an incremental collection pass, and
+  records per-file progress in `~/.wayfinder/collector-state.json`.
 - The Companion refreshes the selected map when its project data changes.
 - The project sidebar follows the established session-viewer pattern: projects
   are always scannable on wide screens and move into a drawer on narrow
@@ -61,6 +63,8 @@ Wayfinder keeps three separate concepts:
 
 1. **Project map**: one exact normalized working directory (`cwd/root`) becomes
    one item in the project sidebar and one map under `~/.wayfinder/projects`.
+   Sessions without a usable folder are retained together in the local
+   `通用协作` map.
 2. **Voyage**: related goals within that project are grouped by structural,
    file, topic, and time signals. A new unrelated goal starts another voyage
    from the same port.

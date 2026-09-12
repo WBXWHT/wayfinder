@@ -3,6 +3,30 @@
 Notable public changes to Wayfinder are recorded here. Release notes describe
 user-visible behavior; implementation detail remains in the linked commits.
 
+## [0.3.13] - 2026-09-12
+
+### Added
+
+- Restored compatible local Codex and Claude history that predates Wayfinder.
+- Added automatic collection from archived Codex rollouts and Claude Cowork
+  audit logs on macOS and Windows.
+- Preserved sessions without a project folder in one local
+  general-collaboration map.
+
+### Changed
+
+- Extended the desktop filesystem watcher to every supported local history
+  location while keeping subsequent scans incremental.
+- Deduplicated Codex turns when a transcript moves between active and archived
+  storage.
+
+### Verification
+
+- Added synthetic active, archived, Cowork, no-folder, malformed-tail, and
+  incremental-update coverage.
+- Release gates cover the collector and watcher path logic on JavaScript,
+  macOS, and Windows runners.
+
 ## [0.3.12] - 2026-09-12
 
 ### Fixed
@@ -72,3 +96,4 @@ user-visible behavior; implementation detail remains in the linked commits.
 [0.3.10]: https://github.com/StayCurious-Xuan/wayfinder/releases/tag/alpha-v0.3.10
 [0.3.11]: https://github.com/StayCurious-Xuan/wayfinder/releases/tag/alpha-v0.3.11
 [0.3.12]: https://github.com/StayCurious-Xuan/wayfinder/releases/tag/alpha-v0.3.12
+[0.3.13]: https://github.com/StayCurious-Xuan/wayfinder/releases/tag/alpha-v0.3.13

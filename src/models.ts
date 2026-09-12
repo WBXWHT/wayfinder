@@ -5,6 +5,7 @@ export type NodeKind =
   | "imported"
   | "collected";
 export type AgentHost = "trae" | "claude" | "codex";
+export type LocalSessionSurface = "codex" | "claude-code" | "claude-cowork";
 export type UserVerdict = "success" | "failure";
 export type ValidationStatus =
   | "running"
@@ -77,6 +78,7 @@ export interface TimelineNode {
     | {
         type: "rollout";
         host: AgentHost;
+        surface?: LocalSessionSurface;
         rolloutPath: string;
         sessionId: string;
         turnIndex: number;
