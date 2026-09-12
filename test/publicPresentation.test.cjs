@@ -23,6 +23,25 @@ test("public screenshots use simulated data at 2K or higher", () => {
   }
 });
 
+test("phone typography uses bundled open-source web fonts", () => {
+  for (const font of [
+    "website/fonts/wayfinder-sans-400.woff2",
+    "website/fonts/wayfinder-sans-700.woff2"
+  ]) {
+    const data = read(font);
+    assert.equal(data.toString("ascii", 0, 4), "wOF2");
+    assert.ok(data.length < 100_000, font);
+  }
+
+  const license = read("website/fonts/OFL.txt").toString("utf8");
+  const styles = read("website/styles.css").toString("utf8");
+  assert.match(license, /SIL OPEN FONT LICENSE Version 1\.1/);
+  assert.match(
+    styles,
+    /@media \(max-width: 540px\)[\s\S]*?body \{[\s\S]*?"Wayfinder Sans"/
+  );
+});
+
 test("repository overview uses the public 2K presentation assets", () => {
   const readme = read("README.md").toString("utf8");
   assert.match(readme, /wayfinder-social-preview-2k\.png/);

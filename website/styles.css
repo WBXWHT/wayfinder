@@ -1,3 +1,19 @@
+@font-face {
+  font-family: "Wayfinder Sans";
+  src: url("./fonts/wayfinder-sans-400.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "Wayfinder Sans";
+  src: url("./fonts/wayfinder-sans-700.woff2") format("woff2");
+  font-display: swap;
+  font-style: normal;
+  font-weight: 700;
+}
+
 :root {
   color-scheme: light;
   font-family: "Avenir Next", "PingFang SC", -apple-system,
@@ -1373,6 +1389,11 @@ footer a {
 }
 
 @media (max-width: 540px) {
+  body {
+    font-family: "Wayfinder Sans", "Noto Sans SC", "Noto Sans CJK SC",
+      sans-serif;
+  }
+
   .site-header {
     padding-right: 68px;
   }

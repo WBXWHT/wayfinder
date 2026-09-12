@@ -2869,6 +2869,12 @@ test(
             ).display === 'grid' &&
             document.querySelector('.hero-voyage')?.dataset.scene`
         );
+        if (viewport.width <= 540) {
+          await waitForExpression(
+            cdp,
+            `document.fonts.check('16px "Wayfinder Sans"')`
+          );
+        }
         const layout = await evaluateJson(
           cdp,
           `(() => {
@@ -2898,6 +2904,10 @@ test(
               heroStatusDisplay: getComputedStyle(
                 document.querySelector('.hero-status')
               ).display,
+              bodyFontFamily: getComputedStyle(document.body).fontFamily,
+              mobileFontLoaded: document.fonts.check(
+                '16px "Wayfinder Sans"'
+              ),
               headerLinkRight: document.querySelector(
                 '.header-link'
               ).getBoundingClientRect().right,
@@ -3017,6 +3027,8 @@ test(
         if (viewport.width <= 540) {
           assert.ok(layout.heroTitleFontSize <= 42);
           assert.equal(layout.heroStatusDisplay, "none");
+          assert.match(layout.bodyFontFamily, /^"Wayfinder Sans"/);
+          assert.equal(layout.mobileFontLoaded, true);
           assert.ok(layout.headerLinkRight <= layout.width - 60);
           assert.match(layout.evidenceColumns, /^56px /);
           assert.ok(
