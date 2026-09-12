@@ -1374,8 +1374,12 @@ footer a {
 
 @media (max-width: 540px) {
   .hero {
+    display: flex;
+    height: auto;
     min-height: 0;
-    padding-bottom: 36px;
+    padding: 76px 20px 32px;
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .hero-copy {
@@ -1392,9 +1396,15 @@ footer a {
   }
 
   .hero-voyage {
-    right: 4%;
-    bottom: 50%;
-    left: 4%;
+    position: relative;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    width: 100%;
+    height: 260px;
+    flex: 0 0 260px;
+    margin: 0 0 20px;
   }
 
   .hero-status {
@@ -1430,6 +1440,17 @@ footer a {
 }
 
 @media (max-width: 420px) {
+  .hero {
+    padding-top: 68px;
+    padding-bottom: 24px;
+  }
+
+  .hero-voyage {
+    height: 210px;
+    flex-basis: 210px;
+    margin-bottom: 16px;
+  }
+
   .fact-line {
     display: grid;
     gap: 7px;

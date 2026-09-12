@@ -2991,10 +2991,17 @@ test(
         assert.equal(layout.productImageInteractive, false);
         assert.ok(layout.heroVoyage.width > 0);
         assert.ok(layout.heroVoyage.height > 0);
-        assert.ok(
-          layout.heroBottom >= layout.height - .5,
-          JSON.stringify({ viewport, layout })
-        );
+        if (viewport.width <= 540) {
+          assert.ok(
+            layout.heroBottom < layout.height,
+            JSON.stringify({ viewport, layout })
+          );
+        } else {
+          assert.ok(
+            layout.heroBottom >= layout.height - .5,
+            JSON.stringify({ viewport, layout })
+          );
+        }
         assert.ok(
           layout.downloads.every(
             (download) =>
