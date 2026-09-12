@@ -446,7 +446,9 @@ test("a large mixed-host voyage stays within an interactive build budget", () =>
   const elapsed = performance.now() - started;
 
   assert.equal(forest.nodeCount, 600);
-  assert.ok(elapsed < 5_000, `forest build took ${Math.round(elapsed)}ms`);
+  // Candidate-count tests enforce complexity; this wall-clock guard allows
+  // slower shared Intel runners while still catching user-visible stalls.
+  assert.ok(elapsed < 10_000, `forest build took ${Math.round(elapsed)}ms`);
 });
 
 test("imported-only history keeps its curated chapter forest", () => {
