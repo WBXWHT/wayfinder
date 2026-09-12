@@ -3,8 +3,15 @@ const console = require("node:console");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
-const { setImmediate } = require("node:timers");
+const { clearTimeout, setImmediate, setTimeout } = require("node:timers");
 const vm = require("node:vm");
+
+const {
+  DEFAULT_ATTEMPTS,
+  DEFAULT_INTERVAL_MS,
+  DEFAULT_TIMEOUT_MS,
+  verifyProductionDeployment
+} = require("../scripts/verify-website-deployment.cjs");
 
 const root = path.resolve(__dirname, "..");
 
@@ -158,11 +165,132 @@ test("Cloudflare deployment cannot silently claim the occupied project name", ()
   assert.match(workflow, /asset\?\.digest/);
   assert.match(workflow, /SHA256SUMS does not match \$\{assetName\}/);
   assert.match(workflow, /--head/);
+  assert.match(workflow, /--connect-timeout 10/);
+  assert.match(workflow, /--max-time 20/);
+  assert.match(workflow, /--retry-max-time 45/);
   assert.match(workflow, /--retry-all-errors/);
+  assert.match(workflow, /timeout-minutes: 10/);
+  assert.equal((workflow.match(/AbortSignal\.timeout\(10_000\)/g) || []).length, 3);
   assert.match(workflow, /--branch=main/);
   assert.match(workflow, /--commit-hash=\$\{\{/);
+  assert.match(workflow, /Write the deployed commit marker/);
+  assert.match(workflow, /> website\/deployment\.json/);
+  assert.match(workflow, /Recheck the latest main commit before deployment/);
+  assert.equal(
+    (workflow.match(/latest="\$\(git ls-remote origin refs\/heads\/main/g) || [])
+      .length,
+    2
+  );
   assert.match(workflow, /Verify the production website/);
-  assert.match(workflow, /assert\.deepStrictEqual\(await response\.json\(\), expected\)/);
+  assert.match(workflow, /verify-website-deployment\.cjs/);
+});
+
+test("production verification fits within the deployment job budget", () => {
+  const maximumDuration =
+    DEFAULT_ATTEMPTS * DEFAULT_TIMEOUT_MS +
+    (DEFAULT_ATTEMPTS - 1) * DEFAULT_INTERVAL_MS;
+  assert.ok(maximumDuration <= 180_000);
+});
+
+test("production verification retries until release and commit both match", async () => {
+  const expectedRelease = {
+    version: "9.8.7",
+    channel: "alpha",
+    published: true,
+    downloads: {}
+  };
+  let releaseRequests = 0;
+  let markerRequests = 0;
+  let sleeps = 0;
+
+  await verifyProductionDeployment({
+    baseUrl: "https://example.invalid",
+    expectedRelease,
+    expectedSha: "expected-sha",
+    attempts: 2,
+    intervalMs: 1,
+    timeoutMs: 50,
+    sleep: async (milliseconds) => {
+      assert.equal(milliseconds, 1);
+      sleeps += 1;
+    },
+    fetchImpl: async (url, options) => {
+      assert.equal(options.cache, "no-store");
+      assert.equal(options.redirect, "follow");
+      assert.ok(options.signal instanceof globalThis.AbortSignal);
+
+      if (url.pathname.endsWith("/releases.json")) {
+        releaseRequests += 1;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => expectedRelease
+        };
+      }
+
+      markerRequests += 1;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          commit: markerRequests === 1 ? "stale-sha" : "expected-sha"
+        })
+      };
+    }
+  });
+
+  assert.equal(releaseRequests, 2);
+  assert.equal(markerRequests, 2);
+  assert.equal(sleeps, 1);
+});
+
+test("production verification rejects a permanently stale commit", async () => {
+  await assert.rejects(
+    verifyProductionDeployment({
+      baseUrl: "https://example.invalid",
+      expectedRelease: { version: "9.8.7" },
+      expectedSha: "expected-sha",
+      attempts: 2,
+      intervalMs: 0,
+      timeoutMs: 50,
+      sleep: async () => {},
+      fetchImpl: async (url) => ({
+        ok: true,
+        status: 200,
+        json: async () => url.pathname.endsWith("/deployment.json")
+          ? { commit: "stale-sha" }
+          : { version: "9.8.7" }
+      })
+    }),
+    /Production deployment did not become current/
+  );
+});
+
+test("production verification aborts a stalled request", async () => {
+  const stalledFetch = async (_url, options) =>
+    new Promise((_resolve, reject) => {
+      const keepAlive = setTimeout(() => {}, 100);
+      options.signal.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(keepAlive);
+          reject(options.signal.reason);
+        },
+        { once: true }
+      );
+    });
+
+  await assert.rejects(
+    verifyProductionDeployment({
+      baseUrl: "https://example.invalid",
+      expectedRelease: { version: "9.8.7" },
+      expectedSha: "expected-sha",
+      attempts: 1,
+      timeoutMs: 5,
+      fetchImpl: stalledFetch
+    }),
+    /Production deployment did not become current/
+  );
 });
 
 test("public website ships restrictive security headers", () => {

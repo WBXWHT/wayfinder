@@ -23,6 +23,7 @@ jobs:
       github.event_name != 'workflow_run' ||
       github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -87,7 +88,10 @@ jobs:
           );
           const response = await fetch(
             "https://wayfinder-ai.pages.dev/releases.json",
-            { redirect: "follow" }
+            {
+              redirect: "follow",
+              signal: AbortSignal.timeout(10_000)
+            }
           );
           if (!response.ok) {
             throw new Error(`Unable to read live release metadata: ${response.status}`);
@@ -147,7 +151,8 @@ jobs:
                 Accept: "application/vnd.github+json",
                 Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
                 "X-GitHub-Api-Version": "2022-11-28"
-              }
+              },
+              signal: AbortSignal.timeout(10_000)
             }
           );
           if (!apiResponse.ok) {
@@ -165,7 +170,10 @@ jobs:
           }
           const checksumResponse = await fetch(
             checksumAsset.browser_download_url,
-            { redirect: "follow" }
+            {
+              redirect: "follow",
+              signal: AbortSignal.timeout(10_000)
+            }
           );
           if (!checksumResponse.ok) {
             throw new Error(
@@ -233,10 +241,25 @@ jobs:
               --show-error \
               --location \
               --head \
-              --retry 4 \
+              --connect-timeout 10 \
+              --max-time 20 \
+              --retry 3 \
+              --retry-max-time 45 \
               --retry-all-errors \
               "$url" > /dev/null
           done < "$RUNNER_TEMP/wayfinder-downloads.txt"
+      - name: Write the deployed commit marker
+        env:
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          printf '{"commit":"%s"}\n' "$DEPLOY_SHA" > website/deployment.json
+      - name: Recheck the latest main commit before deployment
+        env:
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          set -euo pipefail
+          latest="$(git ls-remote origin refs/heads/main | cut -f1)"
+          test "$latest" = "$DEPLOY_SHA"
       - name: Deploy the production website
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
@@ -248,39 +271,10 @@ jobs:
             --branch=main
             --commit-hash=${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Verify the production website
+        env:
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
-          set -euo pipefail
-          node <<'NODE'
-          const assert = require("node:assert/strict");
-          const expected = require("./website/releases.json");
-          const sleep = (milliseconds) =>
-            new Promise((resolve) => setTimeout(resolve, milliseconds));
-
-          (async () => {
-            let lastError;
-            for (let attempt = 1; attempt <= 20; attempt += 1) {
-              try {
-                const response = await fetch(
-                  `https://wayfinder-ai.pages.dev/releases.json?deployment=${Date.now()}`,
-                  { cache: "no-store", redirect: "follow" }
-                );
-                if (!response.ok) {
-                  throw new Error(`Production metadata returned ${response.status}`);
-                }
-                assert.deepStrictEqual(await response.json(), expected);
-                return;
-              } catch (error) {
-                lastError = error;
-                if (attempt < 20) {
-                  await sleep(3_000);
-                }
-              }
-            }
-            throw new Error(
-              `Production deployment did not become current: ${lastError}`
-            );
-          })().catch((error) => {
-            console.error(error);
-            process.exitCode = 1;
-          });
-          NODE
+          node scripts/verify-website-deployment.cjs \
+            --base-url https://wayfinder-ai.pages.dev \
+            --expected-release website/releases.json \
+            --expected-sha "$DEPLOY_SHA"
