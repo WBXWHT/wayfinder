@@ -1373,6 +1373,10 @@ footer a {
 }
 
 @media (max-width: 540px) {
+  .site-header {
+    padding-right: 68px;
+  }
+
   .hero {
     display: flex;
     height: auto;
@@ -1383,7 +1387,7 @@ footer a {
   }
 
   .hero-copy {
-    width: calc(100% - 28px);
+    width: calc(100% - 42px);
     min-width: 0;
   }
 
