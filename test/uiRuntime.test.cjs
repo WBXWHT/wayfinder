@@ -12,11 +12,19 @@ const { URL } = require("node:url");
 
 const root = path.resolve(__dirname, "..");
 const chrome = findChrome();
+const skipUiTest = process.env.WAYFINDER_SKIP_UI_TEST === "1";
+
+if (!chrome && process.env.CI && !skipUiTest) {
+  throw new Error(
+    "Chromium is required for the UI regression suite in CI. " +
+      "Set CHROME_PATH to an executable browser."
+  );
+}
 
 test(
   "generated voyage previews run in Chromium at 220px and 320px",
   {
-    skip: !chrome || process.env.WAYFINDER_SKIP_UI_TEST === "1",
+    skip: !chrome || skipUiTest,
     timeout: 75_000
   },
   async () => {

@@ -7,6 +7,10 @@ import { createId, projectDataDir, shadowGitDirFor } from "./storage";
 
 const execFileAsync = promisify(execFile);
 
+export function isGitSnapshotRef(value: string | undefined): value is string {
+  return Boolean(value && /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/i.test(value));
+}
+
 const DEFAULT_EXCLUDES = [
   ".git/",
   ".trae/",
@@ -74,34 +78,40 @@ export class ShadowRepo {
     parent?: string
   ): Promise<SnapshotResult> {
     await this.init();
+    const snapshotParent = isGitSnapshotRef(parent) ? parent : undefined;
     const indexDir = path.join(projectDataDir(this.root), "indexes");
     await fs.promises.mkdir(indexDir, { recursive: true });
     const indexPath = path.join(indexDir, createId("index"));
     const env = { GIT_INDEX_FILE: indexPath };
 
     try {
-      if (parent) {
-        await this.run(["read-tree", parent], env);
+      if (snapshotParent) {
+        await this.run(["read-tree", snapshotParent], env);
       } else {
         await this.run(["read-tree", "--empty"], env);
       }
 
       await this.run(["add", "-A"], env);
       await this.removeCaseAliases(env);
-      await this.unstageLargeFiles(parent, env);
+      await this.unstageLargeFiles(snapshotParent, env);
       const tree = (await this.run(["write-tree"], env)).trim();
-      const parentTree = parent
-        ? (await this.run(["rev-parse", `${parent}^{tree}`])).trim()
+      const parentTree = snapshotParent
+        ? (await this.run(["rev-parse", `${snapshotParent}^{tree}`])).trim()
         : undefined;
 
-      if (parent && parentTree === tree) {
-        await this.updateRef(id, parent);
-        return { commit: parent, parent, tree, changed: false };
+      if (snapshotParent && parentTree === tree) {
+        await this.updateRef(id, snapshotParent);
+        return {
+          commit: snapshotParent,
+          parent: snapshotParent,
+          tree,
+          changed: false
+        };
       }
 
       const args = ["commit-tree", tree, "-m", label];
-      if (parent) {
-        args.push("-p", parent);
+      if (snapshotParent) {
+        args.push("-p", snapshotParent);
       }
       const now = new Date().toISOString();
       const commit = (
@@ -116,7 +126,7 @@ export class ShadowRepo {
         })
       ).trim();
       await this.updateRef(id, commit);
-      return { commit, parent, tree, changed: true };
+      return { commit, parent: snapshotParent, tree, changed: true };
     } finally {
       await fs.promises.rm(indexPath, { force: true }).catch(() => undefined);
     }

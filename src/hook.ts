@@ -138,10 +138,10 @@ async function onPrompt(root: string, payload: HookPayload): Promise<void> {
       };
       state.nodes.push(initialNode);
       parent = initialNode;
-    } else if (preSnapshot.changed) {
+    } else if (preSnapshot.parent && preSnapshot.changed) {
       const manualId = createId("manual");
       const files = await shadow.diffFiles(
-        parent.snapshotAfter,
+        preSnapshot.parent,
         preSnapshot.commit
       );
       const manualNode: TimelineNode = {
@@ -154,7 +154,7 @@ async function onPrompt(root: string, payload: HookPayload): Promise<void> {
         prompt: "Manual changes",
         startedAt: new Date().toISOString(),
         completedAt: new Date().toISOString(),
-        snapshotBefore: parent.snapshotAfter,
+        snapshotBefore: preSnapshot.parent,
         snapshotAfter: preSnapshot.commit,
         files,
         actions: [],

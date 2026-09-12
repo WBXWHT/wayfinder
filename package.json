@@ -2,7 +2,7 @@
   "name": "wayfinder",
   "displayName": "Wayfinder",
   "description": "A local-first desktop app that shows how work with AI evolved.",
-  "version": "0.3.13",
+  "version": "0.3.14",
   "private": true,
   "license": "MIT",
   "repository": {

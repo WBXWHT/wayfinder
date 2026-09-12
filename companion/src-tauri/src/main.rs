@@ -523,7 +523,7 @@ fn kill_collector_process(child: Arc<SharedChild>) {
     #[cfg(unix)]
     {
         // The sidecar starts in its own process group, so one signal reaches
-        // Node and every Git process it spawned without a PID-enumeration race.
+        // Node and any child process it spawned without a PID-enumeration race.
         unsafe {
             libc::kill(-(pid as i32), libc::SIGKILL);
         }

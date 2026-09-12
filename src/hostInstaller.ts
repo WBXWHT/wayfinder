@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
@@ -29,7 +29,6 @@ export async function uninstallHostHooks(
   host: AgentHost
 ): Promise<string> {
   const file = hookFileFor(root, host);
-  if (!fs.existsSync(file)) return file;
   await updateHookFile(file, false, removeWayfinderHooks);
   return file;
 }
@@ -56,7 +55,6 @@ export async function uninstallGlobalHostHooks(
   host: Exclude<AgentHost, "trae">
 ): Promise<string> {
   const file = globalHookFileFor(host);
-  if (!fs.existsSync(file)) return file;
   await updateHookFile(file, false, removeWayfinderHooks);
   return file;
 }
@@ -248,6 +246,7 @@ async function updateHookFile(
     }
   });
   try {
+    await restoreInterruptedHookPublish(file);
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const snapshot = await readHookSnapshot(file);
       if (snapshot.raw === undefined && !createIfMissing) return;
@@ -285,6 +284,72 @@ async function updateHookFile(
   }
 }
 
+async function restoreInterruptedHookPublish(file: string): Promise<void> {
+  const marker = `${file}.wayfinder-publish`;
+  const raw = await readRaw(marker);
+  if (raw === undefined) {
+    return;
+  }
+  let backup: string | undefined;
+  let replacementHash: string | undefined;
+  try {
+    const parsed = JSON.parse(raw) as {
+      backup?: unknown;
+      replacementHash?: unknown;
+    };
+    if (typeof parsed.backup === "string") {
+      const candidate = path.resolve(parsed.backup);
+      const expectedDirectory = path.resolve(path.dirname(file));
+      const name = path.basename(candidate);
+      if (
+        path.dirname(candidate) === expectedDirectory &&
+        name.startsWith(`${path.basename(file)}.`) &&
+        name.endsWith(".previous")
+      ) {
+        backup = candidate;
+      }
+    }
+    if (
+      typeof parsed.replacementHash === "string" &&
+      /^[0-9a-f]{64}$/i.test(parsed.replacementHash)
+    ) {
+      replacementHash = parsed.replacementHash;
+    }
+  } catch {
+    // A partial marker is safe to discard because the original file has not
+    // been moved until the marker write completes.
+  }
+
+  const current = await readRaw(file);
+  if (backup && current === undefined) {
+    if (await linkIfAbsent(backup, file)) {
+      await retryTransientFileOperation(() =>
+        fs.promises.rm(backup, { force: true })
+      );
+    }
+  } else if (
+    backup &&
+    current !== undefined &&
+    await readRaw(backup) !== undefined
+  ) {
+    if (replacementHash && contentHash(current) === replacementHash) {
+      await retryTransientFileOperation(() =>
+        fs.promises.rm(backup, { force: true })
+      ).catch(() => undefined);
+    } else {
+      const conflict = `${file}.wayfinder-conflict-${randomUUID()}`;
+      await retryTransientFileOperation(() =>
+        fs.promises.rename(backup, conflict)
+      );
+      await fs.promises.rm(marker, { force: true });
+      throw new Error(
+        `Concurrent hook configuration updates were preserved at: ${conflict}`
+      );
+    }
+  }
+  await fs.promises.rm(marker, { force: true });
+}
+
 async function publishHookSnapshot(
   file: string,
   temp: string,
@@ -294,8 +359,23 @@ async function publishHookSnapshot(
     return linkIfAbsent(temp, file);
   }
   const backup = `${file}.${process.pid}.${randomUUID()}.previous`;
+  const marker = `${file}.wayfinder-publish`;
+  const replacementRaw = await readRaw(temp);
+  if (replacementRaw === undefined) {
+    throw new Error(`Prepared hook configuration disappeared: ${temp}`);
+  }
+  const replacementHash = contentHash(replacementRaw);
   let backupPresent = false;
   let removeBackup = false;
+  let publishedSuccessfully = false;
+  await fs.promises.writeFile(
+    marker,
+    `${JSON.stringify({
+      backup,
+      replacementHash
+    })}\n`,
+    { flag: "wx", mode: 0o600 }
+  );
   try {
     try {
       await retryTransientFileOperation(() =>
@@ -313,8 +393,33 @@ async function publishHookSnapshot(
       return false;
     }
     if (!await linkIfAbsent(temp, file)) {
+      const conflict = `${file}.wayfinder-conflict-${randomUUID()}`;
+      await fs.promises.copyFile(
+        backup,
+        conflict,
+        fs.constants.COPYFILE_EXCL
+      );
       removeBackup = true;
       return false;
+    }
+    const published = await readRaw(file);
+    if (
+      published === undefined ||
+      contentHash(published) !== replacementHash
+    ) {
+      if (published !== undefined) {
+        const conflict = `${file}.wayfinder-conflict-${randomUUID()}`;
+        await fs.promises.copyFile(
+          backup,
+          conflict,
+          fs.constants.COPYFILE_EXCL
+        );
+        removeBackup = true;
+      }
+      throw new Error(
+        "Hook configuration changed while publishing; the previous " +
+          "configuration was preserved."
+      );
     }
     if (await readRaw(backup) !== snapshotRaw) {
       const conflict = `${file}.wayfinder-conflict-${randomUUID()}`;
@@ -327,7 +432,7 @@ async function publishHookSnapshot(
         `Concurrent hook configuration updates were preserved at: ${conflict}`
       );
     }
-    removeBackup = true;
+    publishedSuccessfully = true;
     return true;
   } catch (error) {
     if (backupPresent && await readRaw(file) === undefined) {
@@ -342,7 +447,57 @@ async function publishHookSnapshot(
         fs.promises.rm(backup, { force: true })
       ).catch(() => undefined);
     }
+    if (!backupPresent || removeBackup || publishedSuccessfully) {
+      await fs.promises.rm(marker, { force: true }).catch(() => undefined);
+    }
+    if (publishedSuccessfully && backupPresent) {
+      await pruneHookBackups(file, backup, 3).catch(() => undefined);
+    }
   }
+}
+
+function contentHash(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+async function pruneHookBackups(
+  file: string,
+  preserve: string,
+  limit: number
+): Promise<void> {
+  const directory = path.dirname(file);
+  const prefix = `${path.basename(file)}.`;
+  const entries = await fs.promises.readdir(directory, {
+    withFileTypes: true
+  });
+  const backups = await Promise.all(
+    entries
+      .filter((entry) =>
+        entry.isFile() &&
+        entry.name.startsWith(prefix) &&
+        entry.name.endsWith(".previous")
+      )
+      .map(async (entry) => {
+        const candidate = path.join(directory, entry.name);
+        const stat = await fs.promises.stat(candidate);
+        return { candidate, mtimeMs: stat.mtimeMs };
+      })
+  );
+  backups.sort((left, right) => right.mtimeMs - left.mtimeMs);
+  const keep = new Set([
+    preserve,
+    ...backups
+      .filter(({ candidate }) => candidate !== preserve)
+      .slice(0, Math.max(0, limit - 1))
+      .map(({ candidate }) => candidate)
+  ]);
+  await Promise.all(
+    backups
+      .filter(({ candidate }) => !keep.has(candidate))
+      .map(({ candidate }) =>
+        fs.promises.rm(candidate, { force: true })
+      )
+  );
 }
 
 async function restoreBackupIfAbsent(

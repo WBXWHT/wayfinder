@@ -5,7 +5,7 @@ import { ExperienceMapPanel } from "./experienceMapPanel";
 import { installHostHooks } from "./hostInstaller";
 import { configureProjectForHooks } from "./hookInstaller";
 import { AgentHost, TimelineNode } from "./models";
-import { ShadowRepo } from "./shadowRepo";
+import { isGitSnapshotRef, ShadowRepo } from "./shadowRepo";
 import {
   clip,
   createId,
@@ -155,7 +155,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     })
   );
 
-  const watcher = watchTimeline(root, () => void refreshAll());
+  const watcher = watchTimeline(root, () => {
+    void refreshAll().catch((error: unknown) => {
+      void vscode.window.showErrorMessage(
+        `Wayfinder 刷新失败：${String(error)}`
+      );
+    });
+  });
   context.subscriptions.push({ dispose: () => watcher.close() });
   context.subscriptions.push(mapPanel);
   await refreshAll();
@@ -269,6 +275,15 @@ async function openNodeDiff(root: string, nodeId: string): Promise<void> {
     await vscode.window.showInformationMessage("这一轮没有文件变化。");
     return;
   }
+  if (
+    !isGitSnapshotRef(node.snapshotBefore) ||
+    !isGitSnapshotRef(node.snapshotAfter)
+  ) {
+    await vscode.window.showInformationMessage(
+      "这段历史没有可回放的文件快照。"
+    );
+    return;
+  }
 
   let selected = node.files[0];
   if (node.files.length > 1) {
@@ -325,11 +340,11 @@ async function captureManualCheckpoint(root: string): Promise<void> {
       "Manual checkpoint",
       parent?.snapshotAfter
     );
-    if (!snapshot.changed && parent) {
+    if (!snapshot.changed && snapshot.parent) {
       return;
     }
-    const files = parent
-      ? await shadow.diffFiles(parent.snapshotAfter, snapshot.commit)
+    const files = snapshot.parent
+      ? await shadow.diffFiles(snapshot.parent, snapshot.commit)
       : [];
     const now = new Date().toISOString();
     state.nodes.push({
@@ -341,7 +356,7 @@ async function captureManualCheckpoint(root: string): Promise<void> {
       prompt: "Manual checkpoint",
       startedAt: now,
       completedAt: now,
-      snapshotBefore: parent?.snapshotAfter || snapshot.commit,
+      snapshotBefore: snapshot.parent || snapshot.commit,
       snapshotAfter: snapshot.commit,
       files,
       actions: [],
@@ -362,6 +377,12 @@ export async function restoreFromNode(
   const state = await readProjectState(root);
   const target = state?.nodes.find((item) => item.id === nodeId);
   if (!state || !target) {
+    return;
+  }
+  if (!isGitSnapshotRef(target.snapshotAfter)) {
+    await vscode.window.showInformationMessage(
+      "这个航点没有可恢复的文件快照。"
+    );
     return;
   }
   if (
@@ -411,6 +432,9 @@ export async function restoreFromNode(
       if (!currentTarget) {
         throw new Error("目标节点已不存在，本次恢复已取消。");
       }
+      if (!isGitSnapshotRef(currentTarget.snapshotAfter)) {
+        throw new Error("目标节点没有可恢复的文件快照。");
+      }
       const safety = await shadow.capture(
         safetyId,
         "Before restore",
@@ -419,7 +443,9 @@ export async function restoreFromNode(
       let parent = latest;
       if (safety.changed && parent) {
         const now = new Date().toISOString();
-        const files = await shadow.diffFiles(parent.snapshotAfter, safety.commit);
+        const files = safety.parent
+          ? await shadow.diffFiles(safety.parent, safety.commit)
+          : [];
         const safetyNode: TimelineNode = {
           id: safetyId,
           kind: "safety",
@@ -429,7 +455,7 @@ export async function restoreFromNode(
           prompt: "回退前现场",
           startedAt: now,
           completedAt: now,
-          snapshotBefore: parent.snapshotAfter,
+          snapshotBefore: safety.parent || safety.commit,
           snapshotAfter: safety.commit,
           files,
           actions: [],
@@ -510,11 +536,11 @@ function snapshotUri(
   });
 }
 
-function watchTimeline(root: string, refresh: () => void): fs.FSWatcher {
+function watchTimeline(root: string, refresh: () => void): { close(): void } {
   const directory = projectDataDir(root);
   fs.mkdirSync(directory, { recursive: true });
   let timer: NodeJS.Timeout | undefined;
-  return fs.watch(directory, (_event, filename) => {
+  const watcher = fs.watch(directory, (_event, filename) => {
     if (filename !== "timeline.json" && filename !== "hook-errors.log") {
       return;
     }
@@ -523,4 +549,13 @@ function watchTimeline(root: string, refresh: () => void): fs.FSWatcher {
     }
     timer = setTimeout(refresh, 120);
   });
+  return {
+    close(): void {
+      if (timer) {
+        clearTimeout(timer);
+        timer = undefined;
+      }
+      watcher.close();
+    }
+  };
 }

@@ -38,6 +38,10 @@ test("sidebar renders one active project with accessible voyage paging", () => {
   assert.match(html, /aria-label', '切换项目航海图'/);
   assert.match(html, /placeholder = '搜索当前项目'/);
   assert.match(html, /activeTreeId = trees\[nextIndex\]\.id/);
+  assert.match(
+    html,
+    /content\.replaceChildren\(\);\s+summaryMeta\.textContent = '';\s+if \(!payload\.connected/
+  );
   assert.match(html, /setTimeout\(\(\) => \{[\s\S]*?updateSearch\(\);[\s\S]*?\}, 120\)/);
   assert.match(html, /position: sticky;[\s\S]*?top: 92px/);
   assert.match(html, /'lineage-detail-sheet '/);

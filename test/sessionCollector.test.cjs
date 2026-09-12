@@ -624,13 +624,24 @@ test("collects desktop chat into the right project without hooks", async () => {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-collect-run-"));
   const cwd = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "wf-project-")));
   const codexHome = path.join(sandbox, "codex");
-  writeCodexRollout(codexHome, cwd);
+  const rollout = writeCodexRollout(codexHome, cwd);
 
   process.env.WAYFINDER_HOME = path.join(sandbox, "data");
   process.env.CODEX_HOME = codexHome;
   process.env.CLAUDE_CONFIG_DIR = path.join(sandbox, "no-claude");
 
-  const first = await collectSessions();
+  const originalPath = process.env.PATH;
+  process.env.PATH = "";
+  let first;
+  try {
+    first = await collectSessions();
+  } finally {
+    if (originalPath === undefined) {
+      delete process.env.PATH;
+    } else {
+      process.env.PATH = originalPath;
+    }
+  }
   assert.equal(first.newTurns, 1, "should collect exactly one chat turn");
   assert.equal(first.projects.length, 1);
 
@@ -643,14 +654,48 @@ test("collects desktop chat into the right project without hooks", async () => {
   assert.equal(collected[0].source.type, "rollout");
   assert.equal(collected[0].source.host, "codex");
   assert.equal(collected[0].files.length, 0, "chat turns carry no fabricated diffs");
+  assert.equal(collected[0].snapshotBefore, "");
+  assert.equal(collected[0].snapshotAfter, "");
 
   // Second run must be idempotent (cursor + dedup).
-  const second = await collectSessions();
+  const originalOpen = fs.openSync;
+  let unchangedTranscriptReads = 0;
+  fs.openSync = (...args) => {
+    if (args[0] === rollout) {
+      unchangedTranscriptReads += 1;
+    }
+    return originalOpen(...args);
+  };
+  let second;
+  try {
+    second = await collectSessions();
+  } finally {
+    fs.openSync = originalOpen;
+  }
   assert.equal(second.newTurns, 0, "re-running must not duplicate turns");
+  assert.equal(
+    unchangedTranscriptReads,
+    0,
+    "unchanged transcripts should not be re-read for cursor hashes"
+  );
   const state2 = await readProjectState(cwd);
   assert.equal(
     state2.nodes.filter((node) => node.kind === "collected").length,
     1
+  );
+
+  await processHookEvent({
+    wayfinder_host: "codex",
+    hook_event_name: "UserPromptSubmit",
+    session_id: "after-collector",
+    turn_id: "after-collector-turn",
+    cwd,
+    prompt: "Continue after collected history"
+  });
+  const state3 = await readProjectState(cwd);
+  assert.match(
+    state3.pending["codex:after-collector"].snapshotBefore,
+    /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/
   );
 });
 
@@ -1542,7 +1587,8 @@ test("successful text output can mention errors without discarding changes", () 
         call_id: "output-text-call", input: patch } },
     { type: "response_item", timestamp: "2026-09-10T12:00:03.000Z",
       payload: { type: "custom_tool_call_output", call_id: "output-text-call",
-        output: "Error count: 0; src/error-handler.ts updated successfully" } },
+        output: "Process exited with code 0\nFinal output:\n" +
+          "Regression fixture: process exited with code 1 as expected" } },
     { type: "response_item", timestamp: "2026-09-10T12:00:04.000Z",
       payload: { type: "message", role: "assistant",
         content: [{ type: "text", text: "完成" }] } }
@@ -1570,6 +1616,8 @@ test("failed Codex custom tool calls never retain file facts", () => {
   ].join("\n");
   const failures = [
     JSON.stringify({ exit_code: 1 }),
+    JSON.stringify({ success: true, exit_code: 1 }),
+    JSON.stringify({ success: false, exit_code: 0 }),
     JSON.stringify({ success: false }),
     JSON.stringify({
       metadata: { exit_code: 1 },
@@ -1842,7 +1890,8 @@ test("Codex apply_patch turn carries real file changes (not files:[])", () => {
       type: "function_call", name: "apply_patch", call_id: "c1",
       arguments: JSON.stringify({ input: patch }) } },
     { type: "response_item", timestamp: "2026-09-10T12:00:03.000Z", payload: {
-      type: "function_call_output", call_id: "c1", output: "Success" } },
+      type: "function_call_output", call_id: "c1",
+      output: JSON.stringify({ success: true, code: 200 }) } },
     { type: "response_item", timestamp: "2026-09-10T12:00:04.000Z", payload: {
       type: "message", role: "assistant", content: [{ type: "text", text: "已创建 app.js" }] } }
   ];
@@ -1881,6 +1930,40 @@ test("failed Codex apply_patch keeps the action but drops phantom file changes",
       output: "Error: patch failed" } },
     { type: "response_item", timestamp: "2026-09-10T12:00:04.000Z", payload: {
       type: "message", role: "assistant", content: [{ type: "text", text: "写入失败" }] } }
+  ];
+  fs.writeFileSync(file, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
+
+  const turn = parseCodexRollout(file).turns[0];
+  assert.equal(turn.actions[0].ok, false);
+  assert.deepEqual(turn.files, []);
+});
+
+test("nonzero textual exit codes never become Codex file facts", () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wf-codex-exit-code-"));
+  const cwd = path.join(sandbox, "project");
+  fs.mkdirSync(cwd, { recursive: true });
+  const file = path.join(sandbox, "nonzero-exit.jsonl");
+  const patch = [
+    "*** Begin Patch",
+    "*** Add File: phantom.txt",
+    "+not written",
+    "*** End Patch"
+  ].join("\n");
+  const lines = [
+    { type: "session_meta", timestamp: "2026-09-10T12:00:00.000Z",
+      payload: { id: "nonzero-exit", cwd } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:01.000Z",
+      payload: { type: "message", role: "user",
+        content: [{ type: "text", text: "创建文件" }] } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:02.000Z",
+      payload: { type: "function_call", name: "apply_patch", call_id: "exit-call",
+        arguments: JSON.stringify({ input: patch }) } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:03.000Z",
+      payload: { type: "function_call_output", call_id: "exit-call",
+        output: "Process exited with code 1\nFinal output:\nNo matches" } },
+    { type: "response_item", timestamp: "2026-09-10T12:00:04.000Z",
+      payload: { type: "message", role: "assistant",
+        content: [{ type: "text", text: "未修改文件" }] } }
   ];
   fs.writeFileSync(file, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
 

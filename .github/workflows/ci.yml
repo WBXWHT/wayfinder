@@ -15,7 +15,12 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
-      - run: npm run check
+      - name: Verify product and Chromium UI
+        run: |
+          test -x "$CHROME_PATH"
+          npm run check
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
       - run: npm run companion:prepare
   macos-check:
     runs-on: macos-15

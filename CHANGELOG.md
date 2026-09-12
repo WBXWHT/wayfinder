@@ -3,6 +3,23 @@
 Notable public changes to Wayfinder are recorded here. Release notes describe
 user-visible behavior; implementation detail remains in the linked commits.
 
+## [Unreleased]
+
+### Changed
+
+- Removed the system Git requirement from the desktop collection path.
+- Skipped content hashing for unchanged transcript files while retaining
+  replacement, truncation, archive, and Cowork sidecar detection.
+- Kept the currently displayed project selected until a requested project
+  finishes loading.
+
+### Fixed
+
+- Rejected textual nonzero tool exit codes before recording file-change facts.
+- Recovered interrupted Hook configuration updates on the next install attempt.
+- Cleared stale empty-state summaries and handled failed background refreshes.
+- Made release ordering and Chromium UI checks fail closed in CI.
+
 ## [0.3.13] - 2026-09-12
 
 ### Added

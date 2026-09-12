@@ -73,7 +73,9 @@ function handleMapMessage(message) {
     /^#[0-9a-f]{6}$/i.test(String(message.color || ""))
   ) {
     [...projectList.querySelectorAll(".project-item")]
-      .find((item) => item.dataset.projectId === activeProjectId)
+      .find((item) =>
+        item.dataset.projectId === (loadedProjectId || activeProjectId)
+      )
       ?.style.setProperty("--project-accent", message.color);
   }
 }
@@ -120,11 +122,19 @@ function renderProjectList() {
   }
 
   projects.forEach((project) => {
+    const currentProjectId = loadedProjectId || activeProjectId;
     const item = document.createElement("button");
     item.type = "button";
     item.className = "project-item";
     item.dataset.projectId = project.id;
-    item.setAttribute("aria-current", String(project.id === activeProjectId));
+    item.setAttribute("aria-current", String(project.id === currentProjectId));
+    item.setAttribute(
+      "aria-busy",
+      String(
+        project.id === activeProjectId &&
+        activeProjectId !== currentProjectId
+      )
+    );
     item.title = project.root || project.name;
     item.style.setProperty("--project-accent", projectAccent(project));
 
@@ -160,7 +170,10 @@ function renderProjectList() {
     item.append(icon, copy);
 
     item.addEventListener("click", async () => {
-      if (activeProjectId === project.id) {
+      if (
+        activeProjectId === project.id &&
+        loadedProjectId === project.id
+      ) {
         closeProjects();
         return;
       }
@@ -263,6 +276,11 @@ async function loadActiveProject() {
   }
 
   const project = projects.find((item) => item.id === requestedProjectId);
+  const selectionChanged = loadedProjectId !== requestedProjectId;
+  loadedProjectId = requestedProjectId;
+  if (selectionChanged) {
+    renderProjectList();
+  }
   currentProjectLabel.textContent = project?.name || "航海图";
   sendToMap({
     type: "render",
@@ -272,7 +290,6 @@ async function loadActiveProject() {
     forest: buildConversationForest(state)
   });
   lastUpdatedAt = state.updatedAt || "";
-  loadedProjectId = requestedProjectId;
   return "loaded";
 }
 

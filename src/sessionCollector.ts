@@ -10,7 +10,6 @@ import {
   TimelineNode,
   ToolAction
 } from "./models";
-import { ShadowRepo } from "./shadowRepo";
 import {
   clipText,
   commitTempFile,
@@ -18,7 +17,6 @@ import {
   latestNodeOnBranch,
   mutateProjectState,
   normalizeRoot,
-  readProjectConfig,
   wayfinderHome
 } from "./storage";
 
@@ -1256,13 +1254,13 @@ function outputLooksFailed(output: unknown, depth = 0): boolean {
     ? safeJson(output) || undefined
     : asRecord(output);
   if (record) {
-    if (typeof record.success === "boolean") {
-      return !record.success;
-    }
-    const exitCode = [record.exit_code, record.exitCode, record.code]
+    const exitCode = [record.exit_code, record.exitCode]
       .find((value) => typeof value === "number");
-    if (typeof exitCode === "number") {
-      return exitCode !== 0;
+    if (typeof exitCode === "number" && exitCode !== 0) {
+      return true;
+    }
+    if (record.success === false) {
+      return true;
     }
     if (
       record.error !== undefined &&
@@ -1282,10 +1280,27 @@ function outputLooksFailed(output: unknown, depth = 0): boolean {
         }
       }
     }
+    if (typeof exitCode === "number" || record.success === true) {
+      return false;
+    }
+    if (typeof record.code === "number") {
+      return record.code !== 0;
+    }
   }
   const text = typeof output === "string" ? output : JSON.stringify(output || "");
+  const statusHeader = text.split(
+    /\r?\n\s*(?:final output|output)\s*:?\s*(?:\r?\n|$)/i,
+    1
+  )[0];
+  const explicitExit = statusHeader.match(
+    /^\s*(?:(?:process|command|operation|tool)\s+)?exit(?:ed)?\s+with\s+code\s*[:=]?\s*(-?\d+)\s*$/im
+  ) || statusHeader.match(
+    /^\s*exit\s+code\s*[:=]?\s*(-?\d+)\s*$/im
+  );
+  if (explicitExit) {
+    return Number(explicitExit[1]) !== 0;
+  }
   if (
-    /process exited with code 0|exit code[:= ]+0\b/i.test(text) ||
     /\berrors?(?:\s+count)?\s*[:=]?\s*0\b/i.test(text)
   ) {
     return false;
@@ -1622,20 +1637,37 @@ async function collectSessionsUnlocked(): Promise<CollectRunResult> {
       return;
     }
     const previous = cursor.files[file];
+    const currentIdentity = transcriptIdentity(stat);
+    const currentContextFingerprint = contextFile
+      ? fileFingerprint(contextFile(file))
+      : undefined;
+    const metadataUnchanged = Boolean(
+      previous &&
+      previous.size === stat.size &&
+      previous.mtimeMs !== undefined &&
+      previous.mtimeMs === stat.mtimeMs &&
+      previous.ctimeMs !== undefined &&
+      previous.ctimeMs === stat.ctimeMs &&
+      previous.identity === currentIdentity &&
+      previous.contextFingerprint === currentContextFingerprint
+    );
+    const currentRequestedRoot = resolveProjectRoot(previous?.cwd);
+    const routeBecameAvailable = Boolean(
+      metadataUnchanged &&
+      previous?.projectRoot &&
+      previous.cwd &&
+      currentRequestedRoot &&
+      currentRequestedRoot !== previous.projectRoot
+    );
+    if (metadataUnchanged && !routeBecameAvailable) {
+      return;
+    }
     const metadata = cursorMetadata(file, stat, contextFile?.(file));
     const continues = previous
       ? continuesPreviousFile(file, stat, metadata, previous)
       : false;
     const unchanged = Boolean(
       previous && continues && previous.size === stat.size
-    );
-    const currentRequestedRoot = resolveProjectRoot(previous?.cwd);
-    const routeBecameAvailable = Boolean(
-      unchanged &&
-      previous?.projectRoot &&
-      previous.cwd &&
-      currentRequestedRoot &&
-      currentRequestedRoot !== previous.projectRoot
     );
     if (unchanged && !routeBecameAvailable) {
       return;
@@ -1761,13 +1793,10 @@ async function persistTurns(
   host: AgentHost,
   turns: CollectedTurn[]
 ): Promise<number> {
-  const config = await readProjectConfig(root);
   return mutateProjectState(root, async (state) => {
-    // Baseline snapshot of current working tree; collected turns cannot
-    // reconstruct historical file contents, so they share one baseline and
-    // carry no fabricated diffs.
-    const shadow = new ShadowRepo(root, config.maxFileSizeMB);
-    let baseline: string | undefined;
+    // Collected transcripts cannot reconstruct historical file contents.
+    // Equal empty refs suppress restore/diff actions without requiring Git.
+    const baseline = "";
     let added = 0;
     const matchedHookNodeIds = new Set<string>();
 
@@ -1855,11 +1884,6 @@ async function persistTurns(
         continue;
       }
 
-      if (!baseline) {
-        baseline = (
-          await shadow.capture(createId("collect-baseline"), `Collected: ${host}`)
-        ).commit;
-      }
       const parent = latestNodeOnBranch(state);
       const node: TimelineNode = {
         id: nodeId,

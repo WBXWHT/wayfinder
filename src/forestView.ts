@@ -1066,6 +1066,7 @@ export class TimelineViewProvider implements vscode.WebviewViewProvider {
           ? '航海记录'
           : '尚未连接';
       content.replaceChildren();
+      summaryMeta.textContent = '';
 
       if (!payload.connected && forest.nodeCount === 0) {
         content.appendChild(emptyState('plug', '连接当前项目', '安装对应 AI 工具的 Wayfinder 采集器后，新对话会进入航海图。', '连接 AI 工具', () => send('install')));

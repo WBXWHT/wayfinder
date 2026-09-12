@@ -60,6 +60,23 @@ test("unchanged snapshots reuse their parent commit", async () => {
   assert.equal(second.commit, first.commit);
 });
 
+test("non-Git snapshot markers start a fresh snapshot chain", async () => {
+  const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wayfinder-marker-"));
+  const root = path.join(sandbox, "project");
+  process.env.WAYFINDER_HOME = path.join(sandbox, "data");
+  fs.mkdirSync(root, { recursive: true });
+  fs.writeFileSync(path.join(root, "file.txt"), "current\n");
+
+  const snapshot = await new ShadowRepo(root).capture(
+    "after-collected",
+    "After collected history",
+    "collected-without-snapshot"
+  );
+
+  assert.equal(snapshot.parent, undefined);
+  assert.match(snapshot.commit, /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/);
+});
+
 test("diff paths preserve unicode and special characters", async () => {
   const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "wayfinder-paths-"));
   const root = path.join(sandbox, "project");

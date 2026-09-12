@@ -8,6 +8,14 @@ const vm = require("node:vm");
 
 const root = path.resolve(__dirname, "..");
 
+function assertOrdered(source, before, after, message) {
+  const beforeIndex = source.indexOf(before);
+  const afterIndex = source.indexOf(after);
+  assert.ok(beforeIndex >= 0, `missing required step: ${before}`);
+  assert.ok(afterIndex >= 0, `missing required step: ${after}`);
+  assert.ok(beforeIndex < afterIndex, message);
+}
+
 test("companion web bundle reuses the final map and project navigation", () => {
   childProcess.execFileSync(
     process.execPath,
@@ -63,6 +71,12 @@ test("companion web bundle reuses the final map and project navigation", () => {
   assert.match(main, /outcome === "error"/);
   assert.match(main, /activeProjectId !== project\.id/);
   assert.match(main, /loadedProjectId !== project\.id/);
+  assert.match(main, /loadedProjectId \|\| activeProjectId/);
+  assert.match(main, /item\.setAttribute\(\s*"aria-busy"/);
+  assert.match(
+    main,
+    /const selectionChanged = loadedProjectId !== requestedProjectId/
+  );
   assert.match(
     builder,
     /\.project-item\[aria-current="true"\] \{[\s\S]*?background: var\(--selected\);[\s\S]*?color-mix/
@@ -264,9 +278,10 @@ test("release workflow requires signing and notarization credentials", () => {
   assert.match(workflow, /Release tag points to/);
   assert.match(workflow, /SHA256SUMS/);
   assert.match(workflow, /releaseDraft: true/);
-  assert.ok(
-    workflow.indexOf("npm run build:companion:sidecar") <
-      workflow.indexOf("cargo test --manifest-path"),
+  assertOrdered(
+    workflow,
+    "npm run build:companion:sidecar",
+    "cargo test --manifest-path",
     "release workflow must stage the sidecar before cargo test"
   );
 });
@@ -283,6 +298,8 @@ test("CI actions are pinned and Windows opens paths without cmd parsing", () => 
 
   assert.match(workflow, /actions\/checkout@[a-f0-9]{40}/);
   assert.match(workflow, /actions\/setup-node@[a-f0-9]{40}/);
+  assert.match(workflow, /CHROME_PATH: \/usr\/bin\/google-chrome/);
+  assert.match(workflow, /test -x "\$CHROME_PATH"/);
   assert.match(workflow, /windows-check:/);
   assert.match(workflow, /runs-on: windows-latest/);
   assert.match(workflow, /macos-check:[\s\S]*runs-on: macos-15/);
@@ -291,9 +308,10 @@ test("CI actions are pinned and Windows opens paths without cmd parsing", () => 
     /cargo test --manifest-path companion\/src-tauri\/Cargo\.toml/
   );
   const windowsJob = workflow.slice(workflow.indexOf("  windows-check:"));
-  assert.ok(
-    windowsJob.indexOf("npm run build:companion:sidecar") <
-      windowsJob.indexOf("cargo test --manifest-path"),
+  assertOrdered(
+    windowsJob,
+    "npm run build:companion:sidecar",
+    "cargo test --manifest-path",
     "Windows CI must stage the sidecar before cargo test"
   );
   assert.match(rust, /Command::new\("explorer\.exe"\)\.arg\(target\)/);
@@ -353,19 +371,22 @@ test("zero-cost alpha workflow uses ad-hoc signing and a prerelease tag", () => 
   assert.match(workflow, /\$machine -ne 0x8664/);
   assert.match(workflow, /& \$installedSidecar\.FullName --version/);
   assert.match(workflow, /& \$installedSidecar\.FullName collect/);
-  assert.ok(
-    workflow.indexOf("npm run build:companion:sidecar") <
-      workflow.indexOf("cargo test --manifest-path"),
+  assertOrdered(
+    workflow,
+    "npm run build:companion:sidecar",
+    "cargo test --manifest-path",
     "alpha workflow must stage the sidecar before cargo test"
   );
-  assert.ok(
-    workflow.indexOf("Verify the packaged app") <
-      workflow.indexOf("Publish verified release assets"),
+  assertOrdered(
+    workflow,
+    "Verify the packaged app",
+    "Publish verified release assets",
     "alpha workflow must verify both DMGs before mutating the draft release"
   );
-  assert.ok(
-    workflow.indexOf("Verify the packaged installer") <
-      workflow.indexOf("Publish verified release assets"),
+  assertOrdered(
+    workflow,
+    "Verify the packaged installer",
+    "Publish verified release assets",
     "alpha workflow must verify Windows before mutating the draft release"
   );
 });
