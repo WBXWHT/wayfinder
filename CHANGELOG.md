@@ -3,7 +3,7 @@
 Notable public changes to Wayfinder are recorded here. Release notes describe
 user-visible behavior; implementation detail remains in the linked commits.
 
-## [Unreleased]
+## [0.3.14] - 2026-09-12
 
 ### Changed
 
@@ -19,6 +19,12 @@ user-visible behavior; implementation detail remains in the linked commits.
 - Recovered interrupted Hook configuration updates on the next install attempt.
 - Cleared stale empty-state summaries and handled failed background refreshes.
 - Made release ordering and Chromium UI checks fail closed in CI.
+
+### Verification
+
+- 210 JavaScript and Chromium checks.
+- 10 Rust checks, plus Clippy and dependency audits.
+- Packaged no-Git collection smoke test and three-platform release builds.
 
 ## [0.3.13] - 2026-09-12
 
@@ -113,3 +119,4 @@ user-visible behavior; implementation detail remains in the linked commits.
 [0.3.11]: https://github.com/StayCurious-Xuan/wayfinder/releases/tag/alpha-v0.3.11
 [0.3.12]: https://github.com/StayCurious-Xuan/wayfinder/releases/tag/alpha-v0.3.12
 [0.3.13]: https://github.com/StayCurious-Xuan/wayfinder/releases/tag/alpha-v0.3.13
+[0.3.14]: https://github.com/StayCurious-Xuan/wayfinder/releases/tag/alpha-v0.3.14

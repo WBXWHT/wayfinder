@@ -10,7 +10,7 @@ is not an award and must not be presented as one.
 
 | Product | Public signal | Evidence |
 | --- | --- | --- |
-| SpecStory | 226K+ installs, 15K+ developers, 8.1M+ conversations saved | https://specstory.com |
+| SpecStory | Publicly reports 227K+ installs, 15K+ active developers, and 8.1M+ conversations saved as of 2026-09-12 | https://specstory.com |
 | Pieces for Developers | Four Product Hunt awards, 2.5K followers, 35 reviews | https://www.producthunt.com/products/pieces-for-developers |
 | XHawk | Product Hunt #4 Product of the Day with 245 points | https://www.producthunt.com/products/xhawk |
 | Warp | Product Hunt Golden Kitty runner-up for Developer Tools | https://www.producthunt.com/products/warp |
@@ -83,7 +83,7 @@ remain external decisions.
 The current listing uses three synthetic public-demo screenshots at
 2560x1280 or 2560x1440. The GitHub release and both official GitHub Show and
 Tell posts use the same public imagery and link to the current username and
-0.3.13 release.
+0.3.14 release.
 
 ## Resume Rule
 

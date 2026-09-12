@@ -1,10 +1,10 @@
 # Install Wayfinder
 
-Current public version: **0.3.13 early access**.
+Current public version: **0.3.14 early access**.
 
 Wayfinder is distributed as a desktop application for macOS and Windows:
 
-https://github.com/StayCurious-Xuan/wayfinder/releases/tag/alpha-v0.3.13
+https://github.com/StayCurious-Xuan/wayfinder/releases/tag/alpha-v0.3.14
 
 ## Choose Your Installer
 
@@ -22,6 +22,19 @@ first launch, open **System Settings → Privacy & Security** and choose
 The Windows Alpha is not code-signed. Microsoft Defender SmartScreen may
 require **More info → Run anyway** after you verify the checksum.
 
+## Verify The Download
+
+Download `SHA256SUMS` from the same Release and compare the installer before
+opening it:
+
+```bash
+shasum -a 256 Wayfinder-Alpha-<version>-macOS-<architecture>.dmg
+```
+
+```powershell
+Get-FileHash .\Wayfinder-Alpha-<version>-Windows-x86_64.exe -Algorithm SHA256
+```
+
 ## Start Recording
 
 Keep Wayfinder running, then continue working normally in Codex or Claude Code.
@@ -33,7 +46,7 @@ activity from the same project appears in one map while retaining its source.
 ## Local Requirements
 
 - macOS 12 or newer, or Windows 10/11 x64.
-- Git, used by the current local snapshot backend.
+- No separate Node.js or Git installation is required.
 
 ## Data And Removal
 
