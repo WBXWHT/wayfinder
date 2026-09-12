@@ -83,7 +83,7 @@ remain external decisions.
 The current listing uses three synthetic public-demo screenshots at
 2560x1280 or 2560x1440. The GitHub release and both official GitHub Show and
 Tell posts use the same public imagery and link to the current username and
-0.3.12 release.
+0.3.13 release.
 
 ## Resume Rule
 

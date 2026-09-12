@@ -17,10 +17,10 @@ keeps it current without adding an import workflow.
 - Records historical file changes only when the transcript contains sufficient
   evidence.
 
-## Release Gates
+## Verification
 
-- JavaScript, Chromium, Rust, Clippy, and dependency checks.
+- 202 JavaScript and Chromium checks.
+- 10 Rust checks, plus Clippy and dependency audits.
 - Synthetic active, archived, Cowork, no-folder, malformed-tail, and
   incremental-update fixtures.
-- Apple Silicon, Intel macOS, and Windows x64 release builds are required
-  before publication.
+- Native Apple Silicon, Intel macOS, and Windows x64 release builds.

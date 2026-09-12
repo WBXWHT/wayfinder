@@ -22,10 +22,9 @@ user-visible behavior; implementation detail remains in the linked commits.
 
 ### Verification
 
-- Added synthetic active, archived, Cowork, no-folder, malformed-tail, and
-  incremental-update coverage.
-- Release gates cover the collector and watcher path logic on JavaScript,
-  macOS, and Windows runners.
+- 202 JavaScript and Chromium checks.
+- 10 Rust checks, plus Clippy and dependency audits.
+- Apple Silicon, Intel macOS, and Windows x64 release builds.
 
 ## [0.3.12] - 2026-09-12
 
