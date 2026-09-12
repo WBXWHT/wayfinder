@@ -54,6 +54,6 @@ Wayfinder stores its data under `~/.wayfinder`. Removing the application does
 not automatically delete this history.
 
 To erase all Wayfinder data, quit the app and delete `~/.wayfinder`. This
-permanently removes recorded history and restore points.
+permanently removes recorded history and map data.
 
 Read [PRIVACY.md](../PRIVACY.md) before deleting or sharing local data.

@@ -70,7 +70,7 @@ early-access builds are not store-signed; read the
 
 ## Local By Default
 
-Wayfinder stores normalized history, collection cursors, and snapshots under
+Wayfinder stores normalized history, collection cursors, and project maps under
 `~/.wayfinder`. There is no Wayfinder account, analytics service, advertising,
 cloud sync, or cloud analysis in the current build.
 

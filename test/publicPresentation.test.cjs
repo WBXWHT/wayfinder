@@ -31,6 +31,8 @@ test("repository overview uses the public 2K presentation assets", () => {
   assert.match(readme, /Wayfinder-Alpha-0\.3\.14-macOS-aarch64\.dmg/);
   assert.match(readme, /Wayfinder-Alpha-0\.3\.14-macOS-x86_64\.dmg/);
   assert.match(readme, /Wayfinder-Alpha-0\.3\.14-Windows-x86_64\.exe/);
+  assert.match(readme, /collection cursors, and project maps/);
+  assert.doesNotMatch(readme, /collection cursors, and snapshots/);
   assert.doesNotMatch(readme, /wayfinder-product-hunt-map\.png/);
   assert.doesNotMatch(readme, /WBXWHT/);
 });
@@ -76,6 +78,8 @@ test("contribution guide defines durable commit and privacy standards", () => {
 
 test("public support and release documents are explicit and current", () => {
   const security = read("SECURITY.md").toString("utf8");
+  const privacy = read("PRIVACY.md").toString("utf8");
+  const privacyPage = read("website/privacy.html").toString("utf8");
   const changelog = read("CHANGELOG.md").toString("utf8");
   const bugTemplate = read(
     ".github/ISSUE_TEMPLATE/bug-report.yml"
@@ -84,6 +88,10 @@ test("public support and release documents are explicit and current", () => {
   assert.match(security, /private vulnerability reporting/);
   assert.ok(security.includes("`~/.wayfinder`"));
   assert.match(security, /\| 0\.3\.14 \| Yes \|/);
+  assert.match(privacy, /file-change summaries, and map state/);
+  assert.doesNotMatch(privacy, /Snapshot exclusions/);
+  assert.doesNotMatch(privacyPage, /代码快照|和快照存储/);
+  assert.match(privacyPage, /文件变化摘要和航海图/);
   assert.match(changelog, /## \[0\.3\.14\] - 2026-09-12/);
   assert.match(changelog, /Windows x64 installer/);
   assert.match(bugTemplate, /synthetic data/);

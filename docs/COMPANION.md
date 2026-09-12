@@ -54,6 +54,9 @@ Claude Code transcripts + Cowork audits
   Ambiguous `Write` operations remain visible as actions without a fabricated
   add/modify classification, and unavailable deletion counts are labeled
   unknown.
+- The desktop collector does not invoke Git or create workspace snapshots.
+  Legacy Hook and extension snapshot code is outside the supported product
+  surface.
 - Local rules mark only evidence-backed failure candidates or conflicts. Cloud
   model analysis remains disabled.
 
@@ -96,9 +99,9 @@ Trackpad interaction mirrors the final narrow-map behavior:
 
 ## Privacy And Cloud Analysis Boundary
 
-Complete conversations, workspace roots, snapshots, and source files remain
-local. Cloud analysis is not enabled until a service endpoint and an explicit
-consent flow are implemented.
+Complete conversations, workspace roots, file-change summaries, and map data
+remain local. Cloud analysis is not enabled until a service endpoint and an
+explicit consent flow are implemented.
 
 The Core currently prepares a minimal versioned request:
 

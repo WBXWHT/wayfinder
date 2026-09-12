@@ -11,8 +11,9 @@ any provider is connected.
 ## Stored Locally
 
 Wayfinder stores prompts, assistant replies, tool summaries, paths, validation
-output, optional notes, and snapshots under `~/.wayfinder`. Do not commit or
-upload that directory. Treat it as sensitive project data.
+output, optional notes, file-change summaries, and map state under
+`~/.wayfinder`. Do not commit or upload that directory. Treat it as sensitive
+project data.
 
 On macOS and Windows, Companion reads supported local session files from active
 and archived Codex storage, Claude Code projects, and Claude Cowork session
@@ -21,10 +22,11 @@ storage. It stores incremental collection progress in
 modify source transcripts, scrape application windows, or send transcript
 content to Wayfinder.
 
-Snapshot exclusions include Git internals, host configuration directories,
-dependencies, common build output, and files over the configured size limit.
-Exclusion rules are not secret detection: unignored source files can contain
-credentials. Review the files you allow to be captured.
+Desktop collection does not capture workspace snapshots or reconstruct
+historical file contents. File-change summaries are recorded only when the
+source session contains verifiable edit details. Prompts and replies can still
+contain credentials or other sensitive material, so treat the stored history
+accordingly.
 
 ## Future Opt-In Analysis
 
@@ -46,11 +48,11 @@ feature can ship.
 Removing the application leaves `~/.wayfinder` intact. You may delete the
 corresponding directory under `~/.wayfinder/projects/` to erase one project, or
 delete `~/.wayfinder` to erase all Wayfinder data. Both actions permanently
-remove the affected history and restore points.
+remove the affected history and map data.
 
 ## Reports
 
 When reporting bugs, use a synthetic project. Do not attach raw timelines,
-transcripts, snapshots, credentials, or confidential source code to public
+transcripts, project maps, credentials, or confidential source code to public
 issues. A version, host version, error message with paths redacted, and
 reproduction steps are usually sufficient.

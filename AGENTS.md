@@ -31,6 +31,8 @@ not the boundary of the product. The complete history stays under
 ## Rules
 
 - The desktop app is the only supported product surface.
+- The desktop collector does not invoke Git or create workspace snapshots;
+  legacy Hook and extension snapshot code is unsupported.
 - Do not advertise VSIX, plugins, Skills, CLI packages, Homebrew, Scoop, or MCP
   packages as current installation paths.
 - Do not fabricate historical diffs or send raw conversations/source files to

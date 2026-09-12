@@ -26,7 +26,7 @@ credentials, or a copy of `~/.wayfinder`.
 
 ## Data Boundary
 
-The current release stores normalized history, collection cursors, and
-snapshots under `~/.wayfinder`. It has no Wayfinder account, analytics service,
+The current release stores normalized history, collection cursors, and project
+maps under `~/.wayfinder`. It has no Wayfinder account, analytics service,
 advertising, cloud sync, or cloud analysis. See [PRIVACY.md](PRIVACY.md) for
 the complete data policy.
