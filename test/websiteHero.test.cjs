@@ -89,4 +89,8 @@ test("homepage footer metadata is part of the final dark section", () => {
   assert.match(styles, /\.final-meta\s*\{[\s\S]*?color: #ffffff/);
   assert.match(styles, /\.final-meta a\s*\{[\s\S]*?color: #ffffff/);
   assert.match(html, /class="final-route-phone"/);
+  assert.match(
+    html,
+    /class="final-copy"[\s\S]*?class="final-route-phone"[\s\S]*?class="download-grid final-downloads"/
+  );
 });

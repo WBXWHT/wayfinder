@@ -3068,6 +3068,15 @@ test(
                 const options = [...document.querySelectorAll(
                   '.final-downloads .download-option'
                 )].map((option) => option.getBoundingClientRect().top);
+                const route = document.querySelector(
+                  '.final-route-phone'
+                ).getBoundingClientRect();
+                const copy = document.querySelector(
+                  '.final-copy > p:not(.eyebrow)'
+                ).getBoundingClientRect();
+                const downloads = document.querySelector(
+                  '.final-downloads'
+                ).getBoundingClientRect();
                 return {
                   height: section.height,
                   titleLines: Math.round(
@@ -3077,6 +3086,11 @@ test(
                     document.querySelector('.final-downloads')
                   ).gridTemplateColumns,
                   oneRow: Math.max(...options) - Math.min(...options) <= .5,
+                  routeHeight: route.height,
+                  routeWidth: route.width,
+                  routeBetweenContent:
+                    route.top >= copy.bottom - .5 &&
+                    route.bottom <= downloads.top + .5,
                   desktopRoute: getComputedStyle(
                     document.querySelector('.final-route')
                   ).display,
@@ -3132,10 +3146,13 @@ test(
           assert.equal(layout.productProof.imageBeforeCopy, true);
           assert.equal(layout.productProof.copyBeforeFacts, true);
           assert.ok(layout.finalLayout.height >= 420);
-          assert.ok(layout.finalLayout.height <= 500);
+          assert.ok(layout.finalLayout.height <= 540);
           assert.ok(layout.finalLayout.titleLines <= 2);
           assert.match(layout.finalLayout.columns, /px .*px .*px/);
           assert.equal(layout.finalLayout.oneRow, true);
+          assert.equal(layout.finalLayout.routeHeight, 72);
+          assert.ok(layout.finalLayout.routeWidth >= layout.width - .5);
+          assert.equal(layout.finalLayout.routeBetweenContent, true);
           assert.equal(layout.finalLayout.desktopRoute, "none");
           assert.equal(layout.finalLayout.phoneRoute, "block");
         } else {

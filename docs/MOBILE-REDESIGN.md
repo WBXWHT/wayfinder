@@ -110,7 +110,7 @@ Reduced-motion users receive the final successful state without animation.
 - The product-proof copy uses mobile grid ordering so the heading, image,
   explanation, proof labels, and privacy link remain in narrative order.
 - The final phone section is content-driven, uses one segmented download row,
-  and moves its decorative route to the outer edge.
+  and gives its decorative route a dedicated band between copy and downloads.
 - `website/app.js` drives desktop and phone voyages from the same timeline but
   keeps their SVG nodes and coordinates independent.
 

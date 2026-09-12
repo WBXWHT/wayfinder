@@ -43,6 +43,12 @@ test("phone typography uses bundled open-source web fonts", () => {
   );
 });
 
+test("phone product proof labels the three visible waypoints accurately", () => {
+  const review = read("docs/mobile-review/index.html").toString("utf8");
+  assert.match(review, />3 个航点</);
+  assert.doesNotMatch(review, />5 个航点</);
+});
+
 test("repository overview uses the public 2K presentation assets", () => {
   const readme = read("README.md").toString("utf8");
   assert.match(readme, /wayfinder-social-preview-2k\.png/);
