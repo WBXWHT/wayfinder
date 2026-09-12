@@ -1,5 +1,6 @@
 const assert = require("node:assert/strict");
 const Module = require("node:module");
+const path = require("node:path");
 const test = require("node:test");
 
 const pendingReads = [];
@@ -46,7 +47,7 @@ Module._load = function load(request, parent, isMain) {
   }
   if (
     request === "./storage" &&
-    String(parent?.filename || "").endsWith("/forestMapPanel.js")
+    path.basename(String(parent?.filename || "")) === "forestMapPanel.js"
   ) {
     return {
       readProjectState() {
