@@ -37,6 +37,9 @@ not the boundary of the product. The complete history stays under
   packages as current installation paths.
 - Do not fabricate historical diffs or send raw conversations/source files to
   a cloud service.
+- Keep the website's 1440x900 desktop rendering pixel-stable. At 540px and
+  below, use the dedicated phone compositions documented in
+  `docs/MOBILE-REDESIGN.md`; do not shrink or crop the desktop scene.
 - Keep `package.json`, `package-lock.json`, `src/version.ts`, Cargo metadata,
   and Tauri config versions synchronized.
 - Do not update `website/releases.json` until both macOS DMGs and the Windows

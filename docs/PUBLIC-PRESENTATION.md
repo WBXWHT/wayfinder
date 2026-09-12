@@ -1,6 +1,6 @@
 # Public Presentation Standard
 
-Reviewed: 2026-09-12.
+Reviewed: 2026-09-13.
 
 This document is the consistency contract for Wayfinder's public surfaces. It
 keeps positioning factual while applying patterns used by established

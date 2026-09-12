@@ -1,6 +1,6 @@
 # Mobile Presentation
 
-Reviewed: 2026-09-12.
+Reviewed: 2026-09-13.
 
 ## Decision
 
@@ -127,7 +127,7 @@ Reduced-motion users receive the final successful state without animation.
 
 ## Verification
 
-- `npm run check`: 212 tests pass, including Chromium at 320x568, 390x844,
+- `npm run check`: 213 tests pass, including Chromium at 320x568, 390x844,
   430x932, 812x375, and 1440x900.
 - `cargo test --manifest-path companion/src-tauri/Cargo.toml`: 10 tests pass.
 - `cargo clippy --manifest-path companion/src-tauri/Cargo.toml --all-targets

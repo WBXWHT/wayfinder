@@ -10,6 +10,9 @@ the current early-access flow: install the app, continue working in Codex or
 Claude Code, and inspect the automatically updated local voyage map. It must
 not tell Companion users to configure or approve Hooks.
 
+The responsive composition and viewport acceptance contract lives in
+[MOBILE-REDESIGN.md](MOBILE-REDESIGN.md).
+
 ## Local Preview
 
 Serve the repository root and open `/website/`:

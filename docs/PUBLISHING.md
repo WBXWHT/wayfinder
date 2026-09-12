@@ -1,6 +1,8 @@
 # Publication Status
 
-Public release: **0.3.14 early access**. Status reviewed 2026-09-12.
+Public release: **0.3.14 early access**. Status reviewed 2026-09-13.
+The live website's source commit is recorded by the production
+`deployment.json` marker and must match the latest deployed `main` commit.
 
 ## Current Product
 
