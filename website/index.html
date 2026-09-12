@@ -24,7 +24,7 @@
   <title>Wayfinder — 把 AI 协作过程变成可回看的航海图</title>
   <link rel="icon" href="./wayfinder-icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="./wayfinder-icon.png">
-  <link rel="stylesheet" href="./styles.css?v=0.3.14-mobile-scene">
+  <link rel="stylesheet" href="./styles.css?v=0.3.14-mobile-layout-v2">
   <script type="application/ld+json">
     {
       "@context": "https://schema.org",
@@ -241,6 +241,142 @@
           </a>
         </div>
       </div>
+      <div class="mobile-hero-voyage" aria-hidden="true">
+        <svg class="mobile-route-map" viewBox="0 0 390 469"
+          preserveAspectRatio="none">
+          <defs>
+            <path id="mobile-course-main" pathLength="1"
+              d="M34 80 C74 97 84 142 121 181"></path>
+            <path id="mobile-course-success" pathLength="1"
+              d="M121 181 C175 223 232 292 304 369"></path>
+            <path id="mobile-course-failure" pathLength="1"
+              d="M121 181 C173 163 217 124 265 100"></path>
+          </defs>
+          <rect width="390" height="469" fill="#e8f6fa"></rect>
+          <path class="mobile-coast-land"
+            d="M246-8 C252 62 259 117 269 161 C279 209 284 253 293 298 C300 337 299 377 318 418 C328 439 343 457 358 477 H398 V-8 Z">
+          </path>
+          <path class="mobile-coast-edge"
+            d="M246-8 C252 62 259 117 269 161 C279 209 284 253 293 298 C300 337 299 377 318 418 C328 439 343 457 358 477">
+          </path>
+
+          <use class="mobile-route-rail" href="#mobile-course-main"></use>
+          <use class="mobile-route-rail" href="#mobile-course-success"></use>
+          <use class="mobile-route-rail" href="#mobile-course-failure"></use>
+          <use class="mobile-route-base mobile-route-base-main"
+            href="#mobile-course-main"></use>
+          <use class="mobile-route-base mobile-route-base-success"
+            href="#mobile-course-success"></use>
+          <use class="mobile-route-base mobile-route-base-failure"
+            href="#mobile-course-failure"></use>
+          <use class="mobile-route-progress mobile-route-progress-main"
+            href="#mobile-course-main"></use>
+          <use class="mobile-route-progress mobile-route-progress-success"
+            href="#mobile-course-success"></use>
+          <use class="mobile-route-progress mobile-route-progress-failure"
+            href="#mobile-course-failure"></use>
+
+          <g class="mobile-map-node mobile-node-main"
+            transform="translate(34 80)">
+            <circle r="12"></circle>
+            <circle r="4"></circle>
+          </g>
+          <g class="mobile-map-node mobile-node-main"
+            transform="translate(121 181)">
+            <circle r="12"></circle>
+            <circle r="4"></circle>
+          </g>
+          <g class="mobile-reef" transform="translate(265 72)">
+            <path class="mobile-reef-outline"
+              d="M-15 13 L-10-12 L-3-4 L4-18 L16 13 Z"></path>
+            <path class="mobile-reef-rock"
+              d="M-15 13 L-10-12 L-3-4 L4-18 L16 13 Z"></path>
+            <path class="mobile-reef-facet"
+              d="M4-18 L1 7 L-3-4 M-10-12 L-7 5"></path>
+          </g>
+          <g class="mobile-impact" transform="translate(265 100)">
+            <path d="M-26-14 L-34-21 M-4-29 L-4-39 M21-19 L29-27"></path>
+          </g>
+          <g class="mobile-map-node mobile-failed-marker"
+            transform="translate(265 100)">
+            <circle r="13"></circle>
+            <path d="M-5-5 L5 5 M5-5 L-5 5"></path>
+          </g>
+          <g class="mobile-arrival" transform="translate(304 369)">
+            <circle class="mobile-arrival-ring" r="19"></circle>
+            <circle class="mobile-arrival-ring mobile-arrival-ring-late"
+              r="19"></circle>
+          </g>
+          <g class="mobile-map-node mobile-success-marker"
+            transform="translate(304 369)">
+            <circle r="15"></circle>
+            <path d="M-7 0 L-2 6 L8-7"></path>
+          </g>
+
+          <g class="mobile-vessel" transform="translate(34 80)">
+            <g class="mobile-vessel-bob">
+              <path class="mobile-vessel-sticker"
+                d="M-17 12 Q-8 7 0 12 T17 12"></path>
+              <path class="mobile-vessel-sticker" d="M0-19 V7"></path>
+              <path class="mobile-vessel-sticker"
+                d="M2-18 L15 2 H2 Z"></path>
+              <path class="mobile-vessel-sticker"
+                d="M-15 5 H16 Q9 16 0 16 Q-9 16-15 5 Z"></path>
+              <path class="mobile-vessel-wake"
+                d="M-17 12 Q-8 7 0 12 T17 12"></path>
+              <path class="mobile-vessel-mast" d="M0-19 V7"></path>
+              <path class="mobile-vessel-sail"
+                d="M2-18 L15 2 H2 Z"></path>
+              <path class="mobile-vessel-hull"
+                d="M-15 5 H16 Q9 16 0 16 Q-9 16-15 5 Z"></path>
+            </g>
+          </g>
+
+          <g class="mobile-route-label label-goal">
+            <text x="20" y="36"><tspan>01</tspan> 确认目标</text>
+          </g>
+          <g class="mobile-route-label label-branch">
+            <text x="50" y="219"><tspan>02</tspan> 保留分叉</text>
+          </g>
+          <g class="mobile-route-label label-proof">
+            <text x="151" y="302"><tspan>03</tspan> 查看记录</text>
+          </g>
+          <g class="mobile-route-label label-experience">
+            <text x="235" y="428"><tspan>04</tspan> 沉淀经验</text>
+          </g>
+          <text class="mobile-failure-note" x="279" y="63">失败保留</text>
+
+          <g class="mobile-celebration" transform="translate(304 369)">
+            <g class="mobile-celebration-rays">
+              <line class="mobile-celebration-ray" data-angle="-130"></line>
+              <line class="mobile-celebration-ray" data-angle="-95"></line>
+              <line class="mobile-celebration-ray" data-angle="-55"></line>
+              <line class="mobile-celebration-ray" data-angle="-15"></line>
+              <line class="mobile-celebration-ray" data-angle="30"></line>
+              <line class="mobile-celebration-ray" data-angle="75"></line>
+              <line class="mobile-celebration-ray" data-angle="120"></line>
+              <line class="mobile-celebration-ray" data-angle="165"></line>
+            </g>
+            <g class="mobile-celebration-confetti">
+              <circle class="mobile-celebration-piece piece-gold"
+                data-angle="-112" data-distance="54" data-delay="20" r="2.5"></circle>
+              <rect class="mobile-celebration-piece piece-green"
+                data-angle="-72" data-distance="62" data-delay="90"
+                x="-2" y="-3" width="4" height="6" rx="1"></rect>
+              <circle class="mobile-celebration-piece piece-blue"
+                data-angle="-28" data-distance="57" data-delay="45" r="2.4"></circle>
+              <rect class="mobile-celebration-piece piece-coral"
+                data-angle="18" data-distance="60" data-delay="120"
+                x="-2" y="-3" width="4" height="6" rx="1"></rect>
+              <circle class="mobile-celebration-piece piece-gold"
+                data-angle="70" data-distance="55" data-delay="70" r="2.3"></circle>
+              <rect class="mobile-celebration-piece piece-blue"
+                data-angle="142" data-distance="61" data-delay="150"
+                x="-2" y="-3" width="4" height="6" rx="1"></rect>
+            </g>
+          </g>
+        </svg>
+      </div>
       <div class="hero-status" role="group" aria-label="产品状态">
         <span><i class="status-dot"></i> 本地优先</span>
         <span>无需账号</span>
@@ -271,12 +407,16 @@
       </ol>
     </section>
 
-    <section class="story-section local-band reveal"
+    <section id="product-proof" class="story-section local-band reveal"
       aria-labelledby="local-title">
       <figure class="product-visual">
-        <img src="./login-voyage-focus-4k.png?v=map-0.3.14"
-          alt="Wayfinder 示例航程细节，清晰展示登录问题的失败分支、有效路径、验证节点与沉淀结果"
-          loading="lazy" decoding="async" draggable="false">
+        <picture>
+          <source media="(max-width: 540px)"
+            srcset="./login-voyage-mobile-2k.png?v=map-mobile-0.3.14">
+          <img src="./login-voyage-focus-4k.png?v=map-0.3.14"
+            alt="Wayfinder 示例航程细节，清晰展示登录问题的失败分支、有效路径、验证节点与沉淀结果"
+            loading="lazy" decoding="async" draggable="false">
+        </picture>
         <figcaption>
           示例航程 · 登录回跳稳定性
         </figcaption>
@@ -318,6 +458,14 @@
           d="M-80 570 C220 570 180 180 480 246 S720 650 1280 150"></path>
         <circle cx="480" cy="246" r="9"></circle>
       </svg>
+      <svg class="final-route-phone" viewBox="0 0 390 600"
+        preserveAspectRatio="none" aria-hidden="true">
+        <path class="final-route-shadow"
+          d="M382-30 C408 106 371 153 385 272 S371 432 410 624"></path>
+        <path class="final-route-line"
+          d="M382-30 C408 106 371 153 385 272 S371 432 410 624"></path>
+        <circle cx="385" cy="272" r="7"></circle>
+      </svg>
       <div class="final-copy">
         <p class="eyebrow">TURN WORK INTO EXPERIENCE</p>
         <h2 id="download-title">项目结束后，解决问题的方法还在。</h2>
@@ -348,6 +496,6 @@
       </div>
     </section>
   </main>
-  <script src="./app.js?v=0.3.14-mobile-scene" defer></script>
+  <script src="./app.js?v=0.3.14-mobile-layout-v2" defer></script>
 </body>
 </html>

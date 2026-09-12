@@ -257,6 +257,10 @@ h1 {
   pointer-events: none;
 }
 
+.mobile-hero-voyage {
+  display: none;
+}
+
 .hero-route-map {
   position: absolute;
   inset: 0;
@@ -753,6 +757,10 @@ h1 {
   -webkit-user-drag: none;
 }
 
+.product-visual picture {
+  display: contents;
+}
+
 .product-visual figcaption {
   position: absolute;
   right: 14px;
@@ -901,6 +909,10 @@ h1 {
   width: 100%;
   height: 100%;
   opacity: .62;
+}
+
+.final-route-phone {
+  display: none;
 }
 
 .final-route path,
@@ -1395,50 +1407,298 @@ footer a {
   }
 
   .site-header {
-    padding-right: 20px;
+    padding: 0 20px;
   }
 
-  #voyageCanvas {
-    top: 0;
-    right: 0;
-    bottom: auto;
-    left: 0;
-    height: 356px;
+  #voyageCanvas,
+  .hero-voyage {
+    display: none;
   }
 
   .hero {
-    display: flex;
+    display: block;
     height: auto;
     min-height: 0;
-    padding: 76px 20px 32px;
-    align-items: stretch;
+    padding: 0;
     background: #f5f7f9;
-    flex-direction: column;
   }
 
   .hero-copy {
     width: 100%;
     min-width: 0;
+    padding: 102px 20px 34px;
+    animation: none;
   }
 
   h1 {
-    font-size: 42px;
+    font-size: 50px;
+    line-height: .98;
   }
 
   .hero-line {
-    font-size: 14px;
+    margin-top: 20px;
+    font-size: 16px;
+    line-height: 1.6;
   }
 
-  .hero-voyage {
+  .mobile-hero-voyage {
     position: relative;
-    top: auto;
-    right: auto;
-    bottom: auto;
-    left: auto;
+    z-index: 2;
+    display: block;
     width: 100%;
-    height: 260px;
-    flex: 0 0 260px;
-    margin: 0 0 20px;
+    height: 469px;
+    overflow: hidden;
+    border-top: 1px solid #d7e2e7;
+    pointer-events: none;
+  }
+
+  .mobile-route-map {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .mobile-coast-land {
+    fill: var(--sand);
+  }
+
+  .mobile-coast-edge {
+    fill: none;
+    stroke: var(--shore);
+    stroke-width: 3;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .mobile-route-rail,
+  .mobile-route-base,
+  .mobile-route-progress {
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .mobile-route-rail {
+    stroke: rgba(255, 255, 255, .96);
+    stroke-width: 25;
+    filter: drop-shadow(2px 3px 0 rgba(64, 103, 112, .18));
+  }
+
+  .mobile-route-base,
+  .mobile-route-progress {
+    stroke-width: 17;
+  }
+
+  .mobile-route-base-main {
+    stroke: #b4dfe9;
+  }
+
+  .mobile-route-base-success {
+    stroke: #b8ded2;
+  }
+
+  .mobile-route-base-failure {
+    stroke: #f0c5c1;
+  }
+
+  .mobile-route-progress {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    filter: drop-shadow(1px 2px 0 rgba(54, 92, 101, .12));
+  }
+
+  .mobile-route-progress-main {
+    stroke: #65b5cd;
+  }
+
+  .mobile-route-progress-success {
+    stroke: #67b99e;
+  }
+
+  .mobile-route-progress-failure {
+    stroke: #e68a83;
+  }
+
+  .mobile-map-node {
+    color: var(--blue);
+  }
+
+  .mobile-map-node circle:first-child {
+    fill: #fffdf8;
+    stroke: currentColor;
+    stroke-width: 4;
+    filter: drop-shadow(2px 3px 0 rgba(64, 103, 112, .18));
+    vector-effect: non-scaling-stroke;
+  }
+
+  .mobile-map-node circle:nth-child(2) {
+    fill: currentColor;
+  }
+
+  .mobile-map-node path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .mobile-failed-marker {
+    color: var(--coral);
+    opacity: 0;
+  }
+
+  .mobile-success-marker {
+    color: var(--green);
+  }
+
+  .mobile-reef {
+    filter: drop-shadow(2px 3px 0 rgba(64, 103, 112, .2));
+  }
+
+  .mobile-reef-outline {
+    fill: #ffffff;
+    stroke: #ffffff;
+    stroke-width: 8;
+    stroke-linejoin: round;
+  }
+
+  .mobile-reef-rock {
+    fill: #8d7a6c;
+    stroke: #65564d;
+    stroke-width: 1.8;
+    stroke-linejoin: round;
+  }
+
+  .mobile-reef-facet {
+    fill: none;
+    stroke: #f8f3ed;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+  }
+
+  .mobile-impact {
+    opacity: 0;
+    fill: none;
+    stroke: var(--coral);
+    stroke-width: 3;
+    stroke-linecap: round;
+  }
+
+  .mobile-arrival-ring {
+    opacity: 0;
+    fill: none;
+    stroke: var(--green);
+    stroke-width: 2.5;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .mobile-arrival-ring-late {
+    stroke: #ffffff;
+  }
+
+  .mobile-vessel {
+    filter: drop-shadow(2px 3px 0 rgba(64, 103, 112, .2));
+  }
+
+  .mobile-vessel-bob {
+    animation: hero-boat-bob 1.9s ease-in-out infinite;
+  }
+
+  .mobile-vessel path {
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .mobile-vessel-sticker {
+    fill: #ffffff;
+    stroke: #ffffff;
+    stroke-width: 6;
+  }
+
+  .mobile-vessel-wake {
+    fill: none;
+    stroke: #ffffff;
+    stroke-width: 2;
+  }
+
+  .mobile-vessel-mast {
+    fill: none;
+    stroke: #244f58;
+    stroke-width: 3;
+  }
+
+  .mobile-vessel-sail {
+    fill: #fffdf8;
+    stroke: #244f58;
+    stroke-width: 2.5;
+  }
+
+  .mobile-vessel-hull {
+    fill: #e2a34c;
+    stroke: #244f58;
+    stroke-width: 2.5;
+  }
+
+  .mobile-route-label {
+    opacity: .48;
+    transition: opacity 220ms ease;
+  }
+
+  .mobile-route-label.is-current {
+    opacity: 1;
+  }
+
+  .mobile-route-label text {
+    fill: #35515a;
+    font-family: "Wayfinder Sans", sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0;
+  }
+
+  .mobile-route-label tspan {
+    fill: var(--blue);
+    font: 9px ui-monospace, "SFMono-Regular", monospace;
+  }
+
+  .mobile-route-label.label-proof text,
+  .mobile-route-label.label-experience text {
+    fill: #2d5b50;
+  }
+
+  .mobile-failure-note {
+    fill: #a74a45;
+    font-family: "Wayfinder Sans", sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+  }
+
+  .mobile-celebration {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .mobile-celebration-ray {
+    stroke: #f3bd4f;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .mobile-celebration-ray:nth-child(3n + 2) {
+    stroke: var(--green);
+  }
+
+  .mobile-celebration-ray:nth-child(3n) {
+    stroke: var(--blue);
+  }
+
+  .mobile-celebration-piece {
+    transform-box: fill-box;
+    transform-origin: center;
   }
 
   .hero-status {
@@ -1451,16 +1711,192 @@ footer a {
   }
 
   .final-copy h2 {
-    font-size: 40px;
+    max-width: 350px;
+    font-size: 30px;
+    line-height: 1.2;
   }
 
   .hero-downloads {
+    width: 100%;
+    margin-top: 25px;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .hero-downloads .download-option {
     min-width: 0;
-    padding: 8px 4px;
+    min-height: 62px;
+    padding: 8px 3px;
+  }
+
+  .hero-downloads .download-option strong {
+    font-size: 11px;
+  }
+
+  .hero-downloads .download-option span {
+    font-size: 8px;
+    line-height: 1.2;
+  }
+
+  .local-band {
+    min-height: 0;
+    padding: 48px 20px 36px;
+    gap: 0;
+  }
+
+  .local-band::after {
+    display: none;
+  }
+
+  .local-copy {
+    display: contents;
+  }
+
+  .local-copy .eyebrow {
+    margin: 0 0 14px;
+    order: 1;
+  }
+
+  .local-copy h2 {
+    order: 2;
+    font-size: 30px;
+    line-height: 1.26;
+  }
+
+  .product-visual {
+    width: 100%;
+    margin-top: 30px;
+    order: 3;
+    border-radius: 7px;
+  }
+
+  .product-visual img {
+    height: auto;
+    aspect-ratio: auto;
+    object-fit: contain;
+  }
+
+  .product-visual figcaption {
+    position: static;
+    height: 30px;
+    padding: 8px 10px 0;
+    border: 0;
+    border-top: 1px solid #3a4148;
+    border-radius: 0;
+    color: #c9cfd4;
+    background: #20252a;
+    font-size: 9px;
+  }
+
+  .local-copy > p {
+    width: 100%;
+    margin-top: 23px;
+    order: 4;
+    color: #c1c7cc;
+    font-size: 13px;
+    line-height: 1.65;
+  }
+
+  .fact-line {
+    display: grid;
+    width: 100%;
+    margin-top: 19px;
+    order: 5;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    font-size: 9px;
+    text-align: center;
+  }
+
+  .fact-line span {
+    padding: 0 6px;
+  }
+
+  .fact-line span:first-child {
+    padding-left: 6px;
+  }
+
+  .text-link {
+    margin-top: 22px;
+    order: 6;
+    font-size: 11px;
+  }
+
+  .final-cta {
+    display: block;
+    height: auto;
+    min-height: 0;
+    padding: 54px 20px 104px;
+    text-align: left;
+  }
+
+  .final-route {
+    display: none;
+  }
+
+  .final-route-phone {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    opacity: .58;
+  }
+
+  .final-route-phone path,
+  .final-route-phone circle {
+    vector-effect: non-scaling-stroke;
+  }
+
+  .final-route-phone circle {
+    fill: #171a1e;
+    stroke: var(--green);
+    stroke-width: 3;
+  }
+
+  .final-copy {
+    width: 100%;
+    justify-items: start;
+  }
+
+  .final-copy > p:not(.eyebrow) {
+    max-width: 310px;
+    margin-top: 22px;
+    font-size: 13px;
+  }
+
+  .final-downloads {
+    width: 100%;
+    max-width: none;
+    margin-top: 26px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    background: rgba(23, 26, 30, .94);
+  }
+
+  .final-downloads .download-option {
+    min-width: 0;
+    min-height: 64px;
+    padding: 8px 3px;
+    border-top: 0;
+    border-left: 1px solid #3a4148;
+  }
+
+  .final-downloads .download-option:first-child {
+    border-top: 0;
+    border-left: 0;
+  }
+
+  .final-downloads .download-option strong {
+    font-size: 10px;
+  }
+
+  .final-downloads .download-option span {
+    font-size: 8px;
+    line-height: 1.2;
+  }
+
+  .final-meta {
+    min-height: 68px;
+    gap: 10px;
+    font-size: 9px;
   }
 
   .evidence-lines > div {
@@ -1474,29 +1910,13 @@ footer a {
 }
 
 @media (max-width: 420px) {
-  #voyageCanvas {
-    height: 294px;
+  .hero-copy {
+    padding-top: 92px;
+    padding-bottom: 30px;
   }
 
-  .hero {
-    padding-top: 68px;
-    padding-bottom: 24px;
-  }
-
-  .hero-voyage {
-    height: 210px;
-    flex-basis: 210px;
-    margin-bottom: 16px;
-  }
-
-  .fact-line {
-    display: grid;
-    gap: 7px;
-  }
-
-  .fact-line span {
-    padding: 0;
-    border-left: 0;
+  h1 {
+    font-size: 46px;
   }
 
   .final-meta {
@@ -1510,6 +1930,27 @@ footer a {
   }
 }
 
+@media (max-width: 340px) {
+  .hero-copy,
+  .local-band,
+  .final-cta {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  h1 {
+    font-size: 44px;
+  }
+
+  .hero-line {
+    font-size: 15px;
+  }
+
+  .final-copy h2 {
+    font-size: 28px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -1519,24 +1960,31 @@ footer a {
   .hero-route,
   .hero-vessel,
   .hero-vessel-bob,
+  .mobile-route-progress,
+  .mobile-vessel,
+  .mobile-vessel-bob,
   .hero-channel-mark,
   .node-experience,
   .route-note,
   .hero-celebration,
+  .mobile-celebration,
   .final-route-line {
     animation: none;
   }
 
-  .hero-route {
+  .hero-route,
+  .mobile-route-progress {
     opacity: 1;
     stroke-dashoffset: 0;
   }
 
-  .route-note {
+  .route-note,
+  .mobile-route-label {
     opacity: .72;
   }
 
-  .hero-celebration {
+  .hero-celebration,
+  .mobile-celebration {
     display: none;
   }
 

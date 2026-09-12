@@ -12,7 +12,8 @@ test("public screenshots use simulated data at 2K or higher", () => {
     "docs/assets/public/wayfinder-social-preview-2k.png",
     "docs/assets/public/wayfinder-voyage-overview-2k.png",
     "docs/assets/public/wayfinder-voyage-branch-2k.png",
-    "website/wayfinder-social-preview-2k.png"
+    "website/wayfinder-social-preview-2k.png",
+    "website/login-voyage-mobile-2k.png"
   ];
 
   for (const image of images) {

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wayfinder 手机端构图审阅</title>
+  <link rel="stylesheet" href="./review.css">
+</head>
+<body>
+  <header class="review-header">
+    <p>WAYFINDER · MOBILE COMPOSITION REVIEW</p>
+    <h1>三个模块，三个明确任务。</h1>
+    <p>390 × 844 静态稿。只评审手机信息顺序与视觉重心，不代表生产页面已经修改。</p>
+  </header>
+
+  <main class="review-grid">
+    <article id="hero-review" class="review-item">
+      <header class="review-label">
+        <span>01</span>
+        <div>
+          <strong>首屏</strong>
+          <p>价值与下载先出现，航程随后完整展开。</p>
+        </div>
+      </header>
+
+      <section class="phone-frame hero-frame" aria-label="Wayfinder 手机端首屏方案">
+        <header class="mobile-nav">
+          <a class="mobile-brand" href="#" aria-label="Wayfinder 首页">
+            <img src="../../website/wayfinder-icon.svg" alt="">
+            <span>Wayfinder</span>
+          </a>
+          <a class="mobile-github" href="#">GitHub ↗</a>
+        </header>
+
+        <div class="hero-message">
+          <p class="phone-eyebrow">AI COLLABORATION HISTORY</p>
+          <h2>Wayfinder</h2>
+          <p class="hero-promise">
+            把 AI 协作中的目标、分叉与证据，整理成一张可回看的项目航海图。
+          </p>
+          <div class="phone-downloads" aria-label="Wayfinder 下载平台">
+            <a href="#">
+              <strong>macOS</strong>
+              <span>Apple Silicon</span>
+            </a>
+            <a href="#">
+              <strong>macOS</strong>
+              <span>Intel</span>
+            </a>
+            <a href="#">
+              <strong>Windows</strong>
+              <span>x64</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="voyage-stage" aria-hidden="true">
+          <svg viewBox="0 0 390 438" preserveAspectRatio="none">
+            <rect width="390" height="438" fill="#e8f6fa"></rect>
+            <path class="coast-land"
+              d="M246-8 C252 58 259 109 269 150 C279 195 284 236 293 278 C300 314 299 352 318 390 C328 410 343 427 358 446 H398 V-8 Z">
+            </path>
+            <path class="coast-edge"
+              d="M246-8 C252 58 259 109 269 150 C279 195 284 236 293 278 C300 314 299 352 318 390 C328 410 343 427 358 446">
+            </path>
+
+            <path class="route-rail"
+              d="M34 77 C74 93 84 134 121 170"></path>
+            <path class="route-rail"
+              d="M121 170 C175 209 232 273 304 345"></path>
+            <path class="route-rail"
+              d="M121 170 C173 153 217 116 265 94"></path>
+            <path class="route route-main"
+              d="M34 77 C74 93 84 134 121 170"></path>
+            <path class="route route-success"
+              d="M121 170 C175 209 232 273 304 345"></path>
+            <path class="route route-failed"
+              d="M121 170 C173 153 217 116 265 94"></path>
+
+            <g class="route-node node-main" transform="translate(34 77)">
+              <circle r="12"></circle>
+              <circle r="4"></circle>
+            </g>
+            <g class="route-node node-main" transform="translate(121 170)">
+              <circle r="12"></circle>
+              <circle r="4"></circle>
+            </g>
+            <g class="route-node node-failed" transform="translate(265 94)">
+              <circle r="13"></circle>
+              <path d="M-5-5 L5 5 M5-5 L-5 5"></path>
+            </g>
+            <g class="route-node node-success" transform="translate(304 345)">
+              <circle r="15"></circle>
+              <path d="M-7 0 L-2 6 L8-7"></path>
+            </g>
+
+            <g class="reef" transform="translate(265 68)">
+              <path d="M-15 13 L-10-12 L-3-4 L4-18 L16 13 Z"></path>
+              <path d="M4-18 L1 7 L-3-4 M-10-12 L-7 5"></path>
+            </g>
+
+            <g class="boat" transform="translate(304 326)">
+              <path class="boat-shadow" d="M-17 12 Q-8 7 0 12 T17 12"></path>
+              <path class="boat-mast" d="M0-19 V7"></path>
+              <path class="boat-sail" d="M2-18 L15 2 H2 Z"></path>
+              <path class="boat-hull"
+                d="M-15 5 H16 Q9 16 0 16 Q-9 16-15 5 Z"></path>
+            </g>
+
+            <g class="map-label label-goal">
+              <text x="20" y="35"><tspan>01</tspan> 确认目标</text>
+            </g>
+            <g class="map-label label-branch">
+              <text x="50" y="205"><tspan>02</tspan> 保留分叉</text>
+            </g>
+            <g class="map-label label-proof">
+              <text x="151" y="283"><tspan>03</tspan> 查看记录</text>
+            </g>
+            <g class="map-label label-experience">
+              <text x="235" y="397"><tspan>04</tspan> 沉淀经验</text>
+            </g>
+            <text class="failure-note" x="279" y="58">失败保留</text>
+          </svg>
+        </div>
+      </section>
+    </article>
+
+    <article id="proof-review" class="review-item">
+      <header class="review-label">
+        <span>02</span>
+        <div>
+          <strong>产品证明</strong>
+          <p>只展示一段可读航程，让产品本身承担叙事。</p>
+        </div>
+      </header>
+
+      <section class="phone-frame proof-frame" aria-label="Wayfinder 手机端产品证明方案">
+        <div class="proof-heading">
+          <p class="phone-eyebrow">THE PATH BEHIND THE RESULT</p>
+          <h2>不仅保留答案，<br>也保留答案是怎么来的。</h2>
+        </div>
+
+        <figure class="focused-voyage">
+          <div class="focused-map">
+            <div class="map-toolbar">
+              <span>登录回跳稳定性</span>
+              <span>5 个航点</span>
+            </div>
+            <svg viewBox="0 0 350 378" preserveAspectRatio="none" aria-hidden="true">
+              <rect width="350" height="378" fill="#e7f6fa"></rect>
+              <path class="focus-rail" d="M-24 160 H93"></path>
+              <path class="focus-rail" d="M93 160 C154 153 208 96 282 78"></path>
+              <path class="focus-rail" d="M93 160 C153 184 210 236 286 279"></path>
+              <path class="focus-route focus-route-main" d="M-24 160 H93"></path>
+              <path class="focus-route focus-route-failed"
+                d="M93 160 C154 153 208 96 282 78"></path>
+              <path class="focus-route focus-route-success"
+                d="M93 160 C153 184 210 236 286 279"></path>
+              <g class="focus-node focus-node-main" transform="translate(93 160)">
+                <circle r="12"></circle>
+                <circle r="4"></circle>
+              </g>
+              <g class="focus-node focus-node-failed" transform="translate(282 78)">
+                <circle r="12"></circle>
+                <path d="M-5-5 L5 5 M5-5 L-5 5"></path>
+              </g>
+              <g class="focus-node focus-node-success" transform="translate(286 279)">
+                <circle r="13"></circle>
+                <path d="M-6 0 L-1 5 L7-6"></path>
+              </g>
+            </svg>
+
+            <div class="voyage-card root-card">
+              <i></i>
+              <strong>确认复现与边界</strong>
+              <p>定位到第三方登录回调后，会话状态丢失。</p>
+              <span>Codex · 1 轮 · 9/11</span>
+            </div>
+            <div class="voyage-card failed-card">
+              <i></i>
+              <strong>撰写代理重写</strong>
+              <p>方案会破坏本地回调地址，停止采用。</p>
+              <span>Claude · 1 轮 · 9/11</span>
+            </div>
+            <div class="voyage-card success-card">
+              <i></i>
+              <strong>推进 Cookie 策略</strong>
+              <p>HTTPS 回调恢复状态，并保留本地开发兼容。</p>
+              <span>Codex · 1 轮 · 9/11</span>
+            </div>
+          </div>
+          <figcaption>示例航程 · 登录回跳稳定性</figcaption>
+        </figure>
+
+        <p class="proof-copy">
+          从第一次尝试到最终验证，每个结论都能回到当时留下的记录。
+        </p>
+        <div class="proof-facts" aria-label="航程价值">
+          <span>目标与尝试</span>
+          <span>失败与回退</span>
+          <span>文件与验证</span>
+        </div>
+        <a class="proof-link" href="#">查看数据边界 →</a>
+      </section>
+    </article>
+
+    <article id="final-review" class="review-item">
+      <header class="review-label">
+        <span>03</span>
+        <div>
+          <strong>最终下载</strong>
+          <p>不再制造第二个 Hero，以紧凑动作区完成收尾。</p>
+        </div>
+      </header>
+
+      <section class="phone-frame final-frame" aria-label="Wayfinder 手机端最终下载方案">
+        <div class="previous-section-tail" aria-hidden="true">
+          <span class="tail-line tail-live"></span>
+          <span class="tail-line tail-failed"></span>
+          <span class="tail-line tail-conflict"></span>
+          <p>每一条结论，都保留它来自哪里。</p>
+        </div>
+
+        <div class="download-band">
+          <svg class="final-route-mobile" viewBox="0 0 390 674"
+            preserveAspectRatio="none" aria-hidden="true">
+            <path class="final-route-shadow"
+              d="M382-30 C408 120 371 173 385 306 S371 486 410 704"></path>
+            <path class="final-route-line"
+              d="M382-30 C408 120 371 173 385 306 S371 486 410 704"></path>
+            <circle cx="385" cy="306" r="7"></circle>
+          </svg>
+
+          <div class="final-message">
+            <p class="phone-eyebrow">TURN WORK INTO EXPERIENCE</p>
+            <h2>项目结束后，<br>解决问题的方法还在。</h2>
+            <p>
+              把目标、尝试、失败和真实文件变化整理成一张本地航海图，让验证过的方法可以再次使用。
+            </p>
+            <div class="phone-downloads final-options" aria-label="Wayfinder 下载平台">
+              <a href="#">
+                <strong>macOS</strong>
+                <span>Apple Silicon</span>
+              </a>
+              <a href="#">
+                <strong>macOS</strong>
+                <span>Intel</span>
+              </a>
+              <a href="#">
+                <strong>Windows</strong>
+                <span>x64</span>
+              </a>
+            </div>
+          </div>
+
+          <footer class="mobile-footer">
+            <span>Wayfinder</span>
+            <span>本地优先 · 开源</span>
+            <span><a href="#">隐私</a><a href="#">反馈</a></span>
+          </footer>
+        </div>
+      </section>
+    </article>
+  </main>
+  <script>
+    const screen = new URLSearchParams(window.location.search).get("screen");
+    if (["hero", "proof", "final", "asset"].includes(screen)) {
+      document.body.dataset.screen = screen;
+    }
+  </script>
+</body>
+</html>

@@ -45,6 +45,39 @@ test("successful voyage stays at the endpoint and triggers a restrained burst", 
   );
 });
 
+test("phone voyage has its own complete scene and animation state", () => {
+  const svg = html.match(
+    /<svg class="mobile-route-map"[\s\S]*?<\/svg>/
+  )?.[0];
+  assert.ok(svg);
+  assert.match(svg, /id="mobile-course-main"/);
+  assert.match(svg, /id="mobile-course-failure"/);
+  assert.match(svg, /id="mobile-course-success"/);
+  assert.equal(
+    (svg.match(/class="mobile-route-label /g) || []).length,
+    4
+  );
+  assert.match(svg, /<tspan>01<\/tspan> 确认目标/);
+  assert.match(svg, /<tspan>02<\/tspan> 保留分叉/);
+  assert.match(svg, /<tspan>03<\/tspan> 查看记录/);
+  assert.match(svg, /<tspan>04<\/tspan> 沉淀经验/);
+  assert.match(svg, /class="mobile-coast-land"/);
+  assert.match(svg, /class="mobile-reef"/);
+  assert.match(svg, /class="mobile-map-node mobile-success-marker"/);
+  assert.match(svg, /class="mobile-vessel"/);
+  assert.equal(
+    (svg.match(/class="mobile-celebration-ray"/g) || []).length,
+    8
+  );
+  assert.equal(
+    (svg.match(/class="mobile-celebration-piece /g) || []).length,
+    6
+  );
+  assert.match(script, /function renderMobileHeroVoyage\(elapsed\)/);
+  assert.match(script, /renderMobileHeroVoyage\(time - startedAt\)/);
+  assert.match(script, /renderMobileCelebration\(frame\.arrival\)/);
+});
+
 test("homepage footer metadata is part of the final dark section", () => {
   assert.doesNotMatch(html, /<footer[\s>]/);
   assert.match(
@@ -55,4 +88,5 @@ test("homepage footer metadata is part of the final dark section", () => {
   assert.match(html, /<span>本地优先 · 开源<\/span>/);
   assert.match(styles, /\.final-meta\s*\{[\s\S]*?color: #ffffff/);
   assert.match(styles, /\.final-meta a\s*\{[\s\S]*?color: #ffffff/);
+  assert.match(html, /class="final-route-phone"/);
 });

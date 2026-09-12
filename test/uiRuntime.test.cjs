@@ -2867,7 +2867,8 @@ test(
             getComputedStyle(
               document.querySelector('.hero-downloads')
             ).display === 'grid' &&
-            document.querySelector('.hero-voyage')?.dataset.scene`
+            document.querySelector('.hero-voyage')?.dataset.scene &&
+            document.querySelector('.mobile-hero-voyage')?.dataset.scene`
         );
         if (viewport.width <= 540) {
           await waitForExpression(
@@ -2875,6 +2876,15 @@ test(
             `document.fonts.check('16px "Wayfinder Sans"')`
           );
         }
+        await cdp.send("Runtime.evaluate", {
+          expression: `document.querySelector(
+            '.product-visual img'
+          ).loading = 'eager'`
+        });
+        await waitForExpression(
+          cdp,
+          `document.querySelector('.product-visual img')?.naturalWidth > 0`
+        );
         const layout = await evaluateJson(
           cdp,
           `(() => {
@@ -2910,6 +2920,9 @@ test(
               heroCopyTop: document.querySelector(
                 '.hero-copy'
               ).getBoundingClientRect().top,
+              heroCopyBottom: document.querySelector(
+                '.hero-copy'
+              ).getBoundingClientRect().bottom,
               bodyFontFamily: getComputedStyle(document.body).fontFamily,
               mobileFontLoaded: document.fonts.check(
                 '16px "Wayfinder Sans"'
@@ -2970,12 +2983,54 @@ test(
                   vessels: element.querySelectorAll('.hero-vessel').length
                 };
               })(),
+              desktopHeroDisplay: getComputedStyle(
+                document.querySelector('.hero-voyage')
+              ).display,
+              mobileHero: (() => {
+                const element = document.querySelector(
+                  '.mobile-hero-voyage'
+                );
+                const rect = element.getBoundingClientRect();
+                return {
+                  display: getComputedStyle(element).display,
+                  top: rect.top,
+                  bottom: rect.bottom,
+                  width: rect.width,
+                  height: rect.height,
+                  scene: element.dataset.scene,
+                  endpointsInside: [...element.querySelectorAll(
+                    '.mobile-failed-marker, .mobile-reef, ' +
+                      '.mobile-success-marker'
+                  )].every((marker) => {
+                    const bounds = marker.getBoundingClientRect();
+                    return bounds.left >= rect.left - .5 &&
+                      bounds.right <= rect.right + .5 &&
+                      bounds.top >= rect.top - .5 &&
+                      bounds.bottom <= rect.bottom + .5;
+                  }),
+                  routes: element.querySelectorAll(
+                    '.mobile-route-base'
+                  ).length,
+                  labels: element.querySelectorAll(
+                    '.mobile-route-label'
+                  ).length,
+                  vessels: element.querySelectorAll(
+                    '.mobile-vessel'
+                  ).length
+                };
+              })(),
               legacyWaypoints: document.querySelectorAll(
                 '.hero-waypoint, [data-waypoint]'
               ).length,
               productImageSource: document.querySelector(
                 '.product-visual img'
               ).getAttribute('src'),
+              productImageCurrentSource: new URL(
+                document.querySelector('.product-visual img').currentSrc
+              ).pathname,
+              productImageNaturalWidth: document.querySelector(
+                '.product-visual img'
+              ).naturalWidth,
               productImageWidth: document.querySelector(
                 '.product-visual img'
               ).getBoundingClientRect().width,
@@ -2983,6 +3038,53 @@ test(
                 document.querySelector('.product-visual img').closest('a')
               ),
               downloads,
+              productProof: (() => {
+                const figure = document.querySelector(
+                  '.product-visual'
+                ).getBoundingClientRect();
+                const heading = document.querySelector(
+                  '.local-copy h2'
+                ).getBoundingClientRect();
+                const copy = document.querySelector(
+                  '.local-copy > p:not(.eyebrow)'
+                ).getBoundingClientRect();
+                const facts = document.querySelector(
+                  '.fact-line'
+                ).getBoundingClientRect();
+                return {
+                  headingBeforeImage: heading.bottom <= figure.top + .5,
+                  imageBeforeCopy: figure.bottom <= copy.top + .5,
+                  copyBeforeFacts: copy.bottom <= facts.top + .5
+                };
+              })(),
+              finalLayout: (() => {
+                const section = document.querySelector(
+                  '.final-cta'
+                ).getBoundingClientRect();
+                const title = document.querySelector('#download-title');
+                const lineHeight = Number.parseFloat(
+                  getComputedStyle(title).lineHeight
+                );
+                const options = [...document.querySelectorAll(
+                  '.final-downloads .download-option'
+                )].map((option) => option.getBoundingClientRect().top);
+                return {
+                  height: section.height,
+                  titleLines: Math.round(
+                    title.getBoundingClientRect().height / lineHeight
+                  ),
+                  columns: getComputedStyle(
+                    document.querySelector('.final-downloads')
+                  ).gridTemplateColumns,
+                  oneRow: Math.max(...options) - Math.min(...options) <= .5,
+                  desktopRoute: getComputedStyle(
+                    document.querySelector('.final-route')
+                  ).display,
+                  phoneRoute: getComputedStyle(
+                    document.querySelector('.final-route-phone')
+                  ).display
+                };
+              })(),
               storyHeights: [...document.querySelectorAll(
                 '.story-section'
               )].map((section) => section.getBoundingClientRect().height)
@@ -2998,7 +3100,7 @@ test(
         assert.equal(layout.finalMeta.linkColor, "rgb(255, 255, 255)");
         assert.equal(layout.finalMeta.outsideFooter, false);
         assert.ok(layout.heroVoyage.scene);
-        assert.equal(layout.heroVoyage.endpointsInside, true);
+        assert.ok(layout.mobileHero.scene);
         assert.equal(layout.heroVoyage.channelBases, 3);
         assert.equal(layout.heroVoyage.notes, 4);
         assert.equal(layout.heroVoyage.vessels, 1);
@@ -3008,14 +3110,44 @@ test(
           "./login-voyage-focus-4k.png?v=map-0.3.14"
         );
         assert.equal(layout.productImageInteractive, false);
-        assert.ok(layout.heroVoyage.width > 0);
-        assert.ok(layout.heroVoyage.height > 0);
         if (viewport.width <= 540) {
-          assert.ok(
-            layout.heroBottom < layout.height,
-            JSON.stringify({ viewport, layout })
+          assert.equal(layout.desktopHeroDisplay, "none");
+          assert.equal(layout.mobileHero.display, "block");
+          assert.equal(layout.mobileHero.width, layout.width);
+          assert.equal(layout.mobileHero.height, 469);
+          assert.equal(layout.mobileHero.endpointsInside, true);
+          assert.equal(layout.mobileHero.routes, 3);
+          assert.equal(layout.mobileHero.labels, 4);
+          assert.equal(layout.mobileHero.vessels, 1);
+          assert.ok(layout.mobileHero.top >= layout.heroCopyBottom - .5);
+          assert.ok(layout.mobileHero.top < layout.height);
+          assert.ok(layout.heroBottom > layout.mobileHero.top);
+          assert.equal(
+            layout.productImageCurrentSource,
+            "/website/login-voyage-mobile-2k.png"
           );
+          assert.equal(layout.productImageNaturalWidth, 2_800);
+          assert.ok(layout.productImageWidth >= layout.width - 42.5);
+          assert.equal(layout.productProof.headingBeforeImage, true);
+          assert.equal(layout.productProof.imageBeforeCopy, true);
+          assert.equal(layout.productProof.copyBeforeFacts, true);
+          assert.ok(layout.finalLayout.height >= 420);
+          assert.ok(layout.finalLayout.height <= 500);
+          assert.ok(layout.finalLayout.titleLines <= 2);
+          assert.match(layout.finalLayout.columns, /px .*px .*px/);
+          assert.equal(layout.finalLayout.oneRow, true);
+          assert.equal(layout.finalLayout.desktopRoute, "none");
+          assert.equal(layout.finalLayout.phoneRoute, "block");
         } else {
+          assert.equal(layout.desktopHeroDisplay, "block");
+          assert.equal(layout.mobileHero.display, "none");
+          assert.equal(
+            layout.productImageCurrentSource,
+            "/website/login-voyage-focus-4k.png"
+          );
+          assert.equal(layout.productImageNaturalWidth, 3_840);
+          assert.equal(layout.finalLayout.desktopRoute, "block");
+          assert.equal(layout.finalLayout.phoneRoute, "none");
           assert.ok(
             layout.heroBottom >= layout.height - .5,
             JSON.stringify({ viewport, layout })
@@ -3031,15 +3163,17 @@ test(
           )
         );
         if (viewport.width <= 540) {
-          assert.ok(layout.heroTitleFontSize <= 42);
+          assert.ok(layout.heroTitleFontSize <= 50);
           assert.equal(layout.heroStatusDisplay, "none");
           assert.match(layout.bodyFontFamily, /^"Wayfinder Sans"/);
           assert.equal(layout.mobileFontLoaded, true);
-          assert.ok(layout.heroMapBottom <= layout.heroCopyTop + .5);
           assert.ok(layout.headerLinkRight <= layout.width + .5);
           assert.match(layout.evidenceColumns, /^56px /);
         }
         if (viewport.width >= 1000) {
+          assert.equal(layout.heroVoyage.endpointsInside, true);
+          assert.ok(layout.heroVoyage.width > 0);
+          assert.ok(layout.heroVoyage.height > 0);
           assert.ok(
             Math.abs(layout.heroBottom - layout.height) <= .5,
             JSON.stringify({ viewport, layout })
@@ -3144,6 +3278,71 @@ test(
       assert.ok(voyageScenes.every((scene) =>
         scene.checkOpacity === 1 && scene.checkColor === "rgb(35, 143, 123)"
       ));
+
+      const mobileVoyageScenes = await evaluateJson(cdp, `(() => {
+        const samples = [0, 3500, 5000, 5200, 7500, 11250, 13000, 13500];
+        return samples.map(time => {
+          renderMobileHeroVoyage(time);
+          const matrix = document.querySelector('.mobile-vessel')
+            .transform.baseVal.consolidate().matrix;
+          return {
+            time,
+            scene: document.querySelector(
+              '.mobile-hero-voyage'
+            ).dataset.scene,
+            course: document.querySelector(
+              '.mobile-vessel'
+            ).dataset.course,
+            boat: { x: matrix.e, y: matrix.f },
+            reefOpacity: Number(getComputedStyle(
+              document.querySelector('.mobile-reef')
+            ).opacity),
+            crossOpacity: Number(getComputedStyle(
+              document.querySelector('.mobile-failed-marker')
+            ).opacity),
+            impactOpacity: Number(getComputedStyle(
+              document.querySelector('.mobile-impact')
+            ).opacity),
+            ringRadius: Number(document.querySelector(
+              '.mobile-arrival-ring'
+            ).getAttribute('r')),
+            ringOpacity: Number(getComputedStyle(
+              document.querySelector('.mobile-arrival-ring')
+            ).opacity),
+            celebrationOpacity: Number(getComputedStyle(
+              document.querySelector('.mobile-celebration')
+            ).opacity),
+            visibleRays: [...document.querySelectorAll(
+              '.mobile-celebration-ray'
+            )].filter((element) => Number(element.style.opacity) > 0).length,
+            visiblePieces: [...document.querySelectorAll(
+              '.mobile-celebration-piece'
+            )].filter((element) => Number(element.style.opacity) > 0).length,
+            currentLabel: document.querySelector(
+              '.mobile-route-label.is-current'
+            )?.textContent.trim()
+          };
+        });
+      })()`);
+      assert.equal(mobileVoyageScenes[1].course, "failure");
+      assert.equal(mobileVoyageScenes[1].reefOpacity, 1);
+      assert.equal(mobileVoyageScenes[1].crossOpacity, 0);
+      assert.deepEqual(mobileVoyageScenes[2].boat, { x: 251, y: 100 });
+      assert.ok(mobileVoyageScenes[3].impactOpacity > 0);
+      assert.equal(mobileVoyageScenes[4].reefOpacity, 0);
+      assert.equal(mobileVoyageScenes[4].crossOpacity, 1);
+      assert.equal(mobileVoyageScenes[5].course, "success");
+      assert.deepEqual(mobileVoyageScenes[6].boat, { x: 304, y: 369 });
+      assert.deepEqual(
+        mobileVoyageScenes[7].boat,
+        mobileVoyageScenes[6].boat
+      );
+      assert.ok(mobileVoyageScenes[7].ringRadius > 19);
+      assert.ok(mobileVoyageScenes[7].ringOpacity > 0);
+      assert.equal(mobileVoyageScenes[7].celebrationOpacity, 1);
+      assert.equal(mobileVoyageScenes[7].visibleRays, 8);
+      assert.equal(mobileVoyageScenes[7].visiblePieces, 6);
+      assert.match(mobileVoyageScenes[7].currentLabel, /04\s+沉淀经验/);
 
       await cdp.send("Runtime.evaluate", {
         expression: `(() => {

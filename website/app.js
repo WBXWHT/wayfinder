@@ -20,6 +20,30 @@ const celebration = document.querySelector(".hero-celebration");
 const celebrationRays = document.querySelectorAll(".celebration-ray");
 const celebrationPieces = document.querySelectorAll(".celebration-piece");
 const routeNotes = document.querySelectorAll(".route-note");
+const mobileHeroVoyage = document.querySelector(".mobile-hero-voyage");
+const mobileCourses = Object.fromEntries(
+  ["main", "failure", "success"].map((name) => {
+    const path = document.querySelector(`#mobile-course-${name}`);
+    return [name, path ? {
+      path,
+      length: path.getTotalLength(),
+      trail: document.querySelector(`.mobile-route-progress-${name}`)
+    } : undefined];
+  })
+);
+const mobileVessel = document.querySelector(".mobile-vessel");
+const mobileReef = document.querySelector(".mobile-reef");
+const mobileFailedMarker = document.querySelector(".mobile-failed-marker");
+const mobileImpact = document.querySelector(".mobile-impact");
+const mobileArrivalRings = document.querySelectorAll(".mobile-arrival-ring");
+const mobileCelebration = document.querySelector(".mobile-celebration");
+const mobileCelebrationRays = document.querySelectorAll(
+  ".mobile-celebration-ray"
+);
+const mobileCelebrationPieces = document.querySelectorAll(
+  ".mobile-celebration-piece"
+);
+const mobileRouteLabels = document.querySelectorAll(".mobile-route-label");
 let width = 0;
 let height = 0;
 let pointerX = 0;
@@ -100,6 +124,40 @@ function renderCelebration(arrival) {
   });
 }
 
+function renderMobileCelebration(arrival) {
+  const active = !reducedMotion && arrival >= 0 && arrival <= 1600;
+  if (mobileCelebration) mobileCelebration.style.opacity = active ? 1 : 0;
+  mobileCelebrationRays.forEach((ray, index) => {
+    const progress = clamp01((arrival - index * 24) / 620);
+    const visible = active && progress > 0 && progress < 1;
+    const angle = Number(ray.dataset.angle) * Math.PI / 180;
+    const travel = easeOutCubic(progress);
+    const inner = 23 + travel * 9;
+    const outer = inner + 9 + (1 - progress) * 8;
+    ray.setAttribute("x1", Math.cos(angle) * inner);
+    ray.setAttribute("y1", Math.sin(angle) * inner);
+    ray.setAttribute("x2", Math.cos(angle) * outer);
+    ray.setAttribute("y2", Math.sin(angle) * outer);
+    ray.style.opacity = visible ? Math.sin(progress * Math.PI) * .92 : 0;
+  });
+  mobileCelebrationPieces.forEach((piece, index) => {
+    const delay = Number(piece.dataset.delay);
+    const progress = clamp01((arrival - delay) / 980);
+    const visible = active && progress > 0 && progress < 1;
+    const angle = Number(piece.dataset.angle) * Math.PI / 180;
+    const distance = Number(piece.dataset.distance) * easeOutCubic(progress);
+    const x = Math.cos(angle) * distance;
+    const y = Math.sin(angle) * distance + progress * progress * 18;
+    const scale = Math.min(1, progress * 5);
+    const opacity = progress < .68 ? 1 : (1 - progress) / .32;
+    piece.setAttribute(
+      "transform",
+      `translate(${x},${y}) rotate(${index * 29 + progress * 150}) scale(${scale})`
+    );
+    piece.style.opacity = visible ? Math.max(0, opacity) : 0;
+  });
+}
+
 function renderHeroVoyage(elapsed) {
   if (!heroVoyage || !vessel || !heroCourses.main) return;
   const frame = voyageFrame(reducedMotion ? 14500 : elapsed);
@@ -139,6 +197,49 @@ function renderHeroVoyage(elapsed) {
   });
 }
 
+function renderMobileHeroVoyage(elapsed) {
+  if (!mobileHeroVoyage || !mobileVessel || !mobileCourses.main) return;
+  const frame = voyageFrame(reducedMotion ? 14500 : elapsed);
+  mobileHeroVoyage.dataset.scene = frame.phase;
+  mobileVessel.dataset.course = frame.course;
+  const course = mobileCourses[frame.course];
+  const point = course.path.getPointAtLength(
+    course.length * frame.boatProgress
+  );
+  const bump = frame.collision < 0
+    ? 0 : Math.sin(frame.collision * Math.PI * 5) * (1 - frame.collision);
+  const bowOffset = frame.course === "failure"
+    ? Math.max(0, (frame.boatProgress - .88) / .12) * 14 : 0;
+  mobileVessel.setAttribute(
+    "transform",
+    `translate(${point.x + bump * 7 - bowOffset},` +
+      `${point.y - Math.abs(bump) * 9})`
+  );
+  mobileVessel.style.opacity = frame.boatOpacity;
+  mobileReef.style.opacity = frame.reefVisible ? 1 : 0;
+  mobileFailedMarker.style.opacity = frame.reefVisible ? 0 : 1;
+  mobileImpact.style.opacity = frame.collision < 0 ? 0 : 1 - frame.collision;
+  for (const [name, progress] of [
+    ["main", frame.mainProgress],
+    ["failure", frame.redProgress],
+    ["success", frame.greenProgress]
+  ]) {
+    mobileCourses[name].trail.style.strokeDashoffset = 1 - progress;
+  }
+  mobileArrivalRings.forEach((ring, index) => {
+    const progress = (frame.arrival - index * 280) / 1300;
+    const visible = !reducedMotion && progress >= 0 && progress <= 1;
+    ring.style.opacity = visible ? (1 - progress) * .8 : 0;
+    ring.setAttribute("r", 19 + clamp01(progress) * 34);
+  });
+  renderMobileCelebration(frame.arrival);
+  const activeLabel = frame.arrival >= 0 ? 3
+    : frame.mainProgress < 1 ? 0 : frame.reefVisible ? 1 : 2;
+  mobileRouteLabels.forEach((label, index) => {
+    label.classList.toggle("is-current", index === activeLabel);
+  });
+}
+
 for (const [name, selector, progress] of [
   ["main", ".mark-main", .55],
   ["success", ".mark-success", .55],
@@ -164,6 +265,7 @@ function resize() {
 
 function draw(time) {
   renderHeroVoyage(time - startedAt);
+  renderMobileHeroVoyage(time - startedAt);
   if (!context) return;
   context.clearRect(0, 0, width, height);
   drawMapSurface(time);
@@ -395,6 +497,7 @@ motionPreference?.addEventListener?.("change", (event) => {
 
 resize();
 renderHeroVoyage(0);
+renderMobileHeroVoyage(0);
 updateScrollState();
 void loadDownloads();
 if (reducedMotion) draw(startedAt + 1_250);

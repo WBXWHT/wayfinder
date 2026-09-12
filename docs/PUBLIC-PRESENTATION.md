@@ -61,6 +61,16 @@ metrics, visual identity, or category boundaries.
 - Check desktop, 320px, 390px, and 430px portrait, plus 844x390
   short-landscape viewports for overflow, clipping, and overlap before
   publishing.
+- Phone layouts preserve the desktop hierarchy through dedicated compositions;
+  do not crop or uniformly shrink desktop coordinates.
+- The phone hero presents the promise and all three downloads before its
+  voyage, while keeping part of the voyage visible in the first viewport.
+- The phone product-proof section uses one legible portrait voyage image as
+  its dominant element.
+- The final phone download section stays below 500 CSS pixels and keeps all
+  three platform choices in one segmented row.
+- Compare the 1440x900 desktop screenshot against the frozen pre-change image
+  before publishing a phone-only revision.
 - Do not add testimonials, usage counts, awards, or trust logos without a
   public source.
 
@@ -116,6 +126,7 @@ Canonical assets:
 - `docs/assets/public/wayfinder-social-preview-2k.png`
 - `docs/assets/public/wayfinder-voyage-overview-2k.png`
 - `docs/assets/public/wayfinder-voyage-branch-2k.png`
+- `website/login-voyage-mobile-2k.png`
 
 ## Audit Checklist
 

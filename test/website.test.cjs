@@ -27,6 +27,9 @@ test("download website exposes architecture-specific release links", () => {
   const productFocusImage = fs.readFileSync(
     path.join(root, "website", "login-voyage-focus-4k.png")
   );
+  const productMobileImage = fs.readFileSync(
+    path.join(root, "website", "login-voyage-mobile-2k.png")
+  );
 
   assert.match(html, /<h1[^>]*>Wayfinder<\/h1>/);
   assert.doesNotMatch(html, /scroll-cue|继续浏览/);
@@ -38,7 +41,13 @@ test("download website exposes architecture-specific release links", () => {
   assert.doesNotMatch(html, />[^<]*0\.3\.7[^<]*</);
   assert.match(html, /class="hero-voyage"/);
   assert.match(html, /class="hero-vessel"/);
+  assert.match(html, /class="mobile-hero-voyage"/);
+  assert.match(html, /class="mobile-vessel"/);
   assert.equal((html.match(/class="hero-route-base /g) || []).length, 3);
+  assert.equal(
+    (html.match(/class="mobile-route-base mobile-route-base-/g) || []).length,
+    3
+  );
   assert.match(html, /class="vessel-sticker"/);
   assert.match(html, /translate\(0,-8\) scale\(2\.25\)/);
   assert.match(html, /id="hero-course-failure"/);
@@ -47,8 +56,12 @@ test("download website exposes architecture-specific release links", () => {
   assert.doesNotMatch(html, /<animateMotion/);
   assert.doesNotMatch(html, /hero-waypoint|data-waypoint/);
   assert.match(html, /src="\.\/wayfinder-icon\.svg"/);
-  assert.match(html, /href="\.\/styles\.css\?v=0\.3\.14-mobile-scene"/);
-  assert.match(html, /src="\.\/app\.js\?v=0\.3\.14-mobile-scene"/);
+  assert.match(html, /href="\.\/styles\.css\?v=0\.3\.14-mobile-layout-v2"/);
+  assert.match(html, /src="\.\/app\.js\?v=0\.3\.14-mobile-layout-v2"/);
+  assert.match(
+    html,
+    /srcset="\.\/login-voyage-mobile-2k\.png\?v=map-mobile-0\.3\.14"/
+  );
   assert.match(html, /src="\.\/login-voyage-focus-4k\.png\?v=map-0\.3\.14"/);
   assert.match(html, /<figure class="product-visual">/);
   assert.doesNotMatch(html, /class="product-image-link"/);
@@ -59,6 +72,8 @@ test("download website exposes architecture-specific release links", () => {
   assert.equal(productImage.readUInt32BE(20), 1_440);
   assert.equal(productFocusImage.readUInt32BE(16), 3_840);
   assert.equal(productFocusImage.readUInt32BE(20), 2_160);
+  assert.equal(productMobileImage.readUInt32BE(16), 2_800);
+  assert.equal(productMobileImage.readUInt32BE(20), 3_024);
   assert.match(
     html,
     /data-download="arm64"[\s\S]*?href="https:\/\/github\.com\/StayCurious-Xuan\/wayfinder\/releases"/
