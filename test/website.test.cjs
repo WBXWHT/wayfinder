@@ -40,9 +40,9 @@ test("download website exposes architecture-specific release links", () => {
   assert.doesNotMatch(html, /<animateMotion/);
   assert.doesNotMatch(html, /hero-waypoint|data-waypoint/);
   assert.match(html, /src="\.\/wayfinder-icon\.svg"/);
-  assert.match(html, /href="\.\/styles\.css\?v=0\.3\.11-anchored"/);
-  assert.match(html, /src="\.\/app\.js\?v=0\.3\.11-anchored"/);
-  assert.match(html, /src="\.\/login-voyage-focus-4k\.png\?v=map-0\.3\.11"/);
+  assert.match(html, /href="\.\/styles\.css\?v=0\.3\.12-anchored"/);
+  assert.match(html, /src="\.\/app\.js\?v=0\.3\.12-anchored"/);
+  assert.match(html, /src="\.\/login-voyage-focus-4k\.png\?v=map-0\.3\.12"/);
   assert.match(html, /<figure class="product-visual">/);
   assert.doesNotMatch(html, /class="product-image-link"/);
   assert.doesNotMatch(html, /href="\.\/login-voyage-focus-4k\.png/);
@@ -188,7 +188,7 @@ test("public Windows installer smoke test installs and launches the release", ()
   assert.match(workflow, /SHA256SUMS/);
   assert.match(workflow, /Get-FileHash \$installer -Algorithm SHA256/);
   assert.match(workflow, /ArgumentList @\("\/S", "\/D=\$installDir"\)/);
-  assert.match(workflow, /default: alpha-v0\.3\.11/);
+  assert.match(workflow, /default: alpha-v0\.3\.12/);
   assert.match(workflow, /collector sidecar was not found/);
   assert.match(workflow, /\$machine -ne 0x8664/);
   assert.match(workflow, /& \$sidecar\.FullName --version/);

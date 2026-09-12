@@ -6,7 +6,7 @@ Security fixes are provided for the latest public Wayfinder release.
 
 | Version | Supported |
 | --- | --- |
-| 0.3.11 | Yes |
+| 0.3.12 | Yes |
 | Earlier releases | No |
 
 ## Report a Vulnerability

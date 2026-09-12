@@ -43,7 +43,7 @@ not the boundary of the product. The complete history stays under
 
 ## Current State
 
-- Public/live release: `0.3.11` early access.
+- Public/live release: `0.3.12` early access.
 - Public artifacts: Apple Silicon and Intel macOS DMGs plus a Windows x64 NSIS
   installer, with SHA-256 checksums.
-- Local source version: `0.3.11`.
+- Local source version: `0.3.12`.

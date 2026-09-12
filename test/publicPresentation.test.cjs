@@ -28,9 +28,9 @@ test("repository overview uses the public 2K presentation assets", () => {
   assert.match(readme, /wayfinder-social-preview-2k\.png/);
   assert.match(readme, /wayfinder-voyage-overview-2k\.png/);
   assert.match(readme, /No account\. No telemetry\. No cloud sync\./);
-  assert.match(readme, /Wayfinder-Alpha-0\.3\.11-macOS-aarch64\.dmg/);
-  assert.match(readme, /Wayfinder-Alpha-0\.3\.11-macOS-x86_64\.dmg/);
-  assert.match(readme, /Wayfinder-Alpha-0\.3\.11-Windows-x86_64\.exe/);
+  assert.match(readme, /Wayfinder-Alpha-0\.3\.12-macOS-aarch64\.dmg/);
+  assert.match(readme, /Wayfinder-Alpha-0\.3\.12-macOS-x86_64\.dmg/);
+  assert.match(readme, /Wayfinder-Alpha-0\.3\.12-Windows-x86_64\.exe/);
   assert.doesNotMatch(readme, /wayfinder-product-hunt-map\.png/);
   assert.doesNotMatch(readme, /WBXWHT/);
 });
@@ -52,7 +52,7 @@ test("website metadata states the product category and current platforms", () =>
   assert.match(html, /property="og:image:alt" content="Wayfinder [^"]+"/);
   assert.match(html, /name="twitter:image:alt" content="Wayfinder [^"]+"/);
   assert.match(html, /"@type": "SoftwareApplication"/);
-  assert.match(html, /"softwareVersion": "0\.3\.11"/);
+  assert.match(html, /"softwareVersion": "0\.3\.12"/);
   assert.match(
     read("website/robots.txt").toString("utf8"),
     /Sitemap: https:\/\/wayfinder-ai\.pages\.dev\/sitemap\.xml/
@@ -83,8 +83,8 @@ test("public support and release documents are explicit and current", () => {
 
   assert.match(security, /private vulnerability reporting/);
   assert.ok(security.includes("`~/.wayfinder`"));
-  assert.match(security, /\| 0\.3\.11 \| Yes \|/);
-  assert.match(changelog, /## \[0\.3\.11\] - 2026-09-12/);
+  assert.match(security, /\| 0\.3\.12 \| Yes \|/);
+  assert.match(changelog, /## \[0\.3\.12\] - 2026-09-12/);
   assert.match(changelog, /Windows x64 installer/);
   assert.match(bugTemplate, /synthetic data/);
 });
